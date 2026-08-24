@@ -2,9 +2,10 @@
 // Chrome eklenti ortamında gerçek API bulunduğundan bu dosya hiçbir şeyi değiştirmez.
 if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("preview")) {
   let previewState = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     enabled: true,
     learnedDomains: ["media-cdn.example", "blocked-service.example"],
+    ignoredDomains: ["ignored.example"],
     lastDetectedDomain: "blocked-service.example",
     proxyPort: 1080,
     lastProxyError: null,
@@ -16,7 +17,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
 
   globalThis.chrome = {
     runtime: {
-      getManifest: () => ({ version: "4.0.2" }),
+      getManifest: () => ({ version: "4.1.0" }),
       async sendMessage(message) {
         if (message?.type === "saveSettings") {
           previewState = { ...previewState, ...(message.patch || {}) };

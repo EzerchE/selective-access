@@ -1,7 +1,8 @@
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 4,
+  schemaVersion: 5,
   enabled: false,
   learnedDomains: [],
+  ignoredDomains: [],
   proxyHost: "127.0.0.1",
   proxyPort: 1080,
   lastDetectedDomain: null,
@@ -87,12 +88,15 @@ function isLocalHost(host) {
 
 async function getSettings() {
   const saved = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const ignoredDomains = normalizeDomains(saved.ignoredDomains);
   return {
     ...DEFAULT_SETTINGS,
     ...saved,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: Boolean(saved.enabled),
-    learnedDomains: normalizeDomains(saved.learnedDomains),
+    learnedDomains: normalizeDomains(saved.learnedDomains)
+      .filter((domain) => !isCovered(domain, ignoredDomains)),
+    ignoredDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
     proxyPort: normalizePort(saved.proxyPort)
   };
@@ -211,17 +215,26 @@ async function applyProxy() {
 
 async function saveSettings(patch) {
   const current = await getSettings();
+  const ignoredDomains = patch.ignoredDomains === undefined
+    ? current.ignoredDomains
+    : normalizeDomains(patch.ignoredDomains);
+  const learnedDomains = (patch.learnedDomains === undefined
+    ? current.learnedDomains
+    : normalizeDomains(patch.learnedDomains))
+    .filter((domain) => !isCovered(domain, ignoredDomains));
   const next = {
     ...current,
     ...patch,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: patch.enabled === undefined ? current.enabled : Boolean(patch.enabled),
-    learnedDomains: patch.learnedDomains === undefined
-      ? current.learnedDomains
-      : normalizeDomains(patch.learnedDomains),
+    learnedDomains,
+    ignoredDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
     proxyPort: patch.proxyPort === undefined ? current.proxyPort : normalizePort(patch.proxyPort),
-    lastProxyError: null
+    lastProxyError: null,
+    lastDetectedDomain: current.lastDetectedDomain && isCovered(current.lastDetectedDomain, ignoredDomains)
+      ? null
+      : current.lastDetectedDomain
   };
 
   await chrome.storage.local.set(next);
@@ -283,7 +296,7 @@ async function recordMainFrameDnsIssue(details) {
   const settings = await getSettings();
   if (!settings.enabled) return true;
   const host = getRequestHost(details);
-  if (!host || isLocalHost(host)) return true;
+  if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return true;
 
   const issueType = error === "ERR_ADDRESS_INVALID" ? "dns_filtered" : "dns_unresolved";
   await chrome.storage.local.set({
@@ -305,7 +318,7 @@ async function learnAndRetry(details) {
 
   const host = getRequestHost(details);
 
-  if (!host || isLocalHost(host)) return;
+  if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
 
   if (isCovered(host, settings.learnedDomains)) {
     if (details.type === "main_frame") {
@@ -440,7 +453,8 @@ async function checkGlobalStatus(value, tabId = null) {
     settings.enabled &&
     settings.lastIssueDomain === domain &&
     ["dns_filtered", "dns_unresolved"].includes(settings.lastIssueType) &&
-    !isCovered(domain, settings.learnedDomains)
+    !isCovered(domain, settings.learnedDomains) &&
+    !isCovered(domain, settings.ignoredDomains)
   ) {
     const learnedDomains = normalizeDomains([...settings.learnedDomains, domain]);
     const now = Date.now();
@@ -492,6 +506,7 @@ async function initialize() {
     await chrome.storage.local.set({
       schemaVersion: DEFAULT_SETTINGS.schemaVersion,
       learnedDomains: normalizeDomains(existing.learnedDomains),
+      ignoredDomains: normalizeDomains(existing.ignoredDomains),
       enabled: Boolean(existing.enabled),
       proxyHost: DEFAULT_SETTINGS.proxyHost,
       proxyPort: normalizePort(existing.proxyPort),

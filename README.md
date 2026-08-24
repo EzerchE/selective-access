@@ -4,7 +4,7 @@ Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü k
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
-![Otomatik Erişim v4.0.2 popup ekranı](assets/screenshots/popup-v4-2.png)
+![Otomatik Erişim v4.1 popup ekranı](assets/screenshots/popup-v4-1-ignore.png)
 
 Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde gösterilen bildirim:
 
@@ -53,9 +53,11 @@ Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. B
 
 Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralı uygulandıktan sonra sekme bir kez yenilenir. Hata bir gönderinin içindeki video, görsel, iframe veya API kaynağındaysa üst sayfa yenilenmez. Böylece açık gönderi, form durumu, kaydırma konumu ve tek sayfa uygulamalarının oturumu korunur.
 
-### Elle ekleme ve tek tıkla çıkarma
+### Elle ekleme, çıkarma ve kalıcı yoksayma
 
-Popup, açık sekmenin alan adını gösterir. Kullanıcı **Şimdi geçide al** düğmesiyle hedefi elle ekleyebilir. Öğrenilen hedefler ayrı satırlarda gösterilir ve her hedef kendi `×` düğmesiyle listeden kaldırılabilir; metin düzenlemek gerekmez.
+Popup, açık sekmenin alan adını gösterir. Kullanıcı **Şimdi geçide al** düğmesiyle hedefi elle ekleyebilir. Öğrenilen hedefler ayrı satırlarda gösterilir. `×` hedefi yönlendirmeden çıkarır ancak sonraki bağlantı hatasında yeniden öğrenilmesine izin verir. **Yoksay** hedefi hem yönlendirmeden çıkarır hem tekrar otomatik öğrenilmesini engeller.
+
+Yoksayılan hedefler ayrı listede görülebilir ve `↩` düğmesiyle yeniden otomatik algılamaya açılabilir. Bir üst alan adı yoksayılırsa alt alan adları da yoksayılmış kabul edilir.
 
 ### DNS engelleri için şifreli çözümleme
 
@@ -86,7 +88,7 @@ Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenile
 Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı hatası algılandığında:
 
 1. Alan adı normalleştirilip tekrarlar ayıklanır.
-2. Hedef `chrome.storage.local` içindeki öğrenilen listeye eklenir.
+2. Hedef yoksayılan listede değilse `chrome.storage.local` içindeki öğrenilen listeye eklenir.
 3. PAC kuralı yalnız hedefi ve alt alan adlarını `127.0.0.1:1080` üzerindeki ByeDPI SOCKS5 geçidine gönderir.
 4. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.
 5. Ana sayfa hatasıysa sekme bir kez yenilenir; gömülü kaynak hatasıysa sayfa yerinde bırakılır.
@@ -127,7 +129,7 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 - `webRequest` ve HTTP/HTTPS adres erişimi: Bağlantı hatalarını ve başarılı ana sayfa isteklerini algılamak.
 - `notifications`: Bir hedef ilk kez otomatik öğrenildiğinde kullanıcıya erişimin hazır olduğunu bildirmek.
 - `proxy`: Öğrenilen alan adları için seçici PAC/SOCKS5 yönlendirmesi uygulamak.
-- `storage`: Ayarları, teşhis durumunu ve öğrenilen hedefleri cihazda saklamak.
+- `storage`: Ayarları, teşhis durumunu, öğrenilen ve yoksayılan hedefleri cihazda saklamak.
 - `activeTab`: Popup açıldığında yalnız etkin sekmenin alan adını göstermek ve kullanıcı işlemlerini o sekmeyle ilişkilendirmek.
 
 Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS trafiğini çözmez.

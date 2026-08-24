@@ -6,7 +6,7 @@ Otomatik Erişim'in amacı, bağlantı hatası yaşayan alan adlarını kullanı
 
 ## Yerel olarak işlenen veriler
 
-Eklenti etkinleştirildiğinde istek yapılan alan adlarını, Chrome bağlantı hata türlerini, ilgili zaman bilgisini ve kullanıcının öğrendiği alan adı listesini işler. Bunlar web gezinme etkinliği sayılabilir. Veriler `chrome.storage.local` içinde yalnız kullanıcının cihazında tutulur ve geliştiriciye gönderilmez.
+Eklenti etkinleştirildiğinde istek yapılan alan adlarını, Chrome bağlantı hata türlerini, ilgili zaman bilgisini, öğrenilen alan adı listesini ve kullanıcının yoksaydığı alan adlarını işler. Bunlar web gezinme etkinliği sayılabilir. Veriler `chrome.storage.local` içinde yalnız kullanıcının cihazında tutulur ve geliştiriciye gönderilmez.
 
 ## Üçüncü tarafa aktarım
 
@@ -18,7 +18,7 @@ Geliştiriciye ait bir telemetri, analiz, reklam veya uzaktan kayıt sunucusu yo
 
 ## Saklama ve silme
 
-Öğrenilen alan adları kullanıcı silene, eklenti verilerini temizleyene veya eklentiyi kaldırana kadar yerel cihazda kalır. Popup üzerinden girdiler ayrı ayrı silinebilir.
+Öğrenilen ve yoksayılan alan adları kullanıcı silene, eklenti verilerini temizleyene veya eklentiyi kaldırana kadar yerel cihazda kalır. Popup üzerinden öğrenilen hedefler çıkarılabilir veya yoksayılabilir; yoksayma kararı ayrı ayrı geri alınabilir.
 
 Chrome eklentisini kaldırmak yerel listeyi siler; sistem geneli DNS kuralını ve yardımcı hizmetleri kaldırmak için ayrıca `helper/uninstall.cmd` çalıştırılmalıdır. Üçüncü taraf DNS ve ölçüm sağlayıcılarındaki kayıtların saklanması ilgili sağlayıcının politikasına tabidir.
 
@@ -30,7 +30,7 @@ Eklenti kullanıcı verisini satmaz, reklam hedefleme amacıyla kullanmaz ve ü�
 
 - `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
 - `webRequest` ve HTTP/HTTPS host erişimi: ağ hatalarını ve başarılı ana sayfa yanıtlarını algılamak.
-- `storage`: ayarları ve öğrenilen alan adlarını yerel olarak saklamak.
+- `storage`: ayarları, öğrenilen ve yoksayılan alan adlarını yerel olarak saklamak.
 - `activeTab`: kullanıcı popup'ı açtığında yalnız etkin sekmenin alan adını göstermek ve isteğe bağlı işlem uygulamak.
 - `notifications`: yeni bir hedef otomatik öğrenildiğinde yalnız cihaz üzerinde Chrome bildirimi göstermek.
 

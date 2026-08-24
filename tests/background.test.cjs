@@ -181,8 +181,9 @@ function assertBadge(details, tabId, text) {
 (async () => {
   await listeners.installed();
   assert.equal(storage.enabled, false);
-  assert.equal(storage.schemaVersion, 4);
+  assert.equal(storage.schemaVersion, 5);
   assert.deepEqual([...storage.learnedDomains], []);
+  assert.deepEqual([...storage.ignoredDomains], []);
   assert.deepEqual([...listeners.requestFilter.urls], ["http://*/*", "https://*/*"]);
 
   const enabled = await send({
@@ -217,6 +218,33 @@ function assertBadge(details, tabId, text) {
   assert.match(notifications[0].options.message, /media-cdn\.example/);
   assert.equal(reloads.length, 0);
 
+  const ignored = await send({
+    type: "saveSettings",
+    patch: { learnedDomains: [], ignoredDomains: ["media-cdn.example"] }
+  });
+  assert.deepEqual([...ignored.state.learnedDomains], []);
+  assert.deepEqual([...ignored.state.ignoredDomains], ["media-cdn.example"]);
+  await listeners.requestError({
+    tabId: 42,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://media-cdn.example/embed/again"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual([...storage.learnedDomains], []);
+  assert.equal(notifications.length, 1);
+
+  await send({ type: "saveSettings", patch: { ignoredDomains: [] } });
+  await listeners.requestError({
+    tabId: 42,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://media-cdn.example/embed/restored"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
+  assert.equal(notifications.length, 2);
+
   await listeners.requestError({
     tabId: 7,
     type: "main_frame",
@@ -238,8 +266,8 @@ function assertBadge(details, tabId, text) {
   assert.equal(globalStatus.result.reachable, 2);
   assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
   assert.equal(storage.lastIssueType, "route_learned");
-  assert.equal(notifications.length, 2);
-  assert.equal(notifications[1].id, "learned:blocked-by-dns.example");
+  assert.equal(notifications.length, 3);
+  assert.equal(notifications[2].id, "learned:blocked-by-dns.example");
   await new Promise((resolve) => setTimeout(resolve, 550));
   assert.equal(reloads.at(-1).tabId, 7);
   const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
@@ -255,10 +283,10 @@ function assertBadge(details, tabId, text) {
   });
   assert.equal(downStatus.result.status, "likely_down");
   assertBadge(badgeTexts.at(-1), 33, "DOWN");
-  assert.equal(notifications.length, 3);
-  assert.equal(notifications[2].id, "outage:globally-down.example");
-  assert.equal(notifications[2].options.title, "Genel kesinti olası");
-  assert.match(notifications[2].options.message, /birden fazla dış noktadan/);
+  assert.equal(notifications.length, 4);
+  assert.equal(notifications[3].id, "outage:globally-down.example");
+  assert.equal(notifications[3].options.title, "Genel kesinti olası");
+  assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
   assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
 
   listeners.tabActivated({ tabId: 44 });

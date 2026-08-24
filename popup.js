@@ -7,6 +7,8 @@ const elements = {
   siteAction: document.querySelector("#siteAction"),
   domainList: document.querySelector("#domainList"),
   domainCount: document.querySelector("#domainCount"),
+  ignoredList: document.querySelector("#ignoredList"),
+  ignoredCount: document.querySelector("#ignoredCount"),
   proxyPort: document.querySelector("#proxyPort"),
   notice: document.querySelector("#notice"),
   save: document.querySelector("#save"),
@@ -24,6 +26,7 @@ let currentState = null;
 let protocolReady = true;
 let checkingGlobalStatus = false;
 let learnedDomains = [];
+let ignoredDomains = [];
 
 elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
 
@@ -66,6 +69,22 @@ function renderDomainList() {
     name.textContent = domain;
     name.title = domain;
 
+    const actions = document.createElement("div");
+    actions.className = "domain-actions";
+
+    const ignore = document.createElement("button");
+    ignore.className = "domain-ignore";
+    ignore.type = "button";
+    ignore.textContent = "Yoksay";
+    ignore.title = `${domain} hedefini kalıcı olarak yoksay`;
+    ignore.setAttribute("aria-label", `${domain} hedefini kalıcı olarak yoksay`);
+    ignore.addEventListener("click", () => {
+      save({
+        learnedDomains: learnedDomains.filter((value) => value !== domain),
+        ignoredDomains: [...ignoredDomains, domain]
+      });
+    });
+
     const remove = document.createElement("button");
     remove.className = "domain-remove";
     remove.type = "button";
@@ -76,8 +95,42 @@ function renderDomainList() {
       save({ learnedDomains: learnedDomains.filter((value) => value !== domain) });
     });
 
-    row.append(name, remove);
+    actions.append(ignore, remove);
+    row.append(name, actions);
     elements.domainList.append(row);
+  }
+}
+
+function renderIgnoredList() {
+  elements.ignoredList.replaceChildren();
+  elements.ignoredCount.textContent = String(ignoredDomains.length);
+
+  if (ignoredDomains.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "domain-empty";
+    empty.textContent = "Yoksayılan bir hedef yok";
+    elements.ignoredList.append(empty);
+    return;
+  }
+
+  for (const domain of ignoredDomains) {
+    const row = document.createElement("div");
+    row.className = "domain-row";
+    const name = document.createElement("span");
+    name.className = "domain-name";
+    name.textContent = domain;
+    name.title = domain;
+    const restore = document.createElement("button");
+    restore.className = "domain-remove";
+    restore.type = "button";
+    restore.textContent = "↩";
+    restore.title = `${domain} için yoksaymayı kaldır`;
+    restore.setAttribute("aria-label", `${domain} için yoksaymayı kaldır`);
+    restore.addEventListener("click", () => {
+      save({ ignoredDomains: ignoredDomains.filter((value) => value !== domain) });
+    });
+    row.append(name, restore);
+    elements.ignoredList.append(row);
   }
 }
 
@@ -90,7 +143,8 @@ function showNotice(message, isError = false) {
 function render(state) {
   currentState = state;
   learnedDomains = Array.isArray(state.learnedDomains) ? [...state.learnedDomains] : [];
-  const versionMismatch = state.schemaVersion !== 4;
+  ignoredDomains = Array.isArray(state.ignoredDomains) ? [...state.ignoredDomains] : [];
+  const versionMismatch = state.schemaVersion !== 5;
   protocolReady = !versionMismatch;
   elements.enabled.checked = state.enabled;
   elements.enabled.disabled = versionMismatch;
@@ -98,6 +152,7 @@ function render(state) {
   elements.save.disabled = versionMismatch;
   elements.retry.disabled = versionMismatch;
   renderDomainList();
+  renderIgnoredList();
   elements.proxyPort.value = String(state.proxyPort);
 
   const hasControlError = ["not_controllable", "controlled_by_other_extensions"]
@@ -184,8 +239,9 @@ function renderDiagnostic(state) {
 function updateSiteAction() {
   if (!currentHost) return;
   const learned = isCovered(currentHost, learnedDomains);
-  elements.siteAction.textContent = learned ? "Listeden çıkar" : "Şimdi geçide al";
-  elements.siteAction.dataset.mode = learned ? "remove" : "add";
+  const ignored = isCovered(currentHost, ignoredDomains);
+  elements.siteAction.textContent = ignored ? "Yoksaymayı kaldır" : learned ? "Listeden çıkar" : "Şimdi geçide al";
+  elements.siteAction.dataset.mode = ignored ? "unignore" : learned ? "remove" : "add";
 }
 
 async function sendMessage(message) {
@@ -227,11 +283,16 @@ async function save(patch = {}) {
       ? learnedDomains
       : [...new Set(patch.learnedDomains.map(normalizeDomain).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
+    const nextIgnoredDomains = patch.ignoredDomains === undefined
+      ? ignoredDomains
+      : [...new Set(patch.ignoredDomains.map(normalizeDomain).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
     const response = await sendMessage({
       type: "saveSettings",
       patch: {
         ...patch,
         learnedDomains: nextDomains,
+        ignoredDomains: nextIgnoredDomains,
         proxyPort: port
       }
     });
@@ -262,11 +323,23 @@ elements.siteAction.addEventListener("click", () => {
     nextDomains = nextDomains.filter(
       (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
     );
+  } else if (elements.siteAction.dataset.mode === "unignore") {
+    save({
+      ignoredDomains: ignoredDomains.filter(
+        (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
+      )
+    });
+    return;
   } else {
     nextDomains.push(currentHost);
   }
 
-  save({ learnedDomains: nextDomains });
+  save({
+    learnedDomains: nextDomains,
+    ignoredDomains: ignoredDomains.filter(
+      (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
+    )
+  });
 });
 
 elements.save.addEventListener("click", () => save());
@@ -316,9 +389,10 @@ if (previewMode) {
         levelOfControl: "controlled_by_this_extension"
       }
     : {
-        schemaVersion: 4,
+        schemaVersion: 5,
         enabled: true,
         learnedDomains: ["media-cdn.example"],
+        ignoredDomains: ["ignored.example"],
         lastDetectedDomain: "media-cdn.example",
         proxyPort: 1080,
         lastProxyError: null,

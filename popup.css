@@ -376,11 +376,33 @@ input:focus {
 }
 
 .domain-name {
+  min-width: 0;
   overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.domain-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.domain-ignore {
+  border: 0;
+  border-radius: 8px;
+  padding: 0 9px;
+  background: #fff2d6;
+  color: #8a5a00;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.domain-ignore:hover {
+  background: #ffe3a3;
 }
 
 .domain-remove {
@@ -401,6 +423,10 @@ input:focus {
 .domain-remove:hover {
   background: #feecec;
   color: #b42323;
+}
+
+.ignored-panel {
+  border-color: #ead9b2;
 }
 
 .advanced {

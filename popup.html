@@ -66,7 +66,19 @@
           <span id="domainCount" class="count">0</span>
         </div>
         <div id="domainList" class="domain-list" aria-live="polite"></div>
-        <p class="hint">Bağlantı hataları algılandıkça bu liste otomatik büyür. Bir hedefi kaldırmak için satırındaki × düğmesine basın.</p>
+        <p class="hint">× hedefi şimdilik çıkarır; Yoksay hedefi çıkarır ve sonraki hatalarda tekrar öğrenilmesini engeller.</p>
+      </section>
+
+      <section class="panel ignored-panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">YOKSAYILAN HEDEFLER</span>
+            <h2>Otomatik öğrenilmeyecek siteler</h2>
+          </div>
+          <span id="ignoredCount" class="count">0</span>
+        </div>
+        <div id="ignoredList" class="domain-list" aria-live="polite"></div>
+        <p class="hint">Yoksayılan hedefler bağlantı hatası verse bile otomatik yönlendirmeye eklenmez. Geri almak için satırındaki ↩ düğmesine basın.</p>
       </section>
 
       <details class="advanced">
