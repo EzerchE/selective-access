@@ -11,6 +11,7 @@ const notifications = [];
 let proxyConfig = null;
 let clearCount = 0;
 let measurementShouldBeDown = false;
+let notificationPermission = "granted";
 
 const chrome = {
   storage: {
@@ -35,6 +36,8 @@ const chrome = {
     async setTitle() {}
   },
   notifications: {
+    async getPermissionLevel() { return notificationPermission; },
+    async clear() { return true; },
     async create(id, options) {
       notifications.push({ id, options });
       return id;
@@ -216,6 +219,9 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].id, "learned:media-cdn.example");
   assert.match(notifications[0].options.message, /media-cdn\.example/);
+  assert.equal(notifications[0].options.priority, 2);
+  assert.equal(notifications[0].options.requireInteraction, true);
+  assert.equal(storage.lastNotificationStatus, "created");
   assert.equal(reloads.length, 0);
 
   const ignored = await send({
@@ -335,6 +341,15 @@ function assertBadge(details, tabId, text) {
   assert.equal(disabled.state.enabled, false);
   assert.equal(proxyConfig, null);
   assert.ok(clearCount >= 2);
+
+  const notificationTest = await send({ type: "testNotification" });
+  assert.equal(notificationTest.ok, true);
+  assert.equal(notificationTest.result.ok, true);
+  assert.equal(notifications.at(-1).options.title, "Otomatik Erişim bildirim testi");
+  notificationPermission = "denied";
+  const deniedNotificationTest = await send({ type: "testNotification" });
+  assert.equal(deniedNotificationTest.result.ok, false);
+  assert.match(deniedNotificationTest.result.error, /bildirim izni kapalı/i);
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {

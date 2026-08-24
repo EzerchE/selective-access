@@ -12,7 +12,11 @@ const DEFAULT_SETTINGS = Object.freeze({
   lastIssueDomain: null,
   lastIssueError: null,
   lastIssueAt: null,
-  lastGlobalCheck: null
+  lastGlobalCheck: null,
+  lastNotificationStatus: null,
+  lastNotificationDomain: null,
+  lastNotificationAt: null,
+  lastNotificationError: null
 });
 
 const RETRYABLE_ERRORS = Object.freeze([
@@ -263,12 +267,65 @@ function matchingError(details, candidates) {
 }
 
 async function notifyLearnedDomain(domain) {
-  await chrome.notifications.create(`learned:${domain}`, {
+  const id = `learned:${domain}`;
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") {
+    await chrome.storage.local.set({
+      lastNotificationStatus: "denied",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: "Chrome bildirim izni kapalı."
+    });
+    return { ok: false, error: "Chrome bildirim izni kapalı." };
+  }
+
+  // Aynı hedef daha önce öğrenilip silindiyse mevcut bildirimi güncellemek yerine
+  // temizleyip yeniden oluşturmak Windows'ta yeni toast gösterilmesini sağlar.
+  try {
+    await chrome.notifications.clear(id).catch(() => false);
+    const createdId = await chrome.notifications.create(id, {
+      type: "basic",
+      iconUrl: "assets/icon-128.png",
+      title: "Engel algılandı",
+      message: `${domain} otomatik yönlendirmeye eklendi. Bundan sonra erişim yerel geçit üzerinden denenecek.`,
+      priority: 2,
+      requireInteraction: true
+    });
+    await chrome.storage.local.set({
+      lastNotificationStatus: "created",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: null
+    });
+    return { ok: true, id: createdId };
+  } catch (error) {
+    await chrome.storage.local.set({
+      lastNotificationStatus: "failed",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: error.message || "Bildirim oluşturulamadı."
+    });
+    return { ok: false, error: error.message || "Bildirim oluşturulamadı." };
+  }
+}
+
+async function sendTestNotification() {
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") return { ok: false, error: "Chrome bildirim izni kapalı." };
+  const id = `test:${Date.now()}`;
+  await chrome.notifications.create(id, {
     type: "basic",
     iconUrl: "assets/icon-128.png",
-    title: "Engel algılandı",
-    message: `${domain} otomatik yönlendirmeye eklendi. Bundan sonra erişim yerel geçit üzerinden denenecek.`
+    title: "Otomatik Erişim bildirim testi",
+    message: "Bu bildirimi görüyorsanız yeni hedef bildirimleri çalışıyor.",
+    priority: 2,
+    requireInteraction: true
   });
+  return { ok: true, id };
 }
 
 async function notifyLikelyGlobalOutage(domain) {
@@ -585,6 +642,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id
           )
         };
+      case "testNotification":
+        return { ok: true, result: await sendTestNotification() };
       default:
         return { ok: false, error: "Bilinmeyen istek." };
     }

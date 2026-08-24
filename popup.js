@@ -17,7 +17,8 @@ const elements = {
   diagnosticCard: document.querySelector("#diagnosticCard"),
   diagnosticTitle: document.querySelector("#diagnosticTitle"),
   diagnosticText: document.querySelector("#diagnosticText"),
-  checkStatus: document.querySelector("#checkStatus")
+  checkStatus: document.querySelector("#checkStatus"),
+  testNotification: document.querySelector("#testNotification")
 };
 
 let currentHost = null;
@@ -182,6 +183,12 @@ function render(state) {
   } else {
     updateSiteAction();
     renderDiagnostic(state);
+    if (["denied", "failed"].includes(state.lastNotificationStatus)) {
+      showNotice(
+        `Son bildirim gösterilemedi: ${state.lastNotificationError || "Chrome veya Windows bildirim ayarını kontrol edin."}`,
+        true
+      );
+    }
   }
 }
 
@@ -355,6 +362,24 @@ elements.retry.addEventListener("click", async () => {
     );
   } catch (error) {
     showNotice(error.message, true);
+  }
+});
+
+elements.testNotification.addEventListener("click", async () => {
+  showNotice("");
+  elements.testNotification.disabled = true;
+  try {
+    const response = await sendMessage({ type: "testNotification" });
+    showNotice(
+      response.result.ok
+        ? "Test bildirimi Chrome'a gönderildi. Görünmüyorsa Windows Bildirim Merkezi ve Rahatsız etmeyin ayarını kontrol edin."
+        : response.result.error,
+      !response.result.ok
+    );
+  } catch (error) {
+    showNotice(error.message, true);
+  } finally {
+    elements.testNotification.disabled = false;
   }
 });
 

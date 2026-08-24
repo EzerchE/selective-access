@@ -17,7 +17,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
 
   globalThis.chrome = {
     runtime: {
-      getManifest: () => ({ version: "4.1.0" }),
+      getManifest: () => ({ version: "4.1.1" }),
       async sendMessage(message) {
         if (message?.type === "saveSettings") {
           previewState = { ...previewState, ...(message.patch || {}) };
@@ -26,6 +26,9 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
         if (message?.type === "getState") return { ok: true, state: previewState };
         if (message?.type === "reapply") {
           return { ok: true, result: { ok: true }, state: previewState };
+        }
+        if (message?.type === "testNotification") {
+          return { ok: true, result: { ok: true, id: "preview-test" } };
         }
         return { ok: false, error: "Önizlemede desteklenmeyen istek." };
       }

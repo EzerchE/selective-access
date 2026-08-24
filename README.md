@@ -49,6 +49,8 @@ Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve iptal
 
 Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. Bildirim, hedefin artık yerel geçit üzerinden yeniden deneneceğini açıklar.
 
+Bildirimler yüksek öncelikli ve kullanıcı kapatana kadar görünür olacak şekilde oluşturulur. Aynı hedef silinip yeniden öğrenildiğinde eski bildirim kaydı temizlenerek yeni bildirim üretilir. **Yerel geçit ayarı → Bildirimi test et** düğmesi Chrome/Windows bildirim zincirini sınamak için kullanılabilir; Chrome bildirimi kabul ettiği halde ekranda görünmüyorsa Windows Bildirim Merkezi ve **Rahatsız etmeyin** ayarı kontrol edilmelidir.
+
 ### Sayfa durumunu koruyan yeniden deneme
 
 Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralı uygulandıktan sonra sekme bir kez yenilenir. Hata bir gönderinin içindeki video, görsel, iframe veya API kaynağındaysa üst sayfa yenilenmez. Böylece açık gönderi, form durumu, kaydırma konumu ve tek sayfa uygulamalarının oturumu korunur.
