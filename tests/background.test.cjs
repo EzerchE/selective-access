@@ -124,7 +124,7 @@ const chrome = {
 };
 
 const fetch = async (url, options = {}) => {
-  if (options.method === "HEAD") {
+  if (options.method === "GET" && options.headers?.Range === "bytes=0-0") {
     const host = new URL(url).hostname;
     if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
     throw new Error("direct probe failed");
@@ -216,14 +216,12 @@ function assertBadge(details, tabId, text) {
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await listeners.requestError({
-      tabId: 42,
-      type: "sub_frame",
-      error: "net::ERR_CONNECTION_RESET",
-      url: "https://media-cdn.example/embed/video"
-    });
-  }
+  await listeners.requestError({
+    tabId: 42,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://media-cdn.example/embed/video"
+  });
   await new Promise((resolve) => setTimeout(resolve, 550));
 
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
@@ -252,19 +250,27 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications.length, 1);
 
   await send({ type: "saveSettings", patch: { ignoredDomains: [] } });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await listeners.requestError({
-      tabId: 42,
-      type: "sub_frame",
-      error: "net::ERR_CONNECTION_RESET",
-      url: "https://media-cdn.example/embed/restored"
-    });
-  }
+  await listeners.requestError({
+    tabId: 42,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://media-cdn.example/embed/restored"
+  });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 2);
 
   directlyReachableHosts.add("normal-available.example");
+  await listeners.requestError({
+    tabId: 54,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://normal-available.example/embed/content"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
+  assert.equal(notifications.length, 2);
+
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await listeners.requestError({
       tabId: 55,

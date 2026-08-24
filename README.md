@@ -13,7 +13,7 @@ Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde göste
 ## Kısaca ne yapar?
 
 1. Bir siteyi önce normal internet bağlantısıyla açmayı dener.
-2. Erişim engeline benzeyen bağlantı sıfırlama, kapanma veya boş yanıt hatalarının kısa süre içinde tekrarlandığını doğrular.
+2. Erişim engeline benzeyen hatanın türünü ve isteğin ana sayfa mı yoksa gömülü kaynak mı olduğunu değerlendirir.
 3. Aynı hedef doğrudan yanıt vermiyorsa yalnız tam alan adını öğrenilen hedefler listesine ekler.
 4. Yalnız bu alan adını bilgisayardaki yerel DPI geçidine yönlendirir.
 5. Diğer bütün siteleri doğrudan bağlantıda bırakır.
@@ -43,7 +43,7 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 
 ### Otomatik hedef öğrenme
 
-Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Tek bir geçici hata hedefi öğrenmek için yeterli değildir. Bağlantı sıfırlama/kapanma veya boş yanıt hatası kısa süre içinde birkaç kez tekrarlanmalı ve çerez gönderilmeyen doğrudan erişim kontrolü de bağlantı kuramamalıdır. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
+Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Reddit gönderisindeki video gibi Chrome'un çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Örneğin `media.example.com` öğrenildiğinde `example.com` ve diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
@@ -92,8 +92,8 @@ Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenile
 Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı hatası algılandığında:
 
 1. Alan adı normalleştirilip tekrarlar ayıklanır.
-2. Hatanın türü ve kısa süre içindeki tekrar sayısı kontrol edilir; zaman aşımı ve TLS hataları otomatik öğrenilmez.
-3. Eşik aşılırsa aynı URL'ye çerezsiz bir `HEAD` isteğiyle doğrudan erişim sınanır. Herhangi bir HTTP yanıtı alınırsa hedef eklenmez.
+2. Hatanın türü ve isteğin ana sayfa mı gömülü kaynak mı olduğu kontrol edilir; zaman aşımı ve TLS hataları otomatik öğrenilmez.
+3. Eşik aşılırsa aynı URL'ye çerezsiz, yalnız ilk baytı isteyen sınırlı bir `GET` isteğiyle gerçek içerik erişimi sınanır. Herhangi bir HTTP yanıtı alınırsa hedef eklenmez.
 4. Doğrudan bağlantı da kurulamazsa hedef `chrome.storage.local` içindeki öğrenilen listeye eklenir.
 5. PAC kuralı yalnız hatayı veren tam alan adını `127.0.0.1:1080` üzerindeki ByeDPI SOCKS5 geçidine gönderir.
 6. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.

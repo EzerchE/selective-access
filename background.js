@@ -49,9 +49,9 @@ const detectionCandidates = new Map();
 let learningQueue = Promise.resolve();
 
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
-  ERR_CONNECTION_RESET: { main: 2, embedded: 3 },
-  ERR_CONNECTION_CLOSED: { main: 2, embedded: 3 },
-  ERR_EMPTY_RESPONSE: { main: 3, embedded: 4 }
+  ERR_CONNECTION_RESET: { main: 2, embedded: 1 },
+  ERR_CONNECTION_CLOSED: { main: 2, embedded: 1 },
+  ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 }
 });
 const CANDIDATE_WINDOW_MS = 30_000;
 
@@ -299,12 +299,14 @@ async function directRequestResponds(url) {
   const timeout = setTimeout(() => controller.abort(), 4_500);
   try {
     const response = await fetch(url, {
-      method: "HEAD",
+      method: "GET",
       cache: "no-store",
       credentials: "omit",
-      redirect: "manual",
+      redirect: "follow",
+      headers: { Range: "bytes=0-0" },
       signal: controller.signal
     });
+    controller.abort();
     return Boolean(response);
   } catch {
     return false;
