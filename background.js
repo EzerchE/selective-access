@@ -341,7 +341,10 @@ async function directRequestResponds(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4_500);
   try {
-    const response = await fetch(url, {
+    const probeUrl = new URL(url);
+    if (probeUrl.protocol === "ws:") probeUrl.protocol = "http:";
+    if (probeUrl.protocol === "wss:") probeUrl.protocol = "https:";
+    const response = await fetch(probeUrl.toString(), {
       method: "GET",
       cache: "no-store",
       credentials: "omit",
@@ -935,7 +938,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       .catch(console.error);
     return learningQueue;
   },
-  { urls: ["http://*/*", "https://*/*"] }
+  { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
 
 chrome.webRequest.onCompleted.addListener(

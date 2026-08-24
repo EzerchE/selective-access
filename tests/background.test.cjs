@@ -211,7 +211,10 @@ function assertBadge(details, tabId, text) {
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
   assert.equal(Object.hasOwn(storage, "dnsFallbackDomains"), false);
-  assert.deepEqual([...listeners.requestFilter.urls], ["http://*/*", "https://*/*"]);
+  assert.deepEqual(
+    [...listeners.requestFilter.urls],
+    ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"]
+  );
 
   const enabled = await send({
     type: "saveSettings",
@@ -479,13 +482,27 @@ function assertBadge(details, tabId, text) {
   assert.equal(reloads.at(-1).tabId, 42);
   assert.equal(reloads.at(-1).options.bypassCache, true);
 
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  await listeners.requestError({
+    tabId: 42,
+    type: "websocket",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "wss://realtime.example/socket",
+    initiator: "https://portal.example/"
+  });
+  assert.deepEqual([...storage.learnedDomains], ["realtime.example"]);
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "learned" &&
+    entry.host === "realtime.example" &&
+    entry.requestType === "websocket"), true);
+
   await listeners.requestError({
     tabId: 42,
     type: "xmlhttprequest",
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://tracker.resolution-error.example/pixel"
   });
-  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.deepEqual([...storage.learnedDomains], ["realtime.example"]);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   const reloadCountBeforeApp = reloads.length;
@@ -516,7 +533,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(reloads.length, reloadCountBeforeApp + 1);
   await new Promise((resolve) => setTimeout(resolve, 600));
   assert.equal(notifications.length, 5);
-  assert.match(notifications.at(-1).options.title, /2 hedef/);
+  assert.match(notifications.at(-1).options.title, /3 hedef/);
   assert.equal(notifications.at(-1).options.requireInteraction, undefined);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
