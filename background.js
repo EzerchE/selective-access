@@ -1,5 +1,5 @@
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 7,
+  schemaVersion: 8,
   enabled: false,
   learnedDomains: [],
   ignoredDomains: [],
@@ -34,6 +34,8 @@ const RETRYABLE_ERRORS = Object.freeze([
 const RETRYABLE_TYPES = new Set([
   "main_frame",
   "sub_frame",
+  "script",
+  "stylesheet",
   "media",
   "image",
   "xmlhttprequest",
@@ -48,7 +50,11 @@ const reloadTimers = new Map();
 const iframeRetryTimers = new Map();
 const pendingLearnedNotifications = new Set();
 let learnedNotificationTimer = null;
-let learningQueue = Promise.resolve();
+const learningQueues = new Map();
+const directProbeInFlight = new Map();
+const directProbeCache = new Map();
+const probeWaiters = [];
+let activeProbeCount = 0;
 
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_RESET: { main: 2, embedded: 1 },
@@ -72,21 +78,64 @@ const CRITICAL_CLIENT_FILTER_TYPES = new Set([
 const CLIENT_FILTER_WARNING_HOLD_MS = 15_000;
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
-let debugQueue = Promise.resolve();
+const DEBUG_FLUSH_DELAY_MS = 150;
+const DEBUG_BATCH_SIZE = 20;
+const MAX_CONCURRENT_PROBES = 3;
+const DIRECT_PROBE_CACHE_MS = 2_000;
+const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
+let debugEnabledCache = null;
+let debugBuffer = [];
+let debugFlushTimer = null;
+let debugWriteQueue = Promise.resolve();
+let settingsMutationQueue = Promise.resolve();
 
-function appendDebug(event, data = {}) {
-  debugQueue = debugQueue.then(async () => {
+function queueSettingsMutation(task) {
+  const current = settingsMutationQueue
+    .catch(() => {})
+    .then(task);
+  settingsMutationQueue = current.catch(() => {});
+  return current;
+}
+
+async function flushDebugBuffer() {
+  if (debugFlushTimer) {
+    clearTimeout(debugFlushTimer);
+    debugFlushTimer = null;
+  }
+  if (debugBuffer.length === 0) return debugWriteQueue;
+  const batch = debugBuffer.splice(0, debugBuffer.length);
+  debugWriteQueue = debugWriteQueue.then(async () => {
     const { debugEnabled = false, debugLog = [] } = await chrome.storage.local.get({
       debugEnabled: false,
       debugLog: []
     });
-    if (!debugEnabled) return;
-    const entry = { at: new Date().toISOString(), event, ...data };
+    debugEnabledCache = Boolean(debugEnabled);
+    if (!debugEnabledCache) return;
     await chrome.storage.local.set({
-      debugLog: [...(Array.isArray(debugLog) ? debugLog : []), entry].slice(-DEBUG_LOG_LIMIT)
+      debugLog: [...(Array.isArray(debugLog) ? debugLog : []), ...batch].slice(-DEBUG_LOG_LIMIT)
     });
-  }).catch((error) => console.debug("Otomatik Erişim debug kaydı yazılamadı", error));
-  return debugQueue;
+  });
+  return debugWriteQueue;
+}
+
+function appendDebug(event, data = {}) {
+  const enqueue = async () => {
+    if (debugEnabledCache === null) {
+      const state = await chrome.storage.local.get({ debugEnabled: false });
+      debugEnabledCache = Boolean(state.debugEnabled);
+    }
+    if (!debugEnabledCache) return;
+    debugBuffer.push({ at: new Date().toISOString(), event, ...data });
+    if (debugBuffer.length >= DEBUG_BATCH_SIZE) return flushDebugBuffer();
+    if (!debugFlushTimer) {
+      debugFlushTimer = setTimeout(() => {
+        flushDebugBuffer().catch((error) =>
+          console.debug("Otomatik Erişim debug kaydı yazılamadı", error));
+      }, DEBUG_FLUSH_DELAY_MS);
+    }
+  };
+  return enqueue().catch((error) =>
+    console.debug("Otomatik Erişim debug kaydı hazırlanamadı", error));
 }
 
 function actionTarget(tabId, values) {
@@ -136,11 +185,27 @@ function mainHostAliases(host, requestType = "main_frame") {
 }
 
 function isLocalHost(host) {
-  return host === "localhost" ||
-    host === "::1" ||
-    host.startsWith("127.") ||
-    host.startsWith("10.") ||
-    host.startsWith("192.168.");
+  const candidate = String(host || "").toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (!candidate) return true;
+  if (candidate === "localhost" || candidate.endsWith(".localhost") || candidate.endsWith(".local")) {
+    return true;
+  }
+  if (candidate === "::" || candidate === "::1") return true;
+  if (candidate.includes(":")) {
+    return candidate.startsWith("fc") || candidate.startsWith("fd") ||
+      candidate.startsWith("fe8") || candidate.startsWith("fe9") ||
+      candidate.startsWith("fea") || candidate.startsWith("feb");
+  }
+  const parts = candidate.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  return parts[0] === 0 ||
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168);
 }
 
 async function getSettings() {
@@ -169,13 +234,29 @@ function buildPacScript(settings) {
 function FindProxyForURL(url, host) {
   host = host.toLowerCase().replace(/\\.$/, "");
   var learnedDomains = ${learnedDomains};
+  var address = host.replace(/^\\[|\\]$/g, "");
+  var ipv4 = address.split(".");
+  var isPrivateIpv4 = false;
+  if (ipv4.length === 4) {
+    var first = parseInt(ipv4[0], 10);
+    var second = parseInt(ipv4[1], 10);
+    isPrivateIpv4 = first === 0 || first === 10 || first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  var isPrivateIpv6 = address.indexOf(":") !== -1 &&
+    (address === "::" || address === "::1" ||
+     shExpMatch(address, "fc*") || shExpMatch(address, "fd*") ||
+     shExpMatch(address, "fe8*") || shExpMatch(address, "fe9*") ||
+     shExpMatch(address, "fea*") || shExpMatch(address, "feb*"));
 
   if (isPlainHostName(host) ||
       host === "localhost" ||
-      host === "::1" ||
-      shExpMatch(host, "127.*") ||
-      shExpMatch(host, "10.*") ||
-      shExpMatch(host, "192.168.*")) {
+      dnsDomainIs(host, ".localhost") ||
+      dnsDomainIs(host, ".local") ||
+      isPrivateIpv4 ||
+      isPrivateIpv6) {
     return "DIRECT";
   }
 
@@ -269,7 +350,7 @@ async function applyProxy() {
   return { ok: true, enabled: true };
 }
 
-async function saveSettings(patch) {
+async function saveSettingsUnlocked(patch) {
   const current = await getSettings();
   const ignoredDomains = patch.ignoredDomains === undefined
     ? current.ignoredDomains
@@ -296,9 +377,21 @@ async function saveSettings(patch) {
       : current.lastDetectedDomain
   };
 
+  debugEnabledCache = next.debugEnabled;
+  if (!next.debugEnabled) {
+    debugBuffer = [];
+    if (debugFlushTimer) {
+      clearTimeout(debugFlushTimer);
+      debugFlushTimer = null;
+    }
+  }
   await chrome.storage.local.set(next);
   const result = await applyProxy();
   return { ...next, applyResult: result };
+}
+
+function saveSettings(patch) {
+  return queueSettingsMutation(() => saveSettingsUnlocked(patch));
 }
 
 async function getPublicState() {
@@ -340,18 +433,43 @@ function registerDetectionCandidate(host, details, error) {
   return { ready: count >= required, supported: true, count, required, key };
 }
 
-async function directRequestResponds(url) {
+function sanitizedProbeUrl(url) {
+  const probeUrl = new URL(url);
+  if (probeUrl.protocol === "ws:") probeUrl.protocol = "http:";
+  if (probeUrl.protocol === "wss:") probeUrl.protocol = "https:";
+  if (!["http:", "https:"].includes(probeUrl.protocol)) throw new Error("Desteklenmeyen probe protokolü.");
+  probeUrl.username = "";
+  probeUrl.password = "";
+  probeUrl.pathname = "/";
+  probeUrl.search = "";
+  probeUrl.hash = "";
+  return probeUrl.toString();
+}
+
+async function acquireProbeSlot() {
+  if (activeProbeCount < MAX_CONCURRENT_PROBES) {
+    activeProbeCount += 1;
+    return;
+  }
+  await new Promise((resolve) => probeWaiters.push(resolve));
+  activeProbeCount += 1;
+}
+
+function releaseProbeSlot() {
+  activeProbeCount = Math.max(0, activeProbeCount - 1);
+  probeWaiters.shift()?.();
+}
+
+async function runDirectProbe(probeUrl) {
+  await acquireProbeSlot();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4_500);
   try {
-    const probeUrl = new URL(url);
-    if (probeUrl.protocol === "ws:") probeUrl.protocol = "http:";
-    if (probeUrl.protocol === "wss:") probeUrl.protocol = "https:";
-    const response = await fetch(probeUrl.toString(), {
+    const response = await fetch(probeUrl, {
       method: "GET",
       cache: "no-store",
       credentials: "omit",
-      redirect: "follow",
+      redirect: "manual",
       headers: { Range: "bytes=0-0" },
       signal: controller.signal
     });
@@ -361,7 +479,51 @@ async function directRequestResponds(url) {
     return false;
   } finally {
     clearTimeout(timeout);
+    releaseProbeSlot();
   }
+}
+
+function directRequestResponds(url) {
+  let probeUrl;
+  try {
+    probeUrl = sanitizedProbeUrl(url);
+  } catch {
+    return Promise.resolve(false);
+  }
+  const now = Date.now();
+  for (const [key, value] of directProbeCache) {
+    if (now - value.at >= DIRECT_PROBE_CACHE_MS) directProbeCache.delete(key);
+  }
+  const cached = directProbeCache.get(probeUrl);
+  if (cached) {
+    return Promise.resolve(cached.reachable);
+  }
+  const existing = directProbeInFlight.get(probeUrl);
+  if (existing) return existing;
+  const request = runDirectProbe(probeUrl)
+    .then((reachable) => {
+      directProbeCache.set(probeUrl, { at: Date.now(), reachable });
+      return reachable;
+    })
+    .finally(() => {
+      if (directProbeInFlight.get(probeUrl) === request) directProbeInFlight.delete(probeUrl);
+    });
+  directProbeInFlight.set(probeUrl, request);
+  return request;
+}
+
+function enqueueHostTask(details, task) {
+  const host = getRequestHost(details) || `tab-${details.tabId}`;
+  const previous = learningQueues.get(host) || Promise.resolve();
+  const current = previous
+    .catch(() => {})
+    .then(task)
+    .catch(console.error)
+    .finally(() => {
+      if (learningQueues.get(host) === current) learningQueues.delete(host);
+    });
+  learningQueues.set(host, current);
+  return current;
 }
 
 function scheduleTabReload(tabId, delayMs = 1_500) {
@@ -626,6 +788,37 @@ async function recordCriticalClientFilter(details) {
   await setIssueBadge(true, "client_filter_blocked", details.tabId);
 }
 
+function commitLearnedRoute(host, details, error) {
+  return queueSettingsMutation(async () => {
+    const latest = await getSettings();
+    if (!latest.enabled || isLocalHost(host) || isCovered(host, latest.ignoredDomains)) {
+      return { added: false, skipped: true, learnedDomains: latest.learnedDomains };
+    }
+    if (isLearned(host, latest.learnedDomains)) {
+      return { added: false, skipped: false, learnedDomains: latest.learnedDomains };
+    }
+
+    const learnedDomains = normalizeDomains([
+      ...latest.learnedDomains,
+      ...mainHostAliases(host, details.type)
+    ]);
+    const now = Date.now();
+    await chrome.storage.local.set({
+      learnedDomains,
+      lastDetectedDomain: host,
+      lastDetectedAt: new Date(now).toISOString(),
+      lastProxyError: null,
+      lastIssueType: details.type === "main_frame" ? "route_learned" : latest.lastIssueType,
+      lastIssueDomain: details.type === "main_frame" ? host : latest.lastIssueDomain,
+      lastIssueError: details.type === "main_frame" ? error : latest.lastIssueError,
+      lastIssueAt: details.type === "main_frame" ? new Date(now).toISOString() : latest.lastIssueAt,
+      lastGlobalCheck: details.type === "main_frame" ? null : latest.lastGlobalCheck
+    });
+    const applied = await applyProxy();
+    return { added: true, skipped: false, learnedDomains, now, applied };
+  });
+}
+
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
@@ -635,6 +828,12 @@ async function learnAndRetry(details) {
   const host = getRequestHost(details);
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  if (SAME_ORIGIN_ONLY_TYPES.has(details.type)) {
+    const initiatorHost = details.initiator
+      ? getRequestHost({ url: details.initiator })
+      : null;
+    if (!initiatorHost || initiatorHost !== host) return;
+  }
 
   if (isLearned(host, settings.learnedDomains)) {
     if (details.type === "main_frame") {
@@ -717,24 +916,9 @@ async function learnAndRetry(details) {
   }
   detectionCandidates.delete(candidate.key);
 
-  const learnedDomains = normalizeDomains([
-    ...settings.learnedDomains,
-    ...mainHostAliases(host, details.type)
-  ]);
-  const now = Date.now();
-  await chrome.storage.local.set({
-    learnedDomains,
-    lastDetectedDomain: host,
-    lastDetectedAt: new Date(now).toISOString(),
-    lastProxyError: null,
-    lastIssueType: details.type === "main_frame" ? "route_learned" : settings.lastIssueType,
-    lastIssueDomain: details.type === "main_frame" ? host : settings.lastIssueDomain,
-    lastIssueError: details.type === "main_frame" ? matchingError(details, RETRYABLE_ERRORS) : settings.lastIssueError,
-    lastIssueAt: details.type === "main_frame" ? new Date(now).toISOString() : settings.lastIssueAt,
-    lastGlobalCheck: details.type === "main_frame" ? null : settings.lastGlobalCheck
-  });
-
-  const applied = await applyProxy();
+  const committed = await commitLearnedRoute(host, details, error);
+  if (committed.skipped || !committed.added) return;
+  const { learnedDomains, now, applied } = committed;
   await appendDebug("learned", {
     tabId: details.tabId,
     host,
@@ -879,6 +1063,7 @@ async function clearIssueAfterSuccess(details) {
 
 async function initialize() {
   const existing = await chrome.storage.local.get(null);
+  debugEnabledCache = Boolean(existing.debugEnabled);
   if (existing.schemaVersion !== DEFAULT_SETTINGS.schemaVersion) {
     await chrome.storage.local.set({
       schemaVersion: DEFAULT_SETTINGS.schemaVersion,
@@ -923,10 +1108,7 @@ chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
     if (details.tabId < 0) return;
     if (details.error === "net::ERR_BLOCKED_BY_CLIENT") {
-      learningQueue = learningQueue
-        .then(() => recordCriticalClientFilter(details))
-        .catch(console.error);
-      return learningQueue;
+      return enqueueHostTask(details, () => recordCriticalClientFilter(details));
     }
     if (NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
     const host = getRequestHost(details);
@@ -939,10 +1121,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       error: details.error || null,
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
-    learningQueue = learningQueue
-      .then(() => learnAndRetry(details))
-      .catch(console.error);
-    return learningQueue;
+    return enqueueHostTask(details, () => learnAndRetry(details));
   },
   { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
@@ -1021,6 +1200,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "testNotification":
         return { ok: true, result: await sendTestNotification() };
       case "clearDebugLog":
+        debugBuffer = [];
+        if (debugFlushTimer) {
+          clearTimeout(debugFlushTimer);
+          debugFlushTimer = null;
+        }
+        await debugWriteQueue;
         await chrome.storage.local.set({ debugLog: [] });
         return { ok: true };
       default:

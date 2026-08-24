@@ -16,6 +16,10 @@ let measurementShouldBeDown = false;
 let notificationPermission = "granted";
 let notificationCreateError = null;
 const directlyReachableHosts = new Set();
+const directProbeUrls = [];
+const delayedProbeHosts = new Set();
+let activeDirectProbes = 0;
+let maxActiveDirectProbes = 0;
 
 const chrome = {
   storage: {
@@ -138,9 +142,19 @@ const chrome = {
 
 const fetch = async (url, options = {}) => {
   if (options.method === "GET" && options.headers?.Range === "bytes=0-0") {
+    directProbeUrls.push(String(url));
     const host = new URL(url).hostname;
-    if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
-    throw new Error("direct probe failed");
+    activeDirectProbes += 1;
+    maxActiveDirectProbes = Math.max(maxActiveDirectProbes, activeDirectProbes);
+    try {
+      if (delayedProbeHosts.has(host)) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
+      throw new Error("direct probe failed");
+    } finally {
+      activeDirectProbes -= 1;
+    }
   }
   if (options.method === "POST") {
     const request = JSON.parse(options.body);
@@ -203,10 +217,14 @@ function assertBadge(details, tabId, text) {
   assert.equal(details?.text, text);
 }
 
+async function waitForDebugFlush() {
+  await new Promise((resolve) => setTimeout(resolve, 200));
+}
+
 (async () => {
   await listeners.installed();
   assert.equal(storage.enabled, false);
-  assert.equal(storage.schemaVersion, 7);
+  assert.equal(storage.schemaVersion, 8);
   assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
@@ -233,6 +251,11 @@ function assertBadge(details, tabId, text) {
   assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
+  const private172Host = [172, 20, 1, 2].join(".");
+  assert.equal(findProxy(`http://${private172Host}/`, private172Host), "DIRECT");
+  assert.equal(findProxy("http://169.254.1.2/", "169.254.1.2"), "DIRECT");
+  assert.equal(findProxy("http://[fd00::1]/", "[fd00::1]"), "DIRECT");
+  assert.equal(findProxy("http://printer.local/", "printer.local"), "DIRECT");
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -293,11 +316,14 @@ function assertBadge(details, tabId, text) {
     tabId: 54,
     type: "sub_frame",
     error: "net::ERR_CONNECTION_RESET",
-    url: "https://normal-available.example/embed/content"
+    url: "https://normal-available.example/embed/content?token=test-value#fragment"
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
   assert.equal(notifications.length, 2);
+  assert.equal(directProbeUrls.includes("https://normal-available.example/"), true);
+  assert.equal(directProbeUrls.some((url) => url.includes("/embed/content")), false);
+  assert.equal(directProbeUrls.some((url) => url.includes("?") || url.includes("#")), false);
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await listeners.requestError({
@@ -459,6 +485,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(storage.lastIssueType, "client_filter_blocked");
   assert.equal(storage.lastIssueDomain, "app-shell.example");
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "client-filter-blocked-critical" &&
     entry.tabId === 42 && entry.requestType === "script"), true);
@@ -491,6 +518,7 @@ function assertBadge(details, tabId, text) {
     initiator: "https://portal.example/"
   });
   assert.deepEqual([...storage.learnedDomains], ["realtime.example"]);
+  await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "learned" &&
     entry.host === "realtime.example" &&
@@ -593,10 +621,46 @@ function assertBadge(details, tabId, text) {
     });
   }
   assert.deepEqual([...storage.learnedDomains], ["intermittent-media.example"]);
+  await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "intermittent-media.example" &&
     entry.overriddenByRepeatedReset === true), true);
+
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  await listeners.requestError({
+    tabId: 92,
+    type: "stylesheet",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://static-assets.example/site.css",
+    initiator: "https://different-origin.example/"
+  });
+  assert.deepEqual([...storage.learnedDomains], []);
+  await listeners.requestError({
+    tabId: 92,
+    type: "script",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://application-shell.example/app.js",
+    initiator: "https://application-shell.example/"
+  });
+  assert.deepEqual([...storage.learnedDomains], ["application-shell.example"]);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  const parallelHosts = ["one.example", "two.example", "three.example", "four.example"];
+  parallelHosts.forEach((host) => delayedProbeHosts.add(host));
+  maxActiveDirectProbes = 0;
+  const parallelStartedAt = Date.now();
+  await Promise.all(parallelHosts.map((host, index) => listeners.requestError({
+    tabId: 100 + index,
+    type: "sub_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: `https://${host}/resource`
+  })));
+  const parallelElapsedMs = Date.now() - parallelStartedAt;
+  assert.equal(maxActiveDirectProbes, 3);
+  assert.equal(parallelElapsedMs < 350, true);
+  assert.deepEqual([...storage.learnedDomains], [...parallelHosts].sort());
 
   const clearedDebugLog = await send({ type: "clearDebugLog" });
   assert.equal(clearedDebugLog.ok, true);

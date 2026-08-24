@@ -4,12 +4,17 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
       - name: Syntax and tests
@@ -18,4 +23,4 @@ jobs:
           node --check popup.js
           node tests/background.test.cjs
       - name: Sensitive data audit
-        run: node scripts/repository-audit.cjs
+        run: node scripts/repository-audit.cjs --history

@@ -27,7 +27,7 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
-const EXPECTED_SCHEMA_VERSION = 7;
+const EXPECTED_SCHEMA_VERSION = 8;
 
 let currentHost = null;
 let currentTabId = null;
