@@ -109,6 +109,20 @@ function normalizePort(value) {
     : DEFAULT_SETTINGS.proxyPort;
 }
 
+function normalizeProxyHost(value) {
+  const candidate = String(value ?? "").trim();
+  const parts = candidate.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return null;
+  }
+  const [first, second] = parts;
+  const allowed = candidate === "127.0.0.1" ||
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168);
+  return allowed ? candidate : null;
+}
+
 function isCovered(host, domains) {
   return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
@@ -144,7 +158,7 @@ async function getSettings() {
     learnedDomains: normalizeDomains(saved.learnedDomains)
       .filter((domain) => !isCovered(domain, ignoredDomains)),
     ignoredDomains,
-    proxyHost: DEFAULT_SETTINGS.proxyHost,
+    proxyHost: normalizeProxyHost(saved.proxyHost) || DEFAULT_SETTINGS.proxyHost,
     proxyPort: normalizePort(saved.proxyPort)
   };
 }
@@ -279,13 +293,19 @@ async function saveSettings(patch) {
       : Boolean(patch.debugEnabled),
     learnedDomains,
     ignoredDomains,
-    proxyHost: DEFAULT_SETTINGS.proxyHost,
+    proxyHost: patch.proxyHost === undefined
+      ? current.proxyHost
+      : normalizeProxyHost(patch.proxyHost),
     proxyPort: patch.proxyPort === undefined ? current.proxyPort : normalizePort(patch.proxyPort),
     lastProxyError: null,
     lastDetectedDomain: current.lastDetectedDomain && isCovered(current.lastDetectedDomain, ignoredDomains)
       ? null
       : current.lastDetectedDomain
   };
+
+  if (!next.proxyHost) {
+    throw new Error("Geçit adresi 127.0.0.1 veya özel bir yerel ağ IPv4 adresi olmalı.");
+  }
 
   await chrome.storage.local.set(next);
   const result = await applyProxy();
@@ -843,7 +863,7 @@ async function initialize() {
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
       enabled: Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
-      proxyHost: DEFAULT_SETTINGS.proxyHost,
+      proxyHost: normalizeProxyHost(existing.proxyHost) || DEFAULT_SETTINGS.proxyHost,
       proxyPort: normalizePort(existing.proxyPort),
       lastDetectedDomain: existing.lastDetectedDomain || null,
       lastDetectedAt: existing.lastDetectedAt || null,

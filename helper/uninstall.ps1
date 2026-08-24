@@ -20,6 +20,7 @@ $serviceName = "SelectiveAccessByeDPI"
 $dnsServiceName = "SelectiveAccessDns"
 $dnsTaskName = "SelectiveAccessDns"
 $dnsRuleComment = "SelectiveAccess managed encrypted DNS"
+$firewallRuleName = "Selective Access LAN Gateway"
 $installDirectory = Join-Path $env:ProgramData "SelectiveAccess"
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 
@@ -35,6 +36,7 @@ if ($service) {
 }
 
 Get-DnsClientNrptRule | Where-Object Comment -EQ $dnsRuleComment | Remove-DnsClientNrptRule -Force
+Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 Clear-DnsClientCache
 
 $dnsService = Get-Service -Name $dnsServiceName -ErrorAction SilentlyContinue

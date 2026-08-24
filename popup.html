@@ -86,14 +86,14 @@
         <div class="proxy-row">
           <label>
             Sunucu
-            <input type="text" value="127.0.0.1" disabled>
+            <input id="proxyHost" type="text" inputmode="decimal" value="127.0.0.1" autocomplete="off">
           </label>
           <label>
             Port
             <input id="proxyPort" type="number" min="1" max="65535" value="1080">
           </label>
         </div>
-        <p class="hint">Güvenlik için yalnızca bilgisayarınızdaki SOCKS5 geçidine bağlanır.</p>
+        <p class="hint">127.0.0.1 veya güvenilir yerel ağınızdaki özel IPv4 adresi kullanılabilir. Genel internet adresleri reddedilir.</p>
         <button id="testNotification" class="button ghost inline-button" type="button">Bildirimi test et</button>
       </details>
 
