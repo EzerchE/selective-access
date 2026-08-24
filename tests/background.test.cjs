@@ -320,7 +320,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:blocked-by-dns\.example:\d+$/);
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.equal(reloads.at(-1).tabId, 7);
   const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(dnsLearnedProxy("https://blocked-by-dns.example/", "blocked-by-dns.example"), "SOCKS5 127.0.0.1:1080");
@@ -392,7 +392,7 @@ function assertBadge(details, tabId, text) {
       url: "https://roblox.example/"
     });
   }
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.deepEqual([...storage.learnedDomains], ["roblox.example", "www.roblox.example"]);
   assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
 
@@ -403,7 +403,7 @@ function assertBadge(details, tabId, text) {
     url: "https://apis.roblox.example/v1/config",
     initiator: "https://www.roblox.example"
   });
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.deepEqual(
     [...storage.learnedDomains],
     ["apis.roblox.example", "roblox.example", "www.roblox.example"]

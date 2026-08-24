@@ -46,6 +46,7 @@ const RETRYABLE_TYPES = new Set([
 const retryCooldowns = new Map();
 const tabIssues = new Map();
 const detectionCandidates = new Map();
+const reloadTimers = new Map();
 let learningQueue = Promise.resolve();
 
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
@@ -334,6 +335,17 @@ async function directRequestResponds(url) {
   }
 }
 
+function scheduleTabReload(tabId, delayMs = 1_500) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  const existing = reloadTimers.get(tabId);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    reloadTimers.delete(tabId);
+    chrome.tabs.reload(tabId, { bypassCache: true }).catch(() => {});
+  }, delayMs);
+  reloadTimers.set(tabId, timer);
+}
+
 async function notifyLearnedDomain(domain) {
   // Chrome/Windows aynı kimlikle yeniden oluşturulan bildirimi yeni bir toast
   // yerine önceki kaydın güncellenmesi olarak değerlendirebilir. Her öğrenme
@@ -528,9 +540,7 @@ async function learnAndRetry(details) {
   if (now - lastRetry < 60_000) return;
   retryCooldowns.set(retryKey, now);
 
-  setTimeout(() => {
-    chrome.tabs.reload(details.tabId, { bypassCache: true }).catch(() => {});
-  }, 500);
+  scheduleTabReload(details.tabId);
 }
 
 function summarizeGlobalMeasurement(domain, measurement) {
@@ -642,9 +652,7 @@ async function checkGlobalStatus(value, tabId = null) {
     if (applied.ok && Number.isInteger(tabId) && tabId >= 0) {
       await setBadge(true, false, true, tabId);
       await notifyLearnedDomain(domain).catch(console.error);
-      setTimeout(() => {
-        chrome.tabs.reload(tabId, { bypassCache: true }).catch(() => {});
-      }, 500);
+      scheduleTabReload(tabId);
     }
   } else if (Number.isInteger(tabId) && tabId >= 0) {
     await clearTabIssue(tabId);
@@ -731,6 +739,9 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabIssues.delete(tabId);
+  const timer = reloadTimers.get(tabId);
+  if (timer) clearTimeout(timer);
+  reloadTimers.delete(tabId);
   for (const key of retryCooldowns.keys()) {
     if (key.startsWith(`${tabId}:`)) retryCooldowns.delete(key);
   }
