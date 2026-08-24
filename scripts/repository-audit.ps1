@@ -60,6 +60,8 @@ $requiredLegalFiles = @(
     "THIRD_PARTY_NOTICES.md",
     "helper\bin\BYEDPI_LICENSE.txt",
     "helper\bin\DNSPROXY_LICENSE.txt",
+    "helper\native\SelectiveAccessDnsHost.cs",
+    "helper\sync-dns.ps1",
     "helper\source\dnsproxy-v0.84.1.tar.gz"
 )
 foreach ($relativePath in $requiredLegalFiles) {
@@ -72,6 +74,22 @@ $expectedDnsproxySourceHash = "FB99AE07D991BB58277CA857389933CBDC6CBF86F1A1C3EAB
 $actualDnsproxySourceHash = (Get-FileHash -LiteralPath (Join-Path $root "helper\source\dnsproxy-v0.84.1.tar.gz") -Algorithm SHA256).Hash
 if ($actualDnsproxySourceHash -ne $expectedDnsproxySourceHash) {
     throw "dnsproxy kaynak arsivi beklenen surumle eslesmiyor."
+}
+
+$expectedBinaryHashes = @{
+    "helper\bin\ciadpi.exe" = "EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B54EF4"
+    "helper\bin\dnsproxy.exe" = "09461CCE5C1DC0D7D1673FB3DEF0DBD014924D1481479D12CEBECB7BA93E8B2B"
+}
+foreach ($entry in $expectedBinaryHashes.GetEnumerator()) {
+    $actualHash = (Get-FileHash -LiteralPath (Join-Path $root $entry.Key) -Algorithm SHA256).Hash
+    if ($actualHash -ne $entry.Value) {
+        throw "Yardimci ikili beklenen surumle eslesmiyor: $($entry.Key)"
+    }
+}
+
+$installer = Get-Content -LiteralPath (Join-Path $root "helper\install.ps1") -Raw
+if ($installer -match 'Add-DnsClientNrptRule\s+-Namespace\s+["'']\.[''\"]') {
+    throw "Kurucu sistem geneli DNS/NRPT kurali icermemelidir."
 }
 
 foreach ($file in $tracked | Where-Object { $_.Extension -notmatch '^\.(?:png|jpg|jpeg|gif|ico|exe)$' }) {

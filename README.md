@@ -20,7 +20,7 @@ Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan ad
 
 DPI, **Deep Packet Inspection** yani **Derin Paket İnceleme** ifadesinin kısaltmasıdır. İnternet sağlayıcıları ve ağ yöneticileri, bağlantıların yalnızca hangi adrese gittiğine değil, paketlerin belirli teknik özelliklerine de bakarak trafiği sınıflandırabilir. Bazı erişim engelleri bu inceleme sırasında bağlantının kesilmesi, sıfırlanması veya yanıtsız bırakılmasıyla uygulanır.
 
-Bu projede kullanılan DPI uyumluluk yöntemi şifre kırmaz ve site güvenlik denetimlerini geçersiz kılmaz. Bağlantının ağ üzerinde gönderiliş biçimini değiştirir. HTTPS bağlantısı uçtan uca şifreli kalır; eklenti sertifika kurmaz, TLS içeriğini çözmez ve sayfa içeriğini okumaz. Bir hedefe teknik olarak bağlanabilmek, o hedefe erişim yetkisi vermez.
+Bu projede kullanılan DPI uyumluluk yöntemi şifre kırmaz ve site güvenlik denetimlerini geçersiz kılmaz. Bağlantının ağ üzerinde gönderiliş biçimini değiştirir. HTTPS bağlantısı uçtan uca şifreli kalır; yerel yardımcı sertifika kurmaz veya TLS içeriğini çözmez. Bir hedefe teknik olarak bağlanabilmek, o hedefe erişim yetkisi vermez.
 
 Bu yöntem IP adresinizi veya ülkenizi değiştirmez. Dolayısıyla bir VPN değildir.
 
@@ -65,9 +65,9 @@ Yoksayılan hedefler ayrı listede görülebilir ve `↩` düğmesiyle yeniden o
 
 ### DNS engelleri için şifreli çözümleme
 
-Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Kurulum yardımcısı bu durumlar için yalnız loopback üzerinde çalışan yerel bir `dnsproxy` görevi kurar. DNS sorguları HTTPS ile Cloudflare ve Google çözümleyicilerine gönderilir.
+Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Normal sorgular kullanıcının mevcut DNS, Pi-hole veya Unbound yapılandırmasında kalır. Chrome yalnız ana sayfada DNS çözümleme hatası gördüğünde alan adını Cloudflare DoH ile çerezsiz olarak doğrular. Alternatif DNS adres döndürürse yalnız o tam alan adı için `127.0.0.2` üzerindeki yerel çözücüye seçici NRPT kuralı eklenir.
 
-Bu DNS kuralı sistem genelinde etkilidir: cihazdaki diğer uygulamaların sorguları da Cloudflare ve Google'a gider. Kurucu bu etkiyi terminalde açıkça bildirir; kurulum Windows yönetici izni kabul edildiğinde ek bir metin onayı istemeden devam eder. `helper/uninstall.cmd`, yalnız Otomatik Erişim'e ait görev ve DNS kuralını geri alır.
+Genel `.` NRPT kuralı veya ağ bağdaştırıcısı DNS değişikliği yapılmaz. `dnsproxy` yalnız seçici listede en az bir hedef varken çalışır; liste boşaldığında durur. Alan adına özel kural Windows düzeyinde olduğundan aynı hedefi isteyen başka bir uygulamanın sorgusu da o sırada seçici çözücüye gidebilir. `helper/uninstall.cmd` yalnız Otomatik Erişim'e ait görevleri ve alan adına özel kuralları geri alır.
 
 ### Dışarıdan genel durum kontrolü
 
@@ -75,7 +75,7 @@ DNS veya bağlantı hatası görüldüğünde kullanıcı **Genel durumu kontrol
 
 - Birden fazla dış nokta siteye ulaşabiliyorsa sorun yerel, DNS kaynaklı veya bölgesel olabilir.
 - Birden fazla kıtadan da ulaşılamıyorsa hedef yönlendirme listesine eklenmez; popup durumu ve **Genel kesinti olası** Chrome bildirimi gösterilir.
-- DNS hatası yaşayan hedef dışarıdan açık olarak doğrulanırsa öğrenilen listeye eklenip yerel geçitle yeniden denenir.
+- DNS hatası yaşayan hedef otomatik DoH doğrulamasında veya isteğe bağlı dış kontrolde açık bulunursa seçici DNS ve geçit listesine eklenip yeniden denenir.
 
 Bu kontrol kendiliğinden çalışmaz. Yalnız düğmeye basıldığında açık sekmenin alan adı Globalping'e gönderilir.
 
@@ -106,7 +106,7 @@ Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı 
 Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağdaki diğer cihazlara açılmaz:
 
 - `127.0.0.1:1080`: ByeDPI SOCKS5 geçidi
-- `127.0.0.2:53`: Şifreli DNS geçidi
+- `127.0.0.2:53`: Yalnız seçici DNS hedefleri varken çalışan şifreli DNS geçidi
 
 ## Kurulum
 
@@ -114,17 +114,17 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 
 ### Kurmadan önce bilin
 
-- Yardımcı, yönetici yetkisiyle iki yerel hizmet ve sistem geneli DNS kuralı kurar.
-- Cihazdaki tüm DNS sorguları şifreli biçimde Cloudflare ve Google'a gönderilir; bu tarafların kendi gizlilik koşulları geçerlidir.
-- Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir. Kurucu başka bir sistem geneli NRPT kuralı bulursa çakışmayı önlemek için durur.
+- Yardımcı, yönetici yetkisiyle yerel geçidi ve alan adına özel DNS kurallarını uygulayan yerel köprüyü kurar.
+- Kullanıcının DNS/Pi-hole ayarı değiştirilmez. Yalnız yerel DNS'in çözemediği ve alternatif DNS'te doğrulanan hedefler Cloudflare ve Google DoH çözücülerine yöneltilir.
+- Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir. Yardımcı başka ürünlere ait DNS kurallarını değiştirmez.
 - Araç VPN veya anonimlik hizmeti değildir; IP adresini ya da ülkeyi değiştirmez ve erişim garantisi vermez.
 - Kurulumdan önce [`PRIVACY.md`](PRIVACY.md) ve [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgelerini okuyun.
 
 1. Depoyu indirin veya klonlayın.
-2. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın. Kurulum ek bir yanıt beklemeden otomatik tamamlanır.
-3. Chrome'da `chrome://extensions` adresini açın.
-4. Sağ üstten **Geliştirici modu** seçeneğini etkinleştirin.
-5. **Paketlenmemiş öğe yükle** düğmesine basıp proje klasörünü seçin.
+2. Chrome'da `chrome://extensions` adresini açın.
+3. **Geliştirici modu**nu açıp **Paketlenmemiş öğe yükle** ile proje klasörünü seçin.
+4. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın. Kurucu yüklü eklenti kimliğini bulup yerel köprüyü yalnız bu eklentiye açar.
+5. Kurulumdan sonra eklenti kartındaki yenile düğmesine bir kez basın.
 6. Eklenti popup'ındaki ana anahtarı etkinleştirin.
 
 ### Güncelleme
@@ -138,12 +138,13 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 
 - `webRequest` ve HTTP/HTTPS adres erişimi: Bağlantı hatalarını ve başarılı ana sayfa isteklerini algılamak.
 - `notifications`: Bir hedef ilk kez otomatik öğrenildiğinde kullanıcıya erişimin hazır olduğunu bildirmek.
+- `nativeMessaging`: Yalnız yerel DNS'in çözemediği doğrulanmış alan adlarını yönetici tarafından kurulmuş yerel DNS köprüsüne iletmek.
 - `scripting`: Yalnız otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden yeniden yüklemek.
 - `proxy`: Öğrenilen alan adları için seçici PAC/SOCKS5 yönlendirmesi uygulamak.
 - `storage`: Ayarları, teşhis durumunu, öğrenilen ve yoksayılan hedefleri cihazda saklamak.
 - `activeTab`: Popup açıldığında yalnız etkin sekmenin alan adını göstermek ve kullanıcı işlemlerini o sekmeyle ilişkilendirmek.
 
-Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS trafiğini çözmez.
+Eklenti genel sayfa içeriğini toplamaz veya HTTPS trafiğini çözmez. Otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden tekrar yüklemek için yalnız ilgili frame adresini DOM içinde bulup yeniler; bunun dışında sayfa içeriğini değiştirmez.
 
 ## Güvenlik ve gizlilik
 
@@ -151,7 +152,7 @@ Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS traf
 - HTTPS içeriği şifreli kalır; özel sertifika kurulmaz.
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
 - Hata ayıklama günlüğü yalnız Chrome'un yerel eklenti deposunda tutulur ve kullanıcı kendisi paylaşmadıkça cihazdan çıkmaz.
-- DNS sorguları şifreli HTTPS üzerinden Cloudflare ve Google'a gönderilir. Bu sağlayıcılar sorgulanan alan adını ve kaynak IP adresini görebilir.
+- Normal DNS sorguları mevcut DNS/Pi-hole yapılandırmasında kalır. DNS hatası veren alan adı Cloudflare DoH ile otomatik doğrulanır; yalnız doğrulanan seçici hedeflerin sorguları Cloudflare ve Google'a şifreli gönderilir. Bu sağlayıcılar ilgili alan adını ve kaynak IP adresini görebilir.
 - Globalping'e yalnız kullanıcı genel durum kontrolünü başlattığında açık sekmenin alan adı gönderilir.
 - Otomatik doğrulama isteği üçüncü tarafa değil, yalnız hatayı veren hedef URL'ye doğrudan ve çerezsiz gönderilir.
 - Tam URL, sayfa içeriği ve öğrenilmiş alan adı listesinin tamamı dış servislere gönderilmez.
@@ -168,7 +169,7 @@ Bu proje yalnız hukuka, yetkili makam kararlarına, ağ politikalarına ve üç
 1. Eklentiyi Chrome'dan kaldırın veya kapatın.
 2. [`helper/uninstall.cmd`](helper/uninstall.cmd) dosyasını çalıştırın ve yönetici iznini onaylayın.
 
-Kaldırma betiği ByeDPI hizmetini, yerel şifreli DNS görevini, proje etiketli DNS kuralını ve kurulu yardımcı dosyaları kaldırır.
+Kaldırma betiği ByeDPI hizmetini, yerel DNS görevlerini, Chrome yerel köprüsünü, proje etiketli alan adına özel DNS kurallarını ve kurulu yardımcı dosyaları kaldırır.
 
 ## Sınırlar
 
@@ -177,7 +178,7 @@ Kaldırma betiği ByeDPI hizmetini, yerel şifreli DNS görevini, proje etiketli
 - Yerel hata belirtileri erişim engelini kesin olarak kanıtlayamaz. Tekrarlı hata ve doğrudan kontrol yanlış algılama riskini azaltır; kullanıcı gerekirse hedefi listeden çıkarabilir veya kalıcı olarak yoksayabilir.
 - Ağ sağlayıcıları engelleme yöntemlerini değiştirebilir; çalışan DPI profilinin ileride güncellenmesi gerekebilir.
 - Başka bir eklenti veya kurumsal politika Chrome proxy ayarlarını kontrol ediyorsa iki yapı aynı anda çalışamayabilir.
-- Şifreli DNS kuralı sistem genelindedir; cihazdaki diğer uygulamaların DNS çözümlemesini de etkiler.
+- Alan adına özel DNS kuralı etkin olduğu sürede aynı hedefi isteyen diğer uygulamaların DNS çözümlemesi de yerel DoH çözücüsünü kullanabilir; diğer bütün alan adları mevcut DNS/Pi-hole ayarında kalır.
 - Kullanımın bulunduğunuz yerdeki mevzuata ve ağ kurallarına uygunluğunu kontrol etmek kullanıcının sorumluluğundadır.
 
 ## Üçüncü taraf bileşenler

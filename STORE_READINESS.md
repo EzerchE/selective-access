@@ -15,7 +15,7 @@
 - Globalping'e isteğe bağlı alan adı aktarımı mağaza veri beyanında belirtilmelidir.
 - Mağaza ikonu, ekran görüntüleri, destek URL'si ve herkese açık gizlilik politikası URL'si hazırlanmalıdır.
 - Developer Dashboard veri kullanım formu gerçek davranışla birebir doldurulmalıdır.
-- Sistem geneli DNS değişikliği ve Cloudflare/Google aktarımı kullanıcı kurmadan önce mağaza açıklamasında ve ayrı yardımcı kurucuda belirgin biçimde açıklanmalıdır.
+- Otomatik DNS hatası doğrulaması, yalnız doğrulanan alan adlarının Cloudflare/Google'a aktarımı ve yerel `nativeMessaging` köprüsü kullanıcı kurmadan önce mağaza açıklamasında ve ayrı yardımcı kurucuda belirgin biçimde açıklanmalıdır.
 - Yayıncı/veri sorumlusu kimliği, geçerli iletişim bilgileri, hukuki dayanak ve gerekli bölgesel aydınlatma unsurları yayıncı tarafından tamamlanmalıdır.
 - Üçüncü taraf GPL bileşeni için tam ve birebir karşılık gelen kaynak kod, ikiliyle eşdeğer erişimde ve gerekli süre boyunca sunulmalıdır.
 

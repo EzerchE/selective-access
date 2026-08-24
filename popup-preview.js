@@ -2,7 +2,7 @@
 // Chrome eklenti ortamında gerçek API bulunduğundan bu dosya hiçbir şeyi değiştirmez.
 if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("preview")) {
   let previewState = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     enabled: true,
     learnedDomains: ["media-cdn.example", "blocked-service.example"],
     ignoredDomains: ["ignored.example"],

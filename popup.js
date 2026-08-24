@@ -202,6 +202,8 @@ function render(state) {
         `Son bildirim gösterilemedi: ${state.lastNotificationError || "Chrome veya Windows bildirim ayarını kontrol edin."}`,
         true
       );
+    } else if (state.lastDnsSyncStatus === "failed") {
+      showNotice(`Seçici DNS uygulanamadı: ${state.lastDnsSyncError || "Yardımcı kurulumu yeniden çalıştırılmalı."}`, true);
     }
   }
 }
@@ -248,6 +250,9 @@ function renderDiagnostic(state) {
   } else if (state.lastIssueType === "dns_unresolved") {
     elements.diagnosticTitle.textContent = "Alan adı çözümlenemedi";
     elements.diagnosticText.textContent = "DNS sunucusu bu alan adı için adres döndürmedi; bu durum geçici, yerel veya genel olabilir.";
+  } else if (state.lastIssueType === "dns_helper_unavailable") {
+    elements.diagnosticTitle.textContent = "Seçici DNS yardımcısına ulaşılamadı";
+    elements.diagnosticText.textContent = state.lastIssueError || "Yardımcı kurulumu yeniden çalıştırıldıktan sonra yalnız bu hedef için alternatif DNS uygulanabilir.";
   } else if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
     elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
@@ -413,7 +418,7 @@ elements.testNotification.addEventListener("click", async () => {
     const response = await sendMessage({ type: "testNotification" });
     showNotice(
       response.result.ok
-        ? "Test bildirimi Chrome'a gönderildi. Görünmüyorsa Windows Bildirim Merkezi ve Rahatsız etmeyin ayarını kontrol edin."
+        ? response.result.warning || "Test bildirimi Chrome'a gönderildi. Görünmüyorsa Windows Bildirim Merkezi ve Rahatsız etmeyin ayarını kontrol edin."
         : response.result.error,
       !response.result.ok
     );
@@ -455,7 +460,7 @@ if (previewMode) {
         levelOfControl: "controlled_by_this_extension"
       }
     : {
-        schemaVersion: 5,
+        schemaVersion: 6,
         enabled: true,
         learnedDomains: ["media-cdn.example"],
         ignoredDomains: ["ignored.example"],
