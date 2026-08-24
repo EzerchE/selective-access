@@ -27,7 +27,8 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_CONNECTION_TIMED_OUT",
   "ERR_TIMED_OUT",
   "ERR_EMPTY_RESPONSE",
-  "ERR_SSL_PROTOCOL_ERROR"
+  "ERR_SSL_PROTOCOL_ERROR",
+  "ERR_FAILED"
 ]);
 
 const RETRYABLE_TYPES = new Set([
@@ -52,7 +53,8 @@ let learningQueue = Promise.resolve();
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_RESET: { main: 2, embedded: 1 },
   ERR_CONNECTION_CLOSED: { main: 2, embedded: 1 },
-  ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 }
+  ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 },
+  ERR_FAILED: { main: Number.MAX_SAFE_INTEGER, embedded: 2 }
 });
 const NON_ACTIONABLE_REQUEST_ERRORS = new Set([
   "net::ERR_ABORTED",
@@ -310,9 +312,10 @@ async function getPublicState() {
 }
 
 function isRetryableError(details) {
-  return details.tabId >= 0 &&
-    RETRYABLE_TYPES.has(details.type) &&
-    RETRYABLE_ERRORS.some((error) => String(details.error || "").includes(error));
+  if (details.tabId < 0 || !RETRYABLE_TYPES.has(details.type)) return false;
+  const error = matchingError(details, RETRYABLE_ERRORS);
+  if (!error) return false;
+  return error !== "ERR_FAILED" || details.type === "websocket";
 }
 
 function matchingError(details, candidates) {
@@ -685,7 +688,10 @@ async function learnAndRetry(details) {
   const repeatedEmbeddedReset = details.type !== "main_frame" &&
     ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
     candidate.count >= 2;
-  const repeatedReset = repeatedMainReset || repeatedEmbeddedReset;
+  const repeatedWebSocketFailure = details.type === "websocket" &&
+    error === "ERR_FAILED" &&
+    candidate.count >= candidate.required;
+  const repeatedReset = repeatedMainReset || repeatedEmbeddedReset || repeatedWebSocketFailure;
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,

@@ -496,13 +496,33 @@ function assertBadge(details, tabId, text) {
     entry.host === "realtime.example" &&
     entry.requestType === "websocket"), true);
 
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  directlyReachableHosts.add("socket-api.example");
+  await listeners.requestError({
+    tabId: 42,
+    type: "websocket",
+    error: "net::ERR_FAILED",
+    url: "wss://socket-api.example/connect",
+    initiator: "https://portal.example/"
+  });
+  assert.deepEqual([...storage.learnedDomains], []);
+  await listeners.requestError({
+    tabId: 42,
+    type: "websocket",
+    error: "net::ERR_FAILED",
+    url: "wss://socket-api.example/connect",
+    initiator: "https://portal.example/"
+  });
+  assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
+  directlyReachableHosts.delete("socket-api.example");
+
   await listeners.requestError({
     tabId: 42,
     type: "xmlhttprequest",
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://tracker.resolution-error.example/pixel"
   });
-  assert.deepEqual([...storage.learnedDomains], ["realtime.example"]);
+  assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   const reloadCountBeforeApp = reloads.length;
@@ -533,7 +553,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(reloads.length, reloadCountBeforeApp + 1);
   await new Promise((resolve) => setTimeout(resolve, 600));
   assert.equal(notifications.length, 5);
-  assert.match(notifications.at(-1).options.title, /3 hedef/);
+  assert.match(notifications.at(-1).options.title, /4 hedef/);
   assert.equal(notifications.at(-1).options.requireInteraction, undefined);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
