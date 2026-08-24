@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   lastNotificationStatus: null,
   lastNotificationDomain: null,
   lastNotificationAt: null,
-  lastNotificationError: null
+  lastNotificationError: null,
+  debugLog: []
 });
 
 const RETRYABLE_ERRORS = Object.freeze([
@@ -55,6 +56,19 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 }
 });
 const CANDIDATE_WINDOW_MS = 30_000;
+const DEBUG_LOG_LIMIT = 150;
+let debugQueue = Promise.resolve();
+
+function appendDebug(event, data = {}) {
+  debugQueue = debugQueue.then(async () => {
+    const { debugLog = [] } = await chrome.storage.local.get({ debugLog: [] });
+    const entry = { at: new Date().toISOString(), event, ...data };
+    await chrome.storage.local.set({
+      debugLog: [...(Array.isArray(debugLog) ? debugLog : []), entry].slice(-DEBUG_LOG_LIMIT)
+    });
+  }).catch((error) => console.debug("Otomatik Erişim debug kaydı yazılamadı", error));
+  return debugQueue;
+}
 
 function actionTarget(tabId, values) {
   return Number.isInteger(tabId) && tabId >= 0 ? { ...values, tabId } : values;
@@ -338,10 +352,18 @@ async function directRequestResponds(url) {
 function scheduleTabReload(tabId, delayMs = 1_500) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   const existing = reloadTimers.get(tabId);
-  if (existing) clearTimeout(existing);
+  if (existing) {
+    clearTimeout(existing);
+    appendDebug("reload-rescheduled", { tabId, delayMs });
+  } else {
+    appendDebug("reload-scheduled", { tabId, delayMs });
+  }
   const timer = setTimeout(() => {
     reloadTimers.delete(tabId);
-    chrome.tabs.reload(tabId, { bypassCache: true }).catch(() => {});
+    appendDebug("reload-fired", { tabId });
+    chrome.tabs.reload(tabId, { bypassCache: true })
+      .then(() => appendDebug("reload-accepted", { tabId }))
+      .catch((error) => appendDebug("reload-failed", { tabId, error: error.message }));
   }, delayMs);
   reloadTimers.set(tabId, timer);
 }
@@ -460,6 +482,11 @@ async function learnAndRetry(details) {
 
   if (isLearned(host, settings.learnedDomains)) {
     if (details.type === "main_frame") {
+      await appendDebug("learned-route-failed", {
+        tabId: details.tabId,
+        host,
+        error: matchingError(details, RETRYABLE_ERRORS)
+      });
       await chrome.storage.local.set({
         lastIssueType: "route_failed",
         lastIssueDomain: host,
@@ -474,6 +501,15 @@ async function learnAndRetry(details) {
 
   const error = matchingError(details, RETRYABLE_ERRORS);
   const candidate = registerDetectionCandidate(host, details, error);
+  await appendDebug("candidate", {
+    tabId: details.tabId,
+    host,
+    requestType: details.type,
+    error,
+    count: candidate.count,
+    required: candidate.required || null,
+    supported: candidate.supported
+  });
   if (!candidate.supported) {
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
@@ -489,7 +525,14 @@ async function learnAndRetry(details) {
   }
   if (!candidate.ready) return;
 
-  if (await directRequestResponds(details.url)) {
+  const directlyReachable = await directRequestResponds(details.url);
+  await appendDebug("direct-check", {
+    tabId: details.tabId,
+    host,
+    requestType: details.type,
+    reachable: directlyReachable
+  });
+  if (directlyReachable) {
     detectionCandidates.delete(host);
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
@@ -523,6 +566,14 @@ async function learnAndRetry(details) {
   });
 
   const applied = await applyProxy();
+  await appendDebug("learned", {
+    tabId: details.tabId,
+    host,
+    requestType: details.type,
+    learnedDomains,
+    proxyApplied: applied.ok,
+    proxyError: applied.error || null
+  });
   if (!applied.ok) return;
   await setBadge(true, false, true, details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
@@ -706,12 +757,21 @@ chrome.runtime.onStartup.addListener(() => applyProxy().catch(console.error));
 chrome.proxy.onProxyError.addListener(async (details) => {
   const message = details?.error || "Yerel proxy bağlantısı kurulamadı.";
   await chrome.storage.local.set({ lastProxyError: message });
+  await appendDebug("proxy-error", { error: message });
   const settings = await getSettings();
   await setBadge(settings.enabled, true);
 });
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
+    const host = getRequestHost(details);
+    appendDebug("request-error", {
+      tabId: details.tabId,
+      host,
+      requestType: details.type,
+      error: details.error || null,
+      initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
+    });
     learningQueue = learningQueue
       .then(async () => {
         const handledAsDns = await recordMainFrameDnsIssue(details);
@@ -724,7 +784,16 @@ chrome.webRequest.onErrorOccurred.addListener(
 );
 
 chrome.webRequest.onCompleted.addListener(
-  (details) => clearIssueAfterSuccess(details).catch(console.error),
+  (details) => {
+    const debugWrite = appendDebug("main-completed", {
+      tabId: details.tabId,
+      host: getRequestHost(details),
+      statusCode: details.statusCode || null,
+      fromCache: Boolean(details.fromCache)
+    });
+    const clearIssue = clearIssueAfterSuccess(details).catch(console.error);
+    return Promise.all([debugWrite, clearIssue]);
+  },
   { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
 );
 
@@ -766,6 +835,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         };
       case "testNotification":
         return { ok: true, result: await sendTestNotification() };
+      case "clearDebugLog":
+        await chrome.storage.local.set({ debugLog: [] });
+        return { ok: true };
       default:
         return { ok: false, error: "Bilinmeyen istek." };
     }

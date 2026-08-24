@@ -409,6 +409,13 @@ function assertBadge(details, tabId, text) {
     ["apis.roblox.example", "roblox.example", "www.roblox.example"]
   );
   assert.equal(reloads.length, reloadCountBeforeRoblox + 2);
+  assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
+  assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
+  assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);
+
+  const clearedDebugLog = await send({ type: "clearDebugLog" });
+  assert.equal(clearedDebugLog.ok, true);
+  assert.deepEqual([...storage.debugLog], []);
 
   const disabled = await send({ type: "saveSettings", patch: { enabled: false } });
   assert.equal(disabled.ok, true);

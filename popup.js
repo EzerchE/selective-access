@@ -18,7 +18,10 @@ const elements = {
   diagnosticTitle: document.querySelector("#diagnosticTitle"),
   diagnosticText: document.querySelector("#diagnosticText"),
   checkStatus: document.querySelector("#checkStatus"),
-  testNotification: document.querySelector("#testNotification")
+  testNotification: document.querySelector("#testNotification"),
+  debugLog: document.querySelector("#debugLog"),
+  copyDebugLog: document.querySelector("#copyDebugLog"),
+  clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
 let currentHost = null;
@@ -159,6 +162,9 @@ function render(state) {
   renderDomainList();
   renderIgnoredList();
   elements.proxyPort.value = String(state.proxyPort);
+  elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
+    ? state.debugLog.map((entry) => JSON.stringify(entry)).join("\n")
+    : "Henüz kayıt yok";
 
   const hasControlError = ["not_controllable", "controlled_by_other_extensions"]
     .includes(state.levelOfControl);
@@ -368,6 +374,25 @@ elements.retry.addEventListener("click", async () => {
       response.result.ok ? "Otomatik proxy kuralı yeniden uygulandı." : response.result.error,
       !response.result.ok
     );
+  } catch (error) {
+    showNotice(error.message, true);
+  }
+});
+
+elements.copyDebugLog.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements.debugLog.textContent);
+    showNotice("Hata ayıklama günlüğü panoya kopyalandı.");
+  } catch (error) {
+    showNotice(`Günlük kopyalanamadı: ${error.message}`, true);
+  }
+});
+
+elements.clearDebugLog.addEventListener("click", async () => {
+  try {
+    await sendMessage({ type: "clearDebugLog" });
+    elements.debugLog.textContent = "Henüz kayıt yok";
+    showNotice("Hata ayıklama günlüğü temizlendi.");
   } catch (error) {
     showNotice(error.message, true);
   }

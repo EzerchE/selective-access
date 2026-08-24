@@ -83,6 +83,10 @@ Bu kontrol kendiliğinden çalışmaz. Yalnız düğmeye basıldığında açık
 
 Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenilen hedefleri, DNS sorunlarını, olası genel kesintileri ve yerel proxy hatalarını gösterir.
 
+### Yerel hata ayıklama günlüğü
+
+Popup içindeki **Hata ayıklama günlüğü**, algılama ve yeniden deneme sorunlarını incelemek için son 150 olayı yalnız cihazda tutar. Kayıtlarda zaman, alan adı, istek/hata türü, PAC uygulama sonucu ve sekme yenileme aşaması bulunur; tam URL, sayfa içeriği, çerez veya form verisi kaydedilmez. Günlük kopyalanabilir veya tek düğmeyle temizlenebilir.
+
 ### Kalıcı ve düzenlenebilir liste
 
 Öğrenilen alan adları Chrome'un yerel eklenti deposunda saklanır ve bilgisayar yeniden başlatıldığında kaybolmaz. Liste popup üzerinden düzenlenebilir.
@@ -145,6 +149,7 @@ Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS traf
 - Uzak VPN veya trafik proxy'si kullanılmaz. DPI geçidi tamamen kullanıcının bilgisayarındadır.
 - HTTPS içeriği şifreli kalır; özel sertifika kurulmaz.
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
+- Hata ayıklama günlüğü yalnız Chrome'un yerel eklenti deposunda tutulur ve kullanıcı kendisi paylaşmadıkça cihazdan çıkmaz.
 - DNS sorguları şifreli HTTPS üzerinden Cloudflare ve Google'a gönderilir. Bu sağlayıcılar sorgulanan alan adını ve kaynak IP adresini görebilir.
 - Globalping'e yalnız kullanıcı genel durum kontrolünü başlattığında açık sekmenin alan adı gönderilir.
 - Otomatik doğrulama isteği üçüncü tarafa değil, yalnız hatayı veren hedef URL'ye doğrudan ve çerezsiz gönderilir.

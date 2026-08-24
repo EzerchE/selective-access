@@ -486,6 +486,26 @@ input:focus {
   color: #9f1d1d;
 }
 
+.debug-log {
+  max-height: 190px;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #d7dfdb;
+  border-radius: 8px;
+  background: #f7f9f8;
+  color: #34413b;
+  font: 9px/1.45 Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.debug-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 footer {
   display: grid;
   grid-template-columns: 1fr auto;
