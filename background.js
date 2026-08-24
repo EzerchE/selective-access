@@ -316,7 +316,11 @@ async function directRequestResponds(url) {
 }
 
 async function notifyLearnedDomain(domain) {
-  const id = `learned:${domain}`;
+  // Chrome/Windows aynı kimlikle yeniden oluşturulan bildirimi yeni bir toast
+  // yerine önceki kaydın güncellenmesi olarak değerlendirebilir. Her öğrenme
+  // olayı benzersiz kimlik alır; böylece silinip yeniden öğrenilen hedef de
+  // kullanıcıya tekrar bildirilir.
+  const id = `learned:${domain}:${Date.now()}`;
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
     : "granted";
@@ -330,10 +334,7 @@ async function notifyLearnedDomain(domain) {
     return { ok: false, error: "Chrome bildirim izni kapalı." };
   }
 
-  // Aynı hedef daha önce öğrenilip silindiyse mevcut bildirimi güncellemek yerine
-  // temizleyip yeniden oluşturmak Windows'ta yeni toast gösterilmesini sağlar.
   try {
-    await chrome.notifications.clear(id).catch(() => false);
     const createdId = await chrome.notifications.create(id, {
       type: "basic",
       iconUrl: "assets/icon-128.png",

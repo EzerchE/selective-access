@@ -226,7 +226,7 @@ function assertBadge(details, tabId, text) {
 
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 1);
-  assert.equal(notifications[0].id, "learned:media-cdn.example");
+  assert.match(notifications[0].id, /^learned:media-cdn\.example:\d+$/);
   assert.match(notifications[0].options.message, /media-cdn\.example/);
   assert.equal(notifications[0].options.priority, 2);
   assert.equal(notifications[0].options.requireInteraction, true);
@@ -259,6 +259,8 @@ function assertBadge(details, tabId, text) {
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 2);
+  assert.match(notifications[1].id, /^learned:media-cdn\.example:\d+$/);
+  assert.notEqual(notifications[1].id, notifications[0].id);
 
   directlyReachableHosts.add("normal-available.example");
   await listeners.requestError({
@@ -317,7 +319,7 @@ function assertBadge(details, tabId, text) {
   assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
   assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(notifications.length, 3);
-  assert.equal(notifications[2].id, "learned:blocked-by-dns.example");
+  assert.match(notifications[2].id, /^learned:blocked-by-dns\.example:\d+$/);
   await new Promise((resolve) => setTimeout(resolve, 550));
   assert.equal(reloads.at(-1).tabId, 7);
   const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
