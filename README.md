@@ -2,7 +2,7 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
-Güncel sürüm: **4.6.2**
+Güncel sürüm: **4.6.3**
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -53,7 +53,7 @@ Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer destekle
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
-Reklam engelleyici, tarayıcı güvenliği, önbellek ve iptal olayları öğrenilmez veya yerel tanılama günlüğünü doldurmaz.
+Reklam engelleyici, tarayıcı güvenliği, önbellek ve iptal olayları erişim hedefi olarak öğrenilmez. Başka bir içerik filtresi ilk taraf uygulama dosyasını engellerse popup kısa bir uyarı gösterir; eklenti başka bir eklentinin engelleme kuralını değiştirmez.
 
 Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. Bildirim, hedefin artık yerel geçit üzerinden yeniden deneneceğini açıklar.
 

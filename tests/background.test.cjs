@@ -448,6 +448,21 @@ function assertBadge(details, tabId, text) {
 
   await listeners.requestError({
     tabId: 42,
+    type: "script",
+    error: "net::ERR_BLOCKED_BY_CLIENT",
+    url: "https://app-shell.example/assets/app.js",
+    initiator: "https://app-shell.example/"
+  });
+  assert.equal(storage.lastIssueType, "client_filter_blocked");
+  assert.equal(storage.lastIssueDomain, "app-shell.example");
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "client-filter-blocked-critical" &&
+    entry.tabId === 42 && entry.requestType === "script"), true);
+  assertBadge(badgeTexts.at(-1), 42, "?");
+
+  await listeners.requestError({
+    tabId: 42,
     type: "xmlhttprequest",
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://tracker.resolution-error.example/pixel"

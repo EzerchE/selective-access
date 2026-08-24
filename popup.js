@@ -242,7 +242,11 @@ function renderDiagnostic(state) {
   }
 
   elements.diagnosticCard.classList.add("is-warning");
-  if (state.lastIssueType === "route_failed") {
+  if (state.lastIssueType === "client_filter_blocked") {
+    elements.checkStatus.hidden = true;
+    elements.diagnosticTitle.textContent = "Tarayıcı filtresi uygulamayı durdurdu";
+    elements.diagnosticText.textContent = "İlk taraf uygulama dosyası başka bir içerik filtresi tarafından engellendi. İlgili filtre kuralını veya bu siteye ait istisnayı kontrol edin.";
+  } else if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
     elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
   } else if (state.lastIssueType === "transient_reachable") {

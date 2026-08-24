@@ -60,6 +60,13 @@ const NON_ACTIONABLE_REQUEST_ERRORS = new Set([
   "net::ERR_BLOCKED_BY_ORB",
   "net::ERR_CACHE_MISS"
 ]);
+const CRITICAL_CLIENT_FILTER_TYPES = new Set([
+  "script",
+  "shared_worker",
+  "stylesheet",
+  "websocket",
+  "worker"
+]);
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 let debugQueue = Promise.resolve();
@@ -587,6 +594,31 @@ function getRequestHost(details) {
   }
 }
 
+async function recordCriticalClientFilter(details) {
+  if (!CRITICAL_CLIENT_FILTER_TYPES.has(details.type)) return;
+  const host = getRequestHost(details);
+  const initiatorHost = details.initiator
+    ? getRequestHost({ url: details.initiator })
+    : null;
+  if (!host || !initiatorHost || host !== initiatorHost) return;
+  if (tabIssues.get(details.tabId) === "client_filter_blocked") return;
+
+  const settings = await getSettings();
+  if (!settings.enabled) return;
+  await chrome.storage.local.set({
+    lastIssueType: "client_filter_blocked",
+    lastIssueDomain: initiatorHost,
+    lastIssueError: "ERR_BLOCKED_BY_CLIENT",
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("client-filter-blocked-critical", {
+    tabId: details.tabId,
+    requestType: details.type
+  });
+  await setIssueBadge(true, "client_filter_blocked", details.tabId);
+}
+
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
@@ -866,7 +898,14 @@ chrome.proxy.onProxyError.addListener(async (details) => {
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
-    if (details.tabId < 0 || NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
+    if (details.tabId < 0) return;
+    if (details.error === "net::ERR_BLOCKED_BY_CLIENT") {
+      learningQueue = learningQueue
+        .then(() => recordCriticalClientFilter(details))
+        .catch(console.error);
+      return learningQueue;
+    }
+    if (NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
     const host = getRequestHost(details);
     appendDebug("request-error", {
       tabId: details.tabId,
