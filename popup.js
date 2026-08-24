@@ -449,7 +449,7 @@ if (previewMode) {
   render(previewMode === "legacy"
     ? {
         enabled: false,
-        domains: ["target.example"],
+        domains: ["legacy-target.example"],
         proxyPort: 1080,
         lastProxyError: null,
         levelOfControl: "controlled_by_this_extension"

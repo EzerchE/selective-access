@@ -400,32 +400,32 @@ function assertBadge(details, tabId, text) {
   assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
-  const reloadCountBeforeRoblox = reloads.length;
+  const reloadCountBeforeApp = reloads.length;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await listeners.requestError({
       tabId: 77,
       type: "main_frame",
       error: "net::ERR_CONNECTION_RESET",
-      url: "https://roblox.example/"
+      url: "https://app-suite.example/"
     });
   }
   await new Promise((resolve) => setTimeout(resolve, 1_600));
-  assert.deepEqual([...storage.learnedDomains], ["roblox.example", "www.roblox.example"]);
-  assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
+  assert.deepEqual([...storage.learnedDomains], ["app-suite.example", "www.app-suite.example"]);
+  assert.equal(reloads.length, reloadCountBeforeApp + 1);
 
   await listeners.requestError({
     tabId: 77,
     type: "xmlhttprequest",
     error: "net::ERR_CONNECTION_RESET",
-    url: "https://apis.roblox.example/v1/config",
-    initiator: "https://www.roblox.example"
+    url: "https://api.app-suite.example/v1/config",
+    initiator: "https://www.app-suite.example"
   });
   await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.deepEqual(
     [...storage.learnedDomains],
-    ["apis.roblox.example", "roblox.example", "www.roblox.example"]
+    ["api.app-suite.example", "app-suite.example", "www.app-suite.example"]
   );
-  assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
+  assert.equal(reloads.length, reloadCountBeforeApp + 1);
   await new Promise((resolve) => setTimeout(resolve, 600));
   assert.equal(notifications.length, 5);
   assert.match(notifications.at(-1).options.title, /2 hedef/);

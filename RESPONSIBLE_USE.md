@@ -14,6 +14,6 @@ Yazılım aşağıdaki amaçlarla kullanılmamalıdır:
 - ağlara, sistemlere veya kişilere saldırmak, hizmet aksatmak, izinsiz tarama yapmak ya da kötüye kullanımda bulunmak;
 - kurum veya ağ sahibinin açık politikasını yetkisiz biçimde bertaraf etmek.
 
-Proje hiçbir üçüncü taraf site, marka, ağ sağlayıcısı, Cloudflare, Google, Globalping, ByeDPI veya dnsproxy ile bağlantılı, onlarca onaylanmış ya da desteklenmiş değildir. Arayüz görüntülerindeki üçüncü taraf adları yalnız işlevi örneklemek içindir.
+Proje hiçbir üçüncü taraf site, marka, ağ sağlayıcısı, Cloudflare, Google, Globalping, ByeDPI veya dnsproxy ile bağlantılı, onlarca onaylanmış ya da desteklenmiş değildir. Arayüzde yalnız IANA tarafından dokümantasyon için ayrılmış kurmaca `.example` alan adları kullanılır.
 
 Yazılım MIT lisansındaki gibi, garanti verilmeksizin sunulur. Çalışabilirlik, erişilebilirlik, anonimlik, belirli bir sonuca ulaşma veya hukuki uygunluk garantisi yoktur. Emin olmadığınız bir kullanım için yerel hukuk uzmanına veya ağ yöneticisine danışın.

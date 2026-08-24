@@ -4,11 +4,7 @@ Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü k
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
-![Otomatik Erişim gerçek Chrome popup görünümü](assets/screenshots/popup-v4-1-real.png)
-
-Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde gösterilen bildirim:
-
-![Yeni engelli hedef öğrenildi bildirimi](assets/screenshots/learned-notification-v4.png)
+![Otomatik Erişim genel arayüz örneği](assets/screenshots/popup-v4-2.png)
 
 ## Kısaca ne yapar?
 
@@ -18,7 +14,7 @@ Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde göste
 4. Yalnız bu alan adını bilgisayardaki yerel DPI geçidine yönlendirir.
 5. Diğer bütün siteleri doğrudan bağlantıda bırakır.
 
-Örneğin Reddit normal açılırken bir gönderideki video kaynağı engelliyse bütün Reddit trafiği yönlendirilmez. Yalnızca videoyu sağlayan alan adı öğrenilir ve sonraki isteğinde yerel geçitten geçirilir. Açık gönderi ve sayfadaki konum korunur.
+Örneğin bir sosyal akış normal açılırken gönderideki harici medya kaynağı engelliyse bütün ana sayfa trafiği yönlendirilmez. Yalnızca medyayı sağlayan alan adı öğrenilir ve sonraki isteğinde yerel geçitten geçirilir. Açık gönderi ve sayfadaki konum korunur.
 
 ## DPI nedir?
 
@@ -41,9 +37,13 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 
 ## Özellikler
 
+### Site bağımsız çalışma
+
+Algılama ve yeniden deneme kuralları belirli bir hedefe, markaya veya sabit alan adı listesine bağlı değildir. Kararlar yalnız Chrome'un bildirdiği istek türü, bağlantı hatası, frame kimliği, başlatıcı alan ilişkisi ve doğrudan erişim doğrulamasına göre verilir. Kod ile arayüz örneklerinde gerçek hedef adları kullanılmaz; test ve önizleme verileri IANA'nın dokümantasyon için ayırdığı `.example` alan adlarıyla oluşturulur.
+
 ### Otomatik hedef öğrenme
 
-Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Reddit gönderisindeki video gibi Chrome'un çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
+Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
