@@ -4,7 +4,7 @@ Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü k
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
-![Otomatik Erişim v4.1 gerçek Chrome popup görünümü](assets/screenshots/popup-v4-1-real.png)
+![Otomatik Erişim gerçek Chrome popup görünümü](assets/screenshots/popup-v4-1-real.png)
 
 Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde gösterilen bildirim:
 
@@ -13,8 +13,8 @@ Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde göste
 ## Kısaca ne yapar?
 
 1. Bir siteyi önce normal internet bağlantısıyla açmayı dener.
-2. Bağlantının sıfırlandığını, zaman aşımına uğradığını, boş yanıt verdiğini veya TLS aşamasında kesildiğini algılar.
-3. Sorunlu alan adını öğrenilen hedefler listesine ekler.
+2. Erişim engeline benzeyen bağlantı sıfırlama, kapanma veya boş yanıt hatalarının kısa süre içinde tekrarlandığını doğrular.
+3. Aynı hedef doğrudan yanıt vermiyorsa yalnız tam alan adını öğrenilen hedefler listesine ekler.
 4. Yalnız bu alan adını bilgisayardaki yerel DPI geçidine yönlendirir.
 5. Diğer bütün siteleri doğrudan bağlantıda bırakır.
 
@@ -43,7 +43,9 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 
 ### Otomatik hedef öğrenme
 
-Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Sorunlu hedefi kalıcı olarak öğrenir ve seçici PAC kuralını günceller.
+Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Tek bir geçici hata hedefi öğrenmek için yeterli değildir. Bağlantı sıfırlama/kapanma veya boş yanıt hatası kısa süre içinde birkaç kez tekrarlanmalı ve çerez gönderilmeyen doğrudan erişim kontrolü de bağlantı kuramamalıdır. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
+
+Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Örneğin `media.example.com` öğrenildiğinde `example.com` ve diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
 Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve iptal edilmiş istekler öğrenilmez.
 
@@ -90,10 +92,12 @@ Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenile
 Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı hatası algılandığında:
 
 1. Alan adı normalleştirilip tekrarlar ayıklanır.
-2. Hedef yoksayılan listede değilse `chrome.storage.local` içindeki öğrenilen listeye eklenir.
-3. PAC kuralı yalnız hedefi ve alt alan adlarını `127.0.0.1:1080` üzerindeki ByeDPI SOCKS5 geçidine gönderir.
-4. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.
-5. Ana sayfa hatasıysa sekme bir kez yenilenir; gömülü kaynak hatasıysa sayfa yerinde bırakılır.
+2. Hatanın türü ve kısa süre içindeki tekrar sayısı kontrol edilir; zaman aşımı ve TLS hataları otomatik öğrenilmez.
+3. Eşik aşılırsa aynı URL'ye çerezsiz bir `HEAD` isteğiyle doğrudan erişim sınanır. Herhangi bir HTTP yanıtı alınırsa hedef eklenmez.
+4. Doğrudan bağlantı da kurulamazsa hedef `chrome.storage.local` içindeki öğrenilen listeye eklenir.
+5. PAC kuralı yalnız hatayı veren tam alan adını `127.0.0.1:1080` üzerindeki ByeDPI SOCKS5 geçidine gönderir.
+6. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.
+7. Ana sayfa hatasıysa sekme bir kez yenilenir; gömülü kaynak hatasıysa sayfa yerinde bırakılır.
 
 Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağdaki diğer cihazlara açılmaz:
 
@@ -143,6 +147,7 @@ Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS traf
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
 - DNS sorguları şifreli HTTPS üzerinden Cloudflare ve Google'a gönderilir. Bu sağlayıcılar sorgulanan alan adını ve kaynak IP adresini görebilir.
 - Globalping'e yalnız kullanıcı genel durum kontrolünü başlattığında açık sekmenin alan adı gönderilir.
+- Otomatik doğrulama isteği üçüncü tarafa değil, yalnız hatayı veren hedef URL'ye doğrudan ve çerezsiz gönderilir.
 - Tam URL, sayfa içeriği ve öğrenilmiş alan adı listesinin tamamı dış servislere gönderilmez.
 - Ana anahtar kapatıldığında Chrome proxy ayarı temizlenir.
 
@@ -163,6 +168,7 @@ Kaldırma betiği ByeDPI hizmetini, yerel şifreli DNS görevini, proje etiketli
 
 - Yalnız Chrome trafiğini yönlendirir; masaüstü uygulamalarını kapsamaz.
 - Bir sunucu gerçekten kapalıysa veya internet bağlantısı yoksa DPI atlatma bunu düzeltemez.
+- Yerel hata belirtileri erişim engelini kesin olarak kanıtlayamaz. Tekrarlı hata ve doğrudan kontrol yanlış algılama riskini azaltır; kullanıcı gerekirse hedefi listeden çıkarabilir veya kalıcı olarak yoksayabilir.
 - Ağ sağlayıcıları engelleme yöntemlerini değiştirebilir; çalışan DPI profilinin ileride güncellenmesi gerekebilir.
 - Başka bir eklenti veya kurumsal politika Chrome proxy ayarlarını kontrol ediyorsa iki yapı aynı anda çalışamayabilir.
 - Şifreli DNS kuralı sistem genelindedir; cihazdaki diğer uygulamaların DNS çözümlemesini de etkiler.

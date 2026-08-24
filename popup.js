@@ -39,7 +39,7 @@ function normalizeDomain(value) {
     const withScheme = candidate.includes("://") ? candidate : `https://${candidate}`;
     const hostname = new URL(withScheme).hostname.replace(/^\.+|\.+$/g, "");
     if (!hostname || hostname === "localhost" || hostname.includes(" ")) return null;
-    return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+    return hostname;
   } catch {
     return null;
   }
@@ -47,6 +47,10 @@ function normalizeDomain(value) {
 
 function isCovered(host, domains) {
   return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function isLearned(host, domains) {
+  return domains.includes(host);
 }
 
 function renderDomainList() {
@@ -237,6 +241,12 @@ function renderDiagnostic(state) {
   } else if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
     elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
+  } else if (state.lastIssueType === "transient_reachable") {
+    elements.diagnosticTitle.textContent = "Geçici bağlantı hatası";
+    elements.diagnosticText.textContent = "Doğrudan kontrol hedeften yanıt aldı. Site yönlendirme listesine eklenmedi; sayfayı yeniden deneyebilirsiniz.";
+  } else if (state.lastIssueType === "transient_unverified") {
+    elements.diagnosticTitle.textContent = "Engel doğrulanmadı";
+    elements.diagnosticText.textContent = "Bu hata tek başına erişim engeli kanıtı değildir. Hedef otomatik eklenmedi; yeniden deneyin veya genel durumu kontrol edin.";
   } else {
     elements.diagnosticTitle.textContent = "Alternatif bağlantı deneniyor";
     elements.diagnosticText.textContent = "Hedef öğrenildi ve yerel geçit üzerinden bir kez daha yükleniyor.";
@@ -245,7 +255,7 @@ function renderDiagnostic(state) {
 
 function updateSiteAction() {
   if (!currentHost) return;
-  const learned = isCovered(currentHost, learnedDomains);
+  const learned = isLearned(currentHost, learnedDomains);
   const ignored = isCovered(currentHost, ignoredDomains);
   elements.siteAction.textContent = ignored ? "Yoksaymayı kaldır" : learned ? "Listeden çıkar" : "Şimdi geçide al";
   elements.siteAction.dataset.mode = ignored ? "unignore" : learned ? "remove" : "add";
@@ -327,9 +337,7 @@ elements.siteAction.addEventListener("click", () => {
   let nextDomains = [...learnedDomains];
 
   if (elements.siteAction.dataset.mode === "remove") {
-    nextDomains = nextDomains.filter(
-      (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
-    );
+    nextDomains = nextDomains.filter((domain) => domain !== currentHost);
   } else if (elements.siteAction.dataset.mode === "unignore") {
     save({
       ignoredDomains: ignoredDomains.filter(

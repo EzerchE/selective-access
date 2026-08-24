@@ -12,6 +12,7 @@ let proxyConfig = null;
 let clearCount = 0;
 let measurementShouldBeDown = false;
 let notificationPermission = "granted";
+const directlyReachableHosts = new Set();
 
 const chrome = {
   storage: {
@@ -123,6 +124,11 @@ const chrome = {
 };
 
 const fetch = async (url, options = {}) => {
+  if (options.method === "HEAD") {
+    const host = new URL(url).hostname;
+    if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
+    throw new Error("direct probe failed");
+  }
   if (options.method === "POST") {
     const request = JSON.parse(options.body);
     assert.equal(request.type, "http");
@@ -157,7 +163,10 @@ const fetch = async (url, options = {}) => {
 };
 
 const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
-vm.runInNewContext(source, { chrome, console, URL, Date, Map, Set, Promise, JSON, fetch, setTimeout });
+vm.runInNewContext(source, {
+  chrome, console, URL, Date, Map, Set, Promise, JSON, fetch,
+  AbortController, setTimeout, clearTimeout
+});
 
 function send(message) {
   return new Promise((resolve) => {
@@ -194,7 +203,7 @@ function assertBadge(details, tabId, text) {
     patch: {
       enabled: true,
       proxyPort: 1080,
-      learnedDomains: ["https://www.Example.com/path", "example.com"]
+      learnedDomains: ["https://Example.com/path", "example.com"]
     }
   });
 
@@ -202,17 +211,19 @@ function assertBadge(details, tabId, text) {
   assert.deepEqual([...enabled.state.learnedDomains], ["example.com"]);
   assert.equal(proxyConfig.mode, "pac_script");
   const findProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "SOCKS5 127.0.0.1:1080");
+  assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
-  await listeners.requestError({
-    tabId: 42,
-    type: "sub_frame",
-    error: "net::ERR_CONNECTION_RESET",
-    url: "https://media-cdn.example/embed/video"
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await listeners.requestError({
+      tabId: 42,
+      type: "sub_frame",
+      error: "net::ERR_CONNECTION_RESET",
+      url: "https://media-cdn.example/embed/video"
+    });
+  }
   await new Promise((resolve) => setTimeout(resolve, 550));
 
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
@@ -241,15 +252,42 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications.length, 1);
 
   await send({ type: "saveSettings", patch: { ignoredDomains: [] } });
-  await listeners.requestError({
-    tabId: 42,
-    type: "sub_frame",
-    error: "net::ERR_CONNECTION_RESET",
-    url: "https://media-cdn.example/embed/restored"
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await listeners.requestError({
+      tabId: 42,
+      type: "sub_frame",
+      error: "net::ERR_CONNECTION_RESET",
+      url: "https://media-cdn.example/embed/restored"
+    });
+  }
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 2);
+
+  directlyReachableHosts.add("normal-available.example");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await listeners.requestError({
+      tabId: 55,
+      type: "main_frame",
+      error: "net::ERR_CONNECTION_RESET",
+      url: "https://normal-available.example/"
+    });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
+  assert.equal(storage.lastIssueType, "transient_reachable");
+  assert.equal(notifications.length, 2);
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await listeners.requestError({
+      tabId: 56,
+      type: "main_frame",
+      error: "net::ERR_TIMED_OUT",
+      url: "https://slow-but-valid.example/"
+    });
+  }
+  assert.equal(storage.learnedDomains.includes("slow-but-valid.example"), false);
+  assert.equal(storage.lastIssueType, "transient_unverified");
 
   await listeners.requestError({
     tabId: 7,

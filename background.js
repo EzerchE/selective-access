@@ -45,7 +45,15 @@ const RETRYABLE_TYPES = new Set([
 
 const retryCooldowns = new Map();
 const tabIssues = new Map();
+const detectionCandidates = new Map();
 let learningQueue = Promise.resolve();
+
+const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
+  ERR_CONNECTION_RESET: { main: 2, embedded: 3 },
+  ERR_CONNECTION_CLOSED: { main: 2, embedded: 3 },
+  ERR_EMPTY_RESPONSE: { main: 3, embedded: 4 }
+});
+const CANDIDATE_WINDOW_MS = 30_000;
 
 function actionTarget(tabId, values) {
   return Number.isInteger(tabId) && tabId >= 0 ? { ...values, tabId } : values;
@@ -59,7 +67,7 @@ function normalizeDomain(value) {
     const withScheme = candidate.includes("://") ? candidate : `https://${candidate}`;
     const hostname = new URL(withScheme).hostname.replace(/^\.+|\.+$/g, "");
     if (!hostname || hostname === "localhost" || hostname.includes(" ")) return null;
-    return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+    return hostname;
   } catch {
     return null;
   }
@@ -80,6 +88,10 @@ function normalizePort(value) {
 
 function isCovered(host, domains) {
   return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function isLearned(host, domains) {
+  return domains.includes(host);
 }
 
 function isLocalHost(host) {
@@ -126,7 +138,7 @@ function FindProxyForURL(url, host) {
 
   for (var i = 0; i < learnedDomains.length; i++) {
     var domain = learnedDomains[i];
-    if (host === domain || dnsDomainIs(host, "." + domain)) {
+    if (host === domain) {
       return "${proxy}";
     }
   }
@@ -266,6 +278,41 @@ function matchingError(details, candidates) {
   return candidates.find((error) => String(details.error || "").includes(error)) || null;
 }
 
+function registerDetectionCandidate(host, details, error) {
+  const threshold = AUTO_LEARN_ERROR_THRESHOLDS[error];
+  if (!threshold) return { ready: false, supported: false, count: 0 };
+  const now = Date.now();
+  for (const [candidateHost, candidate] of detectionCandidates) {
+    if (now - candidate.lastAt > CANDIDATE_WINDOW_MS) detectionCandidates.delete(candidateHost);
+  }
+  const previous = detectionCandidates.get(host);
+  const count = previous && previous.error === error && now - previous.lastAt <= CANDIDATE_WINDOW_MS
+    ? previous.count + 1
+    : 1;
+  detectionCandidates.set(host, { count, lastAt: now, error });
+  const required = details.type === "main_frame" ? threshold.main : threshold.embedded;
+  return { ready: count >= required, supported: true, count, required };
+}
+
+async function directRequestResponds(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4_500);
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "manual",
+      signal: controller.signal
+    });
+    return Boolean(response);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function notifyLearnedDomain(domain) {
   const id = `learned:${domain}`;
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
@@ -377,7 +424,7 @@ async function learnAndRetry(details) {
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
 
-  if (isCovered(host, settings.learnedDomains)) {
+  if (isLearned(host, settings.learnedDomains)) {
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
         lastIssueType: "route_failed",
@@ -390,6 +437,39 @@ async function learnAndRetry(details) {
     }
     return;
   }
+
+  const error = matchingError(details, RETRYABLE_ERRORS);
+  const candidate = registerDetectionCandidate(host, details, error);
+  if (!candidate.supported) {
+    if (details.type === "main_frame") {
+      await chrome.storage.local.set({
+        lastIssueType: "transient_unverified",
+        lastIssueDomain: host,
+        lastIssueError: error,
+        lastIssueAt: new Date().toISOString(),
+        lastGlobalCheck: null
+      });
+      await setIssueBadge(true, "transient_unverified", details.tabId);
+    }
+    return;
+  }
+  if (!candidate.ready) return;
+
+  if (await directRequestResponds(details.url)) {
+    detectionCandidates.delete(host);
+    if (details.type === "main_frame") {
+      await chrome.storage.local.set({
+        lastIssueType: "transient_reachable",
+        lastIssueDomain: host,
+        lastIssueError: error,
+        lastIssueAt: new Date().toISOString(),
+        lastGlobalCheck: null
+      });
+      await setIssueBadge(true, "transient_reachable", details.tabId);
+    }
+    return;
+  }
+  detectionCandidates.delete(host);
 
   const learnedDomains = normalizeDomains([...settings.learnedDomains, host]);
   const now = Date.now();
@@ -510,7 +590,7 @@ async function checkGlobalStatus(value, tabId = null) {
     settings.enabled &&
     settings.lastIssueDomain === domain &&
     ["dns_filtered", "dns_unresolved"].includes(settings.lastIssueType) &&
-    !isCovered(domain, settings.learnedDomains) &&
+    !isLearned(domain, settings.learnedDomains) &&
     !isCovered(domain, settings.ignoredDomains)
   ) {
     const learnedDomains = normalizeDomains([...settings.learnedDomains, domain]);
