@@ -55,7 +55,7 @@ Bildirimler yüksek öncelikli ve kullanıcı kapatana kadar görünür olacak �
 
 ### Sayfa durumunu koruyan yeniden deneme
 
-Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralı uygulandıktan sonra sekme yenilenir. Ana sitenin kendi API veya alt alanı da art arda öğrenilirse çakışan yenilemeler oluşturulmaz; sekme başına zamanlayıcı son kuraldan itibaren yeniden başlatılır ve PAC ayarının Chrome ağ katmanına yerleşmesi beklenir. Hata bir gönderinin içindeki harici video, görsel veya iframe alanındaysa üst sayfa yenilenmez. Böylece Reddit benzeri sayfalarda açık gönderi ve kaydırma konumu korunurken çok alanlı web uygulamaları yüklenmeyi tamamlayabilir.
+Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Ana sitenin API alanları veya harici video, görsel ve iframe hedefleri sonradan öğrenildiğinde açık sayfa yenilenmez. Böylece çok alanlı uygulamalarda sayfa açıldıktan sonra gereksiz ikinci refresh oluşmaz; açık gönderi, form ve kaydırma konumu korunur.
 
 ### Elle ekleme, çıkarma ve kalıcı yoksayma
 

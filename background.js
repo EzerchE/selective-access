@@ -116,18 +116,6 @@ function mainHostAliases(host, requestType = "main_frame") {
     : [host, `www.${host}`];
 }
 
-function sameSiteInitiatorBase(details, host) {
-  if (details.type === "main_frame" || !details.initiator) return null;
-  try {
-    const initiator = normalizeDomain(new URL(details.initiator).hostname);
-    if (!initiator) return null;
-    const base = initiator.startsWith("www.") ? initiator.slice(4) : initiator;
-    return host === base || host.endsWith(`.${base}`) ? base : null;
-  } catch {
-    return null;
-  }
-}
-
 function isLocalHost(host) {
   return host === "localhost" ||
     host === "::1" ||
@@ -578,15 +566,12 @@ async function learnAndRetry(details) {
   await setBadge(true, false, true, details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
 
-  // Harici bir gömülü kaynak yüzünden üst sayfayı yenilemek açık gönderiyi ve
-  // SPA durumunu kaybettirebilir. Ancak ana sitenin kendi API/alt alanı yeni
-  // öğrenildiyse mevcut sayfa o başarısız isteği çoğu zaman tekrarlamaz; bu
-  // durumda aynı site ailesi için yalnız bir kez yenilemek gerekir.
-  const sameSiteBase = sameSiteInitiatorBase(details, host);
-  if (details.type !== "main_frame" && !sameSiteBase) return;
+  // Gömülü API, video, görsel veya iframe hedefleri öğrenilir ancak açık sayfa
+  // yenilenmez. Modern siteler bu istekleri çoğunlukla kendileri tekrarlar;
+  // zorunlu yenileme açık gönderi, form ve uygulama durumunu kaybettirebilir.
+  if (details.type !== "main_frame") return;
 
-  const retryScope = details.type === "main_frame" ? "main" : "embedded";
-  const retryKey = `${details.tabId}:${retryScope}:${sameSiteBase || host}`;
+  const retryKey = `${details.tabId}:main:${host}`;
   const lastRetry = retryCooldowns.get(retryKey) || 0;
   if (now - lastRetry < 60_000) return;
   retryCooldowns.set(retryKey, now);

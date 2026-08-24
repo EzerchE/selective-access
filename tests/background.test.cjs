@@ -408,7 +408,7 @@ function assertBadge(details, tabId, text) {
     [...storage.learnedDomains],
     ["apis.roblox.example", "roblox.example", "www.roblox.example"]
   );
-  assert.equal(reloads.length, reloadCountBeforeRoblox + 2);
+  assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);
