@@ -32,7 +32,7 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 - **Daha iyi performans:** Bütün internet trafiği ek işlemden geçirilmez.
 - **Daha düşük gecikme:** Oyun, bankacılık, alışveriş ve günlük siteler doğrudan bağlanmaya devam eder.
 - **Daha yüksek uyumluluk:** DPI parametrelerinden etkilenebilecek siteler gereksiz yere geçide alınmaz.
-- **Daha iyi gizlilik:** Trafik uzak bir VPN veya ticari proxy sunucusuna taşınmaz; SOCKS5 geçidi kullanıcının kendi bilgisayarında veya güvenilir yerel ağındaki kendi cihazında çalışır.
+- **Daha iyi gizlilik:** Trafik uzak bir VPN veya ticari proxy sunucusuna taşınmaz; SOCKS5 geçidi kullanıcının kendi bilgisayarında çalışır.
 - **Kolay denetim:** Öğrenilen alan adları popup içinde görülebilir, elle eklenebilir veya listeden çıkarılabilir.
 
 ## Özellikler
@@ -99,24 +99,14 @@ Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı 
 2. Hatanın türü ve isteğin ana sayfa mı gömülü kaynak mı olduğu kontrol edilir; zaman aşımı ve TLS hataları otomatik öğrenilmez.
 3. Eşik aşılırsa aynı URL'ye çerezsiz, yalnız ilk baytı isteyen sınırlı bir `GET` isteğiyle gerçek içerik erişimi sınanır. Herhangi bir HTTP yanıtı alınırsa hedef eklenmez.
 4. Doğrudan bağlantı da kurulamazsa hedef `chrome.storage.local` içindeki öğrenilen listeye eklenir.
-5. PAC kuralı yalnız hatayı veren tam alan adını seçilen özel IPv4 adresindeki ByeDPI SOCKS5 geçidine gönderir.
+5. PAC kuralı yalnız hatayı veren tam alan adını `127.0.0.1:1080` üzerindeki ByeDPI SOCKS5 geçidine gönderir.
 6. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.
 7. Ana sayfa hatasıysa sekme bir kez yenilenir; gömülü kaynak hatasıysa sayfa yerinde bırakılır.
 
-Varsayılan kurulumda hizmetler aşağıdaki loopback adreslerini dinler:
+Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağdaki diğer cihazlara açılmaz:
 
 - `127.0.0.1:1080`: ByeDPI SOCKS5 geçidi
 - `127.0.0.2:53`: Şifreli DNS geçidi
-
-Kurulum sırasında kullanıcı açıkça yerel ağ paylaşımını seçerse SOCKS5 hizmeti, bilgisayarın seçilen `10.x.x.x`, `172.16–31.x.x` veya `192.168.x.x` adresinde dinler. Kurucu TCP/1080 için yalnız `LocalSubnet` kaynaklarına izin veren Windows Güvenlik Duvarı kuralı oluşturur. DNS hizmeti paylaşılmaz ve `127.0.0.2` üzerinde kalır.
-
-### Başka bilgisayardaki yerel geçidi kullanma
-
-Yönetici yetkisi olmayan istemci bilgisayara yalnız Chrome eklentisi kurulabilir. **Yerel geçit ayarı → Sunucu** alanına geçit bilgisayarının özel IPv4 adresi, port alanına `1080` girilir. Genel internet IP adresleri kabul edilmez.
-
-Geçit bilgisayarında kurucu yeniden çalıştırılıp **yerel ağ paylaşımı** seçilmeli ve ekranda gösterilen özel IPv4 adreslerinden doğru olanı kullanılmalıdır. İstemci ile geçit aynı güvenilir yerel ağda olmalı; misafir ağı veya istemci izolasyonu iki cihazın haberleşmesini engelleyebilir.
-
-İstemci bilgisayarda alan adı doğrudan DNS hatası verirse hedef popup'taki **Şimdi geçide al** düğmesiyle elle eklenebilir veya **Genel durumu kontrol et** akışı kullanılabilir. Hedef PAC listesine girdikten sonra bağlantı, alan adıyla birlikte seçilen SOCKS5 geçidinden denenir; geçit bilgisayarındaki sistem geneli DNS kuralı istemciye kurulmaz.
 
 ## Kurulum
 
@@ -157,7 +147,7 @@ Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS traf
 
 ## Güvenlik ve gizlilik
 
-- Uzak VPN veya herkese açık trafik proxy'si kullanılmaz. DPI geçidi kullanıcının kendi bilgisayarında veya güvenilir yerel ağındaki kendi cihazındadır.
+- Uzak VPN veya trafik proxy'si kullanılmaz. DPI geçidi tamamen kullanıcının bilgisayarındadır.
 - HTTPS içeriği şifreli kalır; özel sertifika kurulmaz.
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
 - Hata ayıklama günlüğü yalnız Chrome'un yerel eklenti deposunda tutulur ve kullanıcı kendisi paylaşmadıkça cihazdan çıkmaz.
@@ -187,7 +177,6 @@ Kaldırma betiği ByeDPI hizmetini, yerel şifreli DNS görevini, proje etiketli
 - Yerel hata belirtileri erişim engelini kesin olarak kanıtlayamaz. Tekrarlı hata ve doğrudan kontrol yanlış algılama riskini azaltır; kullanıcı gerekirse hedefi listeden çıkarabilir veya kalıcı olarak yoksayabilir.
 - Ağ sağlayıcıları engelleme yöntemlerini değiştirebilir; çalışan DPI profilinin ileride güncellenmesi gerekebilir.
 - Başka bir eklenti veya kurumsal politika Chrome proxy ayarlarını kontrol ediyorsa iki yapı aynı anda çalışamayabilir.
-- Yerel ağ geçidi SOCKS5 kimlik doğrulaması sağlamaz; yalnız güvenilir özel ağda ve kurucunun sınırlı güvenlik duvarı kuralıyla kullanılmalıdır.
 - Şifreli DNS kuralı sistem genelindedir; cihazdaki diğer uygulamaların DNS çözümlemesini de etkiler.
 - Kullanımın bulunduğunuz yerdeki mevzuata ve ağ kurallarına uygunluğunu kontrol etmek kullanıcının sorumluluğundadır.
 

@@ -9,7 +9,6 @@ const elements = {
   domainCount: document.querySelector("#domainCount"),
   ignoredList: document.querySelector("#ignoredList"),
   ignoredCount: document.querySelector("#ignoredCount"),
-  proxyHost: document.querySelector("#proxyHost"),
   proxyPort: document.querySelector("#proxyPort"),
   notice: document.querySelector("#notice"),
   save: document.querySelector("#save"),
@@ -164,7 +163,6 @@ function render(state) {
   elements.retry.disabled = versionMismatch;
   renderDomainList();
   renderIgnoredList();
-  elements.proxyHost.value = state.proxyHost || "127.0.0.1";
   elements.proxyPort.value = String(state.proxyPort);
   elements.debugEnabled.checked = Boolean(state.debugEnabled);
   elements.debugControls.hidden = !state.debugEnabled;
@@ -307,7 +305,6 @@ async function save(patch = {}) {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw new Error("Port 1 ile 65535 arasında olmalı.");
     }
-    const proxyHost = elements.proxyHost.value.trim();
 
     const nextDomains = patch.learnedDomains === undefined
       ? learnedDomains
@@ -323,7 +320,6 @@ async function save(patch = {}) {
         ...patch,
         learnedDomains: nextDomains,
         ignoredDomains: nextIgnoredDomains,
-        proxyHost,
         proxyPort: port
       }
     });

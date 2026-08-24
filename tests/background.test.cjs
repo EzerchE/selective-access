@@ -212,29 +212,18 @@ function assertBadge(details, tabId, text) {
     patch: {
       enabled: true,
       debugEnabled: true,
-      proxyHost: "192.168.50.20",
       proxyPort: 1080,
       learnedDomains: ["https://Example.com/path", "example.com"]
     }
   });
 
   assert.equal(enabled.ok, true);
-  assert.equal(enabled.state.proxyHost, "192.168.50.20");
   assert.deepEqual([...enabled.state.learnedDomains], ["example.com"]);
   assert.equal(proxyConfig.mode, "pac_script");
   const findProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(findProxy("https://example.com/", "example.com"), "SOCKS5 192.168.50.20:1080");
   assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
-
-  const publicGateway = await send({
-    type: "saveSettings",
-    patch: { proxyHost: "203.0.113.10" }
-  });
-  assert.equal(publicGateway.ok, false);
-  assert.match(publicGateway.error, /özel bir yerel ağ IPv4/i);
-  assert.equal(storage.proxyHost, "192.168.50.20");
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -351,7 +340,7 @@ function assertBadge(details, tabId, text) {
   assert.match(notifications[2].id, /^learned:\d+$/);
   assert.equal(reloads.at(-1).tabId, 7);
   const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(dnsLearnedProxy("https://blocked-by-dns.example/", "blocked-by-dns.example"), "SOCKS5 192.168.50.20:1080");
+  assert.equal(dnsLearnedProxy("https://blocked-by-dns.example/", "blocked-by-dns.example"), "SOCKS5 127.0.0.1:1080");
   assert.deepEqual([...listeners.completedFilter.types], ["main_frame"]);
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
@@ -391,7 +380,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(reloads.length, 1);
   assert.equal(reloads[0].tabId, 7);
   const learnedProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 192.168.50.20:1080");
+  assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 127.0.0.1:1080");
   assert.equal(learnedProxy("https://portal.example/", "portal.example"), "DIRECT");
 
   await listeners.requestError({

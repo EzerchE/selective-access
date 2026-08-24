@@ -8,8 +8,6 @@ Otomatik Erişim'in amacı, bağlantı hatası yaşayan alan adlarını kullanı
 
 Eklenti etkinleştirildiğinde istek yapılan alan adlarını, Chrome bağlantı hata türlerini, ilgili zaman bilgisini, öğrenilen alan adı listesini ve kullanıcının yoksaydığı alan adlarını işler. Bunlar web gezinme etkinliği sayılabilir. Veriler `chrome.storage.local` içinde yalnız kullanıcının cihazında tutulur ve geliştiriciye gönderilmez.
 
-Kullanıcı yerel ağ geçidi seçerse yönlendirilen hedeflerin bağlantıları kendi belirlediği yerel ağ bilgisayarındaki SOCKS5 hizmetinden çıkar. Bu cihaz hedef alan adlarını, bağlantı zamanlarını ve istemcinin yerel IP adresini görebilir. Geçit hizmeti kimlik doğrulaması sağlamadığından yalnız güvenilir özel ağlarda kullanılmalıdır; genel internet adresleri eklenti tarafından reddedilir.
-
 ## Üçüncü tarafa aktarım
 
 Kurulum yardımcısı, cihazdaki **tüm DNS sorgularını** (yalnız eklentinin öğrendiği hedefleri değil) yerel `dnsproxy` üzerinden şifreli olarak Cloudflare (`1.1.1.1`) ve Google (`8.8.8.8`) DoH çözümleyicilerine gönderir. Bu sağlayıcılar sorgulanan alan adını ve bağlantının kaynak IP adresini görebilir; kendi gizlilik ve saklama koşulları geçerlidir. Tam URL, sayfa içeriği ve HTTPS içeriği DNS sorgusuna dahil değildir.
@@ -30,7 +28,7 @@ Eklenti kullanıcı verisini satmaz, reklam hedefleme amacıyla kullanmaz ve ü�
 
 ## İzinlerin amacı
 
-- `proxy`: yalnız öğrenilen alan adları için bu bilgisayardaki veya kullanıcının seçtiği özel yerel ağ adresindeki PAC/SOCKS5 yönlendirmesini uygulamak.
+- `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
 - `webRequest` ve HTTP/HTTPS host erişimi: ağ hatalarını ve başarılı ana sayfa yanıtlarını algılamak.
 - `storage`: ayarları, öğrenilen ve yoksayılan alan adlarını yerel olarak saklamak.
 - `activeTab`: kullanıcı popup'ı açtığında yalnız etkin sekmenin alan adını göstermek ve isteğe bağlı işlem uygulamak.
