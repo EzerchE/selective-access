@@ -2,7 +2,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.7.0**
+Güncel sürüm: **4.7.1**
 
 ## Temel davranış
 
@@ -10,6 +10,7 @@ Güncel sürüm: **4.7.0**
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
+- Ana hedef kurtarılırken sonradan öğrenilen sayfa bağımlılıkları kısa bir sakinleşme penceresinde toplanır; gerekirse tek seferde yeniden denenir ve yenileme döngüsü sınırlandırılır.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
