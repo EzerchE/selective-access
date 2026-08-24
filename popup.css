@@ -500,6 +500,24 @@ input:focus {
   word-break: break-word;
 }
 
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #34413b;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.debug-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #0f766e;
+}
+
 .debug-actions {
   display: flex;
   gap: 8px;

@@ -100,10 +100,16 @@
       <details class="advanced">
         <summary>Hata ayıklama günlüğü</summary>
         <p class="hint">Yalnız zaman, alan adı, istek/hata türü ve yönlendirme aşaması cihazda tutulur; sayfa içeriği kaydedilmez.</p>
-        <pre id="debugLog" class="debug-log">Henüz kayıt yok</pre>
-        <div class="debug-actions">
-          <button id="copyDebugLog" class="button ghost inline-button" type="button">Günlüğü kopyala</button>
-          <button id="clearDebugLog" class="button ghost inline-button" type="button">Temizle</button>
+        <label class="debug-toggle">
+          <input id="debugEnabled" type="checkbox">
+          <span>Debug kaydını etkinleştir</span>
+        </label>
+        <div id="debugControls" hidden>
+          <pre id="debugLog" class="debug-log">Henüz kayıt yok</pre>
+          <div class="debug-actions">
+            <button id="copyDebugLog" class="button ghost inline-button" type="button">Günlüğü kopyala</button>
+            <button id="clearDebugLog" class="button ghost inline-button" type="button">Temizle</button>
+          </div>
         </div>
       </details>
 

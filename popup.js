@@ -19,6 +19,8 @@ const elements = {
   diagnosticText: document.querySelector("#diagnosticText"),
   checkStatus: document.querySelector("#checkStatus"),
   testNotification: document.querySelector("#testNotification"),
+  debugEnabled: document.querySelector("#debugEnabled"),
+  debugControls: document.querySelector("#debugControls"),
   debugLog: document.querySelector("#debugLog"),
   copyDebugLog: document.querySelector("#copyDebugLog"),
   clearDebugLog: document.querySelector("#clearDebugLog")
@@ -162,6 +164,8 @@ function render(state) {
   renderDomainList();
   renderIgnoredList();
   elements.proxyPort.value = String(state.proxyPort);
+  elements.debugEnabled.checked = Boolean(state.debugEnabled);
+  elements.debugControls.hidden = !state.debugEnabled;
   elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
     ? state.debugLog.map((entry) => JSON.stringify(entry)).join("\n")
     : "Henüz kayıt yok";
@@ -386,6 +390,10 @@ elements.copyDebugLog.addEventListener("click", async () => {
   } catch (error) {
     showNotice(`Günlük kopyalanamadı: ${error.message}`, true);
   }
+});
+
+elements.debugEnabled.addEventListener("change", () => {
+  save({ debugEnabled: elements.debugEnabled.checked });
 });
 
 elements.clearDebugLog.addEventListener("click", async () => {

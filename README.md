@@ -51,11 +51,11 @@ Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve iptal
 
 Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. Bildirim, hedefin artık yerel geçit üzerinden yeniden deneneceğini açıklar.
 
-Bildirimler yüksek öncelikli ve kullanıcı kapatana kadar görünür olacak şekilde oluşturulur. Her öğrenme olayı benzersiz bir bildirim kimliği kullanır; aynı hedef listeden silinip daha sonra yeniden otomatik öğrenildiğinde de yeni bildirim gösterilir. **Yerel geçit ayarı → Bildirimi test et** düğmesi Chrome/Windows bildirim zincirini sınamak için kullanılabilir; Chrome bildirimi kabul ettiği halde ekranda görünmüyorsa Windows Bildirim Merkezi ve **Rahatsız etmeyin** ayarı kontrol edilmelidir.
+Kısa süre içinde art arda öğrenilen hedefler tek Chrome bildiriminde gruplanır. Bildirimler işletim sisteminin normal geçici bildirim davranışını kullanır ve ekranda kalmaya zorlanmaz. Aynı hedef listeden silinip daha sonra yeniden otomatik öğrenildiğinde yeni bildirim grubuna alınır. **Yerel geçit ayarı → Bildirimi test et** düğmesi Chrome/Windows bildirim zincirini sınamak için kullanılabilir; Chrome bildirimi kabul ettiği halde ekranda görünmüyorsa Windows Bildirim Merkezi ve **Rahatsız etmeyin** ayarı kontrol edilmelidir.
 
 ### Sayfa durumunu koruyan yeniden deneme
 
-Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Ana sitenin API alanları veya harici video, görsel ve iframe hedefleri sonradan öğrenildiğinde açık sayfa yenilenmez. Böylece çok alanlı uygulamalarda sayfa açıldıktan sonra gereksiz ikinci refresh oluşmaz; açık gönderi, form ve kaydırma konumu korunur.
+Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Harici bir iframe hedefi sonradan öğrenildiğinde içerik betiği yalnız eşleşen iframe'in adresini yeniden yükler; üst sayfa yenilenmez. API, video ve görsel hedefleri öğrenilir ancak sayfa durumu korunur. Böylece gereksiz ikinci refresh oluşmaz; açık gönderi, form ve kaydırma konumu kaybolmaz.
 
 ### Elle ekleme, çıkarma ve kalıcı yoksayma
 
@@ -85,7 +85,7 @@ Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenile
 
 ### Yerel hata ayıklama günlüğü
 
-Popup içindeki **Hata ayıklama günlüğü**, algılama ve yeniden deneme sorunlarını incelemek için son 150 olayı yalnız cihazda tutar. Kayıtlarda zaman, alan adı, istek/hata türü, PAC uygulama sonucu ve sekme yenileme aşaması bulunur; tam URL, sayfa içeriği, çerez veya form verisi kaydedilmez. Günlük kopyalanabilir veya tek düğmeyle temizlenebilir.
+Popup içindeki **Hata ayıklama günlüğü** varsayılan olarak kapalıdır. Kullanıcı etkinleştirdiğinde algılama ve yeniden deneme sorunlarını incelemek için son 150 olayı yalnız cihazda tutar. Kayıtlarda zaman, alan adı, istek/hata türü, PAC uygulama sonucu ve sekme/iframe yeniden deneme aşaması bulunur; tam URL, sayfa içeriği, çerez veya form verisi kaydedilmez. Günlük kapatılabilir, kopyalanabilir veya tek düğmeyle temizlenebilir.
 
 ### Kalıcı ve düzenlenebilir liste
 
@@ -138,6 +138,7 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 
 - `webRequest` ve HTTP/HTTPS adres erişimi: Bağlantı hatalarını ve başarılı ana sayfa isteklerini algılamak.
 - `notifications`: Bir hedef ilk kez otomatik öğrenildiğinde kullanıcıya erişimin hazır olduğunu bildirmek.
+- `scripting`: Yalnız otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden yeniden yüklemek.
 - `proxy`: Öğrenilen alan adları için seçici PAC/SOCKS5 yönlendirmesi uygulamak.
 - `storage`: Ayarları, teşhis durumunu, öğrenilen ve yoksayılan hedefleri cihazda saklamak.
 - `activeTab`: Popup açıldığında yalnız etkin sekmenin alan adını göstermek ve kullanıcı işlemlerini o sekmeyle ilişkilendirmek.

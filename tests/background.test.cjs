@@ -8,6 +8,7 @@ const storage = {};
 const reloads = [];
 const badgeTexts = [];
 const notifications = [];
+const scriptExecutions = [];
 let proxyConfig = null;
 let clearCount = 0;
 let measurementShouldBeDown = false;
@@ -79,6 +80,12 @@ const chrome = {
       addListener(listener) {
         listeners.tabRemoved = listener;
       }
+    }
+  },
+  scripting: {
+    async executeScript(details) {
+      scriptExecutions.push(details);
+      return [{ result: 1 }];
     }
   },
   webRequest: {
@@ -194,6 +201,7 @@ function assertBadge(details, tabId, text) {
   await listeners.installed();
   assert.equal(storage.enabled, false);
   assert.equal(storage.schemaVersion, 5);
+  assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
   assert.deepEqual([...listeners.requestFilter.urls], ["http://*/*", "https://*/*"]);
@@ -202,6 +210,7 @@ function assertBadge(details, tabId, text) {
     type: "saveSettings",
     patch: {
       enabled: true,
+      debugEnabled: true,
       proxyPort: 1080,
       learnedDomains: ["https://Example.com/path", "example.com"]
     }
@@ -222,16 +231,19 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_CONNECTION_RESET",
     url: "https://media-cdn.example/embed/video"
   });
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
 
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 1);
-  assert.match(notifications[0].id, /^learned:media-cdn\.example:\d+$/);
+  assert.match(notifications[0].id, /^learned:\d+$/);
   assert.match(notifications[0].options.message, /media-cdn\.example/);
-  assert.equal(notifications[0].options.priority, 2);
-  assert.equal(notifications[0].options.requireInteraction, true);
+  assert.equal(notifications[0].options.priority, 1);
+  assert.equal(notifications[0].options.requireInteraction, undefined);
   assert.equal(storage.lastNotificationStatus, "created");
   assert.equal(reloads.length, 0);
+  assert.equal(scriptExecutions.length, 1);
+  assert.equal(scriptExecutions[0].args[0], "media-cdn.example");
+  assert.deepEqual([...scriptExecutions[0].target.frameIds], [0]);
 
   const ignored = await send({
     type: "saveSettings",
@@ -245,7 +257,7 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_CONNECTION_RESET",
     url: "https://media-cdn.example/embed/again"
   });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.deepEqual([...storage.learnedDomains], []);
   assert.equal(notifications.length, 1);
 
@@ -256,10 +268,10 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_CONNECTION_RESET",
     url: "https://media-cdn.example/embed/restored"
   });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
   assert.equal(notifications.length, 2);
-  assert.match(notifications[1].id, /^learned:media-cdn\.example:\d+$/);
+  assert.match(notifications[1].id, /^learned:\d+$/);
   assert.notEqual(notifications[1].id, notifications[0].id);
 
   directlyReachableHosts.add("normal-available.example");
@@ -318,9 +330,9 @@ function assertBadge(details, tabId, text) {
   assert.equal(globalStatus.result.reachable, 2);
   assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
   assert.equal(storage.lastIssueType, "route_learned");
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(notifications.length, 3);
-  assert.match(notifications[2].id, /^learned:blocked-by-dns\.example:\d+$/);
-  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.match(notifications[2].id, /^learned:\d+$/);
   assert.equal(reloads.at(-1).tabId, 7);
   const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(dnsLearnedProxy("https://blocked-by-dns.example/", "blocked-by-dns.example"), "SOCKS5 127.0.0.1:1080");
@@ -409,6 +421,10 @@ function assertBadge(details, tabId, text) {
     ["apis.roblox.example", "roblox.example", "www.roblox.example"]
   );
   assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  assert.equal(notifications.length, 5);
+  assert.match(notifications.at(-1).options.title, /2 hedef/);
+  assert.equal(notifications.at(-1).options.requireInteraction, undefined);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);

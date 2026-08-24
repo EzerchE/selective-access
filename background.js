@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   lastNotificationDomain: null,
   lastNotificationAt: null,
   lastNotificationError: null,
+  debugEnabled: false,
   debugLog: []
 });
 
@@ -48,6 +49,8 @@ const retryCooldowns = new Map();
 const tabIssues = new Map();
 const detectionCandidates = new Map();
 const reloadTimers = new Map();
+const pendingLearnedNotifications = new Set();
+let learnedNotificationTimer = null;
 let learningQueue = Promise.resolve();
 
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
@@ -61,7 +64,11 @@ let debugQueue = Promise.resolve();
 
 function appendDebug(event, data = {}) {
   debugQueue = debugQueue.then(async () => {
-    const { debugLog = [] } = await chrome.storage.local.get({ debugLog: [] });
+    const { debugEnabled = false, debugLog = [] } = await chrome.storage.local.get({
+      debugEnabled: false,
+      debugLog: []
+    });
+    if (!debugEnabled) return;
     const entry = { at: new Date().toISOString(), event, ...data };
     await chrome.storage.local.set({
       debugLog: [...(Array.isArray(debugLog) ? debugLog : []), entry].slice(-DEBUG_LOG_LIMIT)
@@ -132,6 +139,7 @@ async function getSettings() {
     ...saved,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: Boolean(saved.enabled),
+    debugEnabled: Boolean(saved.debugEnabled),
     learnedDomains: normalizeDomains(saved.learnedDomains)
       .filter((domain) => !isCovered(domain, ignoredDomains)),
     ignoredDomains,
@@ -265,6 +273,9 @@ async function saveSettings(patch) {
     ...patch,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: patch.enabled === undefined ? current.enabled : Boolean(patch.enabled),
+    debugEnabled: patch.debugEnabled === undefined
+      ? current.debugEnabled
+      : Boolean(patch.debugEnabled),
     learnedDomains,
     ignoredDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
@@ -356,19 +367,20 @@ function scheduleTabReload(tabId, delayMs = 1_500) {
   reloadTimers.set(tabId, timer);
 }
 
-async function notifyLearnedDomain(domain) {
-  // Chrome/Windows aynı kimlikle yeniden oluşturulan bildirimi yeni bir toast
-  // yerine önceki kaydın güncellenmesi olarak değerlendirebilir. Her öğrenme
-  // olayı benzersiz kimlik alır; böylece silinip yeniden öğrenilen hedef de
-  // kullanıcıya tekrar bildirilir.
-  const id = `learned:${domain}:${Date.now()}`;
+async function flushLearnedNotifications() {
+  learnedNotificationTimer = null;
+  const domains = [...pendingLearnedNotifications].sort((a, b) => a.localeCompare(b));
+  pendingLearnedNotifications.clear();
+  if (domains.length === 0) return { ok: true, skipped: true };
+
+  const id = `learned:${Date.now()}`;
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
     : "granted";
   if (permission !== "granted") {
     await chrome.storage.local.set({
       lastNotificationStatus: "denied",
-      lastNotificationDomain: domain,
+      lastNotificationDomain: domains.at(-1),
       lastNotificationAt: new Date().toISOString(),
       lastNotificationError: "Chrome bildirim izni kapalı."
     });
@@ -379,14 +391,15 @@ async function notifyLearnedDomain(domain) {
     const createdId = await chrome.notifications.create(id, {
       type: "basic",
       iconUrl: "assets/icon-128.png",
-      title: "Engel algılandı",
-      message: `${domain} otomatik yönlendirmeye eklendi. Bundan sonra erişim yerel geçit üzerinden denenecek.`,
-      priority: 2,
-      requireInteraction: true
+      title: domains.length === 1 ? "Engel algılandı" : `${domains.length} hedef yönlendirmeye eklendi`,
+      message: domains.length === 1
+        ? `${domains[0]} artık yerel geçit üzerinden denenecek.`
+        : `${domains.slice(0, 3).join(", ")}${domains.length > 3 ? ` ve ${domains.length - 3} hedef daha` : ""}.`,
+      priority: 1
     });
     await chrome.storage.local.set({
       lastNotificationStatus: "created",
-      lastNotificationDomain: domain,
+      lastNotificationDomain: domains.at(-1),
       lastNotificationAt: new Date().toISOString(),
       lastNotificationError: null
     });
@@ -402,6 +415,46 @@ async function notifyLearnedDomain(domain) {
   }
 }
 
+function notifyLearnedDomain(domain) {
+  pendingLearnedNotifications.add(domain);
+  if (learnedNotificationTimer) clearTimeout(learnedNotificationTimer);
+  learnedNotificationTimer = setTimeout(() => {
+    flushLearnedNotifications().catch(console.error);
+  }, 2_000);
+  return Promise.resolve({ ok: true, scheduled: true });
+}
+
+function retryLearnedIframe(details, host) {
+  if (details.type !== "sub_frame" || !Number.isInteger(details.tabId) || details.tabId < 0) return;
+  setTimeout(() => {
+    chrome.scripting.executeScript({
+      target: { tabId: details.tabId, frameIds: [0] },
+      args: [host],
+      func: (targetHost) => {
+        const frames = [...document.querySelectorAll("iframe[src]")];
+        const frame = frames.find((candidate) => {
+          try {
+            return new URL(candidate.src, location.href).hostname.toLowerCase() === targetHost;
+          } catch {
+            return false;
+          }
+        });
+        if (!frame) return 0;
+        frame.src = frame.src;
+        return 1;
+      }
+    }).then((results) => appendDebug("iframe-retry", {
+      tabId: details.tabId,
+      host,
+      matched: results?.[0]?.result === 1
+    })).catch((error) => appendDebug("iframe-retry-failed", {
+      tabId: details.tabId,
+      host,
+      error: error.message
+    }));
+  }, 500);
+}
+
 async function sendTestNotification() {
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
@@ -413,8 +466,7 @@ async function sendTestNotification() {
     iconUrl: "assets/icon-128.png",
     title: "Otomatik Erişim bildirim testi",
     message: "Bu bildirimi görüyorsanız yeni hedef bildirimleri çalışıyor.",
-    priority: 2,
-    requireInteraction: true
+    priority: 1
   });
   return { ok: true, id };
 }
@@ -565,6 +617,7 @@ async function learnAndRetry(details) {
   if (!applied.ok) return;
   await setBadge(true, false, true, details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
+  retryLearnedIframe(details, host);
 
   // Gömülü API, video, görsel veya iframe hedefleri öğrenilir ancak açık sayfa
   // yenilenmez. Modern siteler bu istekleri çoğunlukla kendileri tekrarlar;
@@ -720,6 +773,7 @@ async function initialize() {
       learnedDomains: normalizeDomains(existing.learnedDomains),
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
       enabled: Boolean(existing.enabled),
+      debugEnabled: Boolean(existing.debugEnabled),
       proxyHost: DEFAULT_SETTINGS.proxyHost,
       proxyPort: normalizePort(existing.proxyPort),
       lastDetectedDomain: existing.lastDetectedDomain || null,
