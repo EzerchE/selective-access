@@ -4,7 +4,7 @@ Otomatik Erişim, Chrome'da açılmayan siteleri ve sayfaların içindeki erişi
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
-![Otomatik Erişim v4.0 popup ekranı](assets/screenshots/popup-v4-clean.png)
+![Otomatik Erişim v4.0 popup ekranı](assets/screenshots/popup-v4-1.png)
 
 Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde gösterilen bildirim:
 
