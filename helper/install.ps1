@@ -23,11 +23,6 @@ Write-Host "- CIHAZDAKI TUM DNS SORGULARI sistem genelinde Cloudflare ve Google 
 Write-Host "- Bu saglayicilar sorgulanan alan adini ve kaynak IP adresini gorebilir; kendi gizlilik kosullari gecerlidir."
 Write-Host "- Kurumsal/yonetilen bir cihazda yonetici izni olmadan kurmayin. helper\uninstall.cmd degisiklikleri geri alir."
 Write-Host ""
-$confirmation = Read-Host "Bu degisiklikleri anladiniz ve kuruluma devam etmek istiyor musunuz? [EVET/hayir]"
-if ($confirmation -cne "EVET") {
-    Write-Host "Kurulum kullanici tarafindan iptal edildi. Hicbir degisiklik yapilmadi." -ForegroundColor Yellow
-    exit 2
-}
 
 $serviceName = "SelectiveAccessByeDPI"
 $dnsServiceName = "SelectiveAccessDns"

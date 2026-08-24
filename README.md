@@ -67,7 +67,7 @@ Yoksayılan hedefler ayrı listede görülebilir ve `↩` düğmesiyle yeniden o
 
 Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Kurulum yardımcısı bu durumlar için yalnız loopback üzerinde çalışan yerel bir `dnsproxy` görevi kurar. DNS sorguları HTTPS ile Cloudflare ve Google çözümleyicilerine gönderilir.
 
-Bu DNS kuralı sistem genelinde etkilidir: cihazdaki diğer uygulamaların sorguları da Cloudflare ve Google'a gider. Kurucu bunu değişiklik yapmadan önce açıkça bildirip `EVET` onayı ister. `helper/uninstall.cmd`, yalnız Otomatik Erişim'e ait görev ve DNS kuralını geri alır.
+Bu DNS kuralı sistem genelinde etkilidir: cihazdaki diğer uygulamaların sorguları da Cloudflare ve Google'a gider. Kurucu bu etkiyi terminalde açıkça bildirir; kurulum Windows yönetici izni kabul edildiğinde ek bir metin onayı istemeden devam eder. `helper/uninstall.cmd`, yalnız Otomatik Erişim'e ait görev ve DNS kuralını geri alır.
 
 ### Dışarıdan genel durum kontrolü
 
@@ -121,7 +121,7 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 - Kurulumdan önce [`PRIVACY.md`](PRIVACY.md) ve [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgelerini okuyun.
 
 1. Depoyu indirin veya klonlayın.
-2. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın.
+2. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın. Kurulum ek bir yanıt beklemeden otomatik tamamlanır.
 3. Chrome'da `chrome://extensions` adresini açın.
 4. Sağ üstten **Geliştirici modu** seçeneğini etkinleştirin.
 5. **Paketlenmemiş öğe yükle** düğmesine basıp proje klasörünü seçin.
