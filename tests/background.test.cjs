@@ -309,6 +309,13 @@ function assertBadge(details, tabId, text) {
   assert.equal(storage.learnedDomains.includes("www.normal-available.example"), true);
   assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(notifications.length, 2);
+  await listeners.requestCompleted({
+    tabId: 55,
+    type: "main_frame",
+    url: "https://normal-available.example/",
+    statusCode: 200,
+    fromCache: false
+  });
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await listeners.requestError({
@@ -349,7 +356,9 @@ function assertBadge(details, tabId, text) {
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:\d+$/);
-  assert.equal(reloads.at(-1).tabId, 55);
+  assert.equal(reloads.length, 0);
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), true);
   assert.deepEqual([...listeners.completedFilter.types], ["main_frame"]);
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
@@ -386,8 +395,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(storage.lastIssueType, null);
   assert.equal(storage.lastGlobalCheck.status, "likely_down");
   assert.equal(storage.lastDetectedDomain, "normal-available.example");
-  assert.equal(reloads.length, 1);
-  assert.equal(reloads[0].tabId, 55);
+  assert.equal(reloads.length, 0);
   const learnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 127.0.0.1:1080");
   assert.equal(learnedProxy("https://portal.example/", "portal.example"), "DIRECT");
@@ -400,13 +408,25 @@ function assertBadge(details, tabId, text) {
   });
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const requestErrorCountBeforeIgnored = storage.debugLog.filter((entry) =>
+    entry.event === "request-error").length;
   await listeners.requestError({
     tabId: 42,
     type: "image",
     error: "net::ERR_BLOCKED_BY_CLIENT",
     url: "https://ads.example.net/banner.png"
   });
+  await listeners.requestError({
+    tabId: 42,
+    type: "xmlhttprequest",
+    error: "net::ERR_ABORTED",
+    url: "https://cancelled.example.net/request"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.debugLog.filter((entry) =>
+    entry.event === "request-error").length, requestErrorCountBeforeIgnored);
 
   await listeners.requestError({
     tabId: 42,

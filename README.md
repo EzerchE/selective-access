@@ -2,7 +2,7 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
-Güncel sürüm: **4.6.0**
+Güncel sürüm: **4.6.1**
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -53,7 +53,7 @@ Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer destekle
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
-Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve iptal edilmiş istekler öğrenilmez.
+Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve tarayıcının iptal ettiği istekler öğrenilmez, öğrenme kuyruğuna alınmaz ve yerel tanılama günlüğünü doldurmaz.
 
 Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. Bildirim, hedefin artık yerel geçit üzerinden yeniden deneneceğini açıklar.
 
@@ -61,7 +61,7 @@ Kısa süre içinde art arda öğrenilen hedefler tek Chrome bildiriminde grupla
 
 ### Sayfa durumunu koruyan yeniden deneme
 
-Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Harici bir iframe hedefi sonradan öğrenildiğinde içerik betiği üst sayfa ve açık Shadow DOM'larda yalnız eşleşen iframe'i hemen yeniden yükler. Iframe açıldıktan sonra kendi API veya medya bağımlılıkları da öğrenilirse bu hedefler kısa süre gruplanır ve yalnız başlatıcı iframe bir kez daha yüklenir. DOM eşleşmesi hata sonrası kaldırılmışsa Chrome'un bildirdiği alt çerçeve kimliği yedek olarak kullanılır; üst sayfa durumu korunur.
+Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve gerekirse sekme bir kez yenilenir. Sayfa bu bekleme sırasında kendiliğinden başarıyla açılırsa planlanan yenileme iptal edilir; çalışan sayfa ikinci kez yüklenmez. Harici bir iframe hedefi sonradan öğrenildiğinde içerik betiği üst sayfa ve açık Shadow DOM'larda yalnız eşleşen iframe'i hemen yeniden yükler. Iframe açıldıktan sonra kendi API veya medya bağımlılıkları da öğrenilirse bu hedefler kısa süre gruplanır ve yalnız başlatıcı iframe bir kez daha yüklenir. DOM eşleşmesi hata sonrası kaldırılmışsa Chrome'un bildirdiği alt çerçeve kimliği yedek olarak kullanılır; üst sayfa durumu korunur.
 
 ### Elle ekleme, çıkarma ve kalıcı yoksayma
 

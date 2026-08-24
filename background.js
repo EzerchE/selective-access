@@ -54,6 +54,10 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_CLOSED: { main: 2, embedded: 1 },
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 }
 });
+const NON_ACTIONABLE_REQUEST_ERRORS = new Set([
+  "net::ERR_ABORTED",
+  "net::ERR_BLOCKED_BY_CLIENT"
+]);
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 let debugQueue = Promise.resolve();
@@ -359,6 +363,15 @@ function scheduleTabReload(tabId, delayMs = 1_500) {
       .catch((error) => appendDebug("reload-failed", { tabId, error: error.message }));
   }, delayMs);
   reloadTimers.set(tabId, timer);
+}
+
+function cancelTabReload(tabId, reason = "completed") {
+  const timer = reloadTimers.get(tabId);
+  if (!timer) return false;
+  clearTimeout(timer);
+  reloadTimers.delete(tabId);
+  appendDebug("reload-cancelled", { tabId, reason });
+  return true;
 }
 
 async function flushLearnedNotifications() {
@@ -843,6 +856,7 @@ chrome.proxy.onProxyError.addListener(async (details) => {
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
+    if (NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
     const host = getRequestHost(details);
     appendDebug("request-error", {
       tabId: details.tabId,
@@ -863,6 +877,7 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 chrome.webRequest.onCompleted.addListener(
   (details) => {
+    cancelTabReload(details.tabId, "main-completed");
     const debugWrite = appendDebug("main-completed", {
       tabId: details.tabId,
       host: getRequestHost(details),
@@ -886,9 +901,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabIssues.delete(tabId);
-  const timer = reloadTimers.get(tabId);
-  if (timer) clearTimeout(timer);
-  reloadTimers.delete(tabId);
+  cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {
     if (key.startsWith(`${tabId}:`)) {
       clearTimeout(timer);
