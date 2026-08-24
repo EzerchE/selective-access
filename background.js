@@ -67,6 +67,7 @@ const CRITICAL_CLIENT_FILTER_TYPES = new Set([
   "websocket",
   "worker"
 ]);
+const CLIENT_FILTER_WARNING_HOLD_MS = 15_000;
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 let debugQueue = Promise.resolve();
@@ -840,9 +841,22 @@ async function checkGlobalStatus(value, tabId = null) {
 
 async function clearIssueAfterSuccess(details) {
   if (details.tabId < 0 || details.type !== "main_frame") return;
-  await clearTabIssue(details.tabId);
   const host = getRequestHost(details);
   const settings = await getSettings();
+  const issueTime = Date.parse(settings.lastIssueAt || "");
+  const recentClientFilterIssue =
+    host &&
+    settings.lastIssueType === "client_filter_blocked" &&
+    settings.lastIssueDomain === host &&
+    Number.isFinite(issueTime) &&
+    Date.now() - issueTime < CLIENT_FILTER_WARNING_HOLD_MS;
+
+  if (recentClientFilterIssue) {
+    await setIssueBadge(settings.enabled, "client_filter_blocked", details.tabId);
+    return;
+  }
+
+  await clearTabIssue(details.tabId);
   if (!host || settings.lastIssueDomain !== host) return;
 
   await chrome.storage.local.set({
@@ -979,6 +993,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id
           )
         };
+      case "reloadTabBypassCache": {
+        const tabId = Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id;
+        if (!Number.isInteger(tabId) || tabId < 0) {
+          throw new Error("Yenilenecek sekme bulunamadı.");
+        }
+        await chrome.storage.local.set({
+          lastIssueType: null,
+          lastIssueDomain: null,
+          lastIssueError: null,
+          lastIssueAt: null,
+          lastGlobalCheck: null
+        });
+        await clearTabIssue(tabId);
+        await chrome.tabs.reload(tabId, { bypassCache: true });
+        return { ok: true };
+      }
       case "testNotification":
         return { ok: true, result: await sendTestNotification() };
       case "clearDebugLog":

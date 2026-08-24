@@ -18,6 +18,7 @@ const elements = {
   diagnosticTitle: document.querySelector("#diagnosticTitle"),
   diagnosticText: document.querySelector("#diagnosticText"),
   checkStatus: document.querySelector("#checkStatus"),
+  diagnosticPrivacy: document.querySelector("#diagnosticPrivacy"),
   testNotification: document.querySelector("#testNotification"),
   debugEnabled: document.querySelector("#debugEnabled"),
   debugControls: document.querySelector("#debugControls"),
@@ -218,6 +219,7 @@ function renderDiagnostic(state) {
   elements.checkStatus.hidden = false;
   elements.checkStatus.disabled = checkingGlobalStatus;
   elements.checkStatus.textContent = checkingGlobalStatus ? "Üç kıtadan kontrol ediliyor…" : "Genel durumu kontrol et";
+  elements.diagnosticPrivacy.hidden = false;
 
   if (globalCheck) {
     const locationText = `${globalCheck.reachable}/${globalCheck.total || 3} dış noktadan HTTP yanıtı alındı.`;
@@ -243,9 +245,10 @@ function renderDiagnostic(state) {
 
   elements.diagnosticCard.classList.add("is-warning");
   if (state.lastIssueType === "client_filter_blocked") {
-    elements.checkStatus.hidden = true;
+    elements.checkStatus.textContent = "Önbelleksiz yenile";
+    elements.diagnosticPrivacy.hidden = true;
     elements.diagnosticTitle.textContent = "Tarayıcı filtresi uygulamayı durdurdu";
-    elements.diagnosticText.textContent = "İlk taraf uygulama dosyası başka bir içerik filtresi tarafından engellendi. İlgili filtre kuralını veya bu siteye ait istisnayı kontrol edin.";
+    elements.diagnosticText.textContent = "İlk taraf uygulama dosyası başka bir içerik filtresi tarafından engellendi. Site istisnasını kontrol ettikten sonra bozuk önbelleği kullanmadan yeniden yükleyin.";
   } else if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
     elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
@@ -424,6 +427,18 @@ elements.testNotification.addEventListener("click", async () => {
 
 elements.checkStatus.addEventListener("click", async () => {
   if (!currentHost || checkingGlobalStatus) return;
+  if (currentState?.lastIssueType === "client_filter_blocked" && currentState.lastIssueDomain === currentHost) {
+    elements.checkStatus.disabled = true;
+    showNotice("");
+    try {
+      await sendMessage({ type: "reloadTabBypassCache", tabId: currentTabId });
+      window.close();
+    } catch (error) {
+      showNotice(error.message, true);
+      elements.checkStatus.disabled = false;
+    }
+    return;
+  }
   checkingGlobalStatus = true;
   renderDiagnostic(currentState);
   showNotice("");

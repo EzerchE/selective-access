@@ -461,6 +461,24 @@ function assertBadge(details, tabId, text) {
     entry.tabId === 42 && entry.requestType === "script"), true);
   assertBadge(badgeTexts.at(-1), 42, "?");
 
+  await listeners.requestCompleted({
+    tabId: 42,
+    type: "main_frame",
+    statusCode: 200,
+    fromCache: true,
+    url: "https://app-shell.example/"
+  });
+  assert.equal(storage.lastIssueType, "client_filter_blocked");
+  assertBadge(badgeTexts.at(-1), 42, "?");
+
+  const reloadCountBeforeFilterRecovery = reloads.length;
+  const filterRecovery = await send({ type: "reloadTabBypassCache", tabId: 42 });
+  assert.equal(filterRecovery.ok, true);
+  assert.equal(storage.lastIssueType, null);
+  assert.equal(reloads.length, reloadCountBeforeFilterRecovery + 1);
+  assert.equal(reloads.at(-1).tabId, 42);
+  assert.equal(reloads.at(-1).options.bypassCache, true);
+
   await listeners.requestError({
     tabId: 42,
     type: "xmlhttprequest",
