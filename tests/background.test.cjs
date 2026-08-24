@@ -316,7 +316,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(globalStatus.ok, true);
   assert.equal(globalStatus.result.status, "online");
   assert.equal(globalStatus.result.reachable, 2);
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
+  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
   assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:blocked-by-dns\.example:\d+$/);
@@ -339,7 +339,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications[3].id, "outage:globally-down.example");
   assert.equal(notifications[3].options.title, "Genel kesinti olası");
   assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
+  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
 
   listeners.tabActivated({ tabId: 44 });
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -372,7 +372,7 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_BLOCKED_BY_CLIENT",
     url: "https://ads.example.net/banner.png"
   });
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
+  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
 
   await listeners.requestError({
     tabId: 42,
@@ -380,7 +380,35 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://tracker.dns-filtered.example/pixel"
   });
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example"]);
+  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
+
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  const reloadCountBeforeRoblox = reloads.length;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await listeners.requestError({
+      tabId: 77,
+      type: "main_frame",
+      error: "net::ERR_CONNECTION_RESET",
+      url: "https://roblox.example/"
+    });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.deepEqual([...storage.learnedDomains], ["roblox.example", "www.roblox.example"]);
+  assert.equal(reloads.length, reloadCountBeforeRoblox + 1);
+
+  await listeners.requestError({
+    tabId: 77,
+    type: "xmlhttprequest",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://apis.roblox.example/v1/config",
+    initiator: "https://www.roblox.example"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.deepEqual(
+    [...storage.learnedDomains],
+    ["apis.roblox.example", "roblox.example", "www.roblox.example"]
+  );
+  assert.equal(reloads.length, reloadCountBeforeRoblox + 2);
 
   const disabled = await send({ type: "saveSettings", patch: { enabled: false } });
   assert.equal(disabled.ok, true);

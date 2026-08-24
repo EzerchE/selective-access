@@ -45,7 +45,7 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 
 Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Reddit gönderisindeki video gibi Chrome'un çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
 
-Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Örneğin `media.example.com` öğrenildiğinde `example.com` ve diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
+Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
 Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve iptal edilmiş istekler öğrenilmez.
 
@@ -55,7 +55,7 @@ Bildirimler yüksek öncelikli ve kullanıcı kapatana kadar görünür olacak �
 
 ### Sayfa durumunu koruyan yeniden deneme
 
-Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralı uygulandıktan sonra sekme bir kez yenilenir. Hata bir gönderinin içindeki video, görsel, iframe veya API kaynağındaysa üst sayfa yenilenmez. Böylece açık gönderi, form durumu, kaydırma konumu ve tek sayfa uygulamalarının oturumu korunur.
+Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralı uygulandıktan sonra sekme bir kez yenilenir. Ana sitenin kendi API veya alt alanı sonradan öğrenilirse, başarısız kaynak isteğinin geçitten tekrarlanabilmesi için site ailesi başına bir kez daha yenilenebilir. Hata bir gönderinin içindeki harici video, görsel veya iframe alanındaysa üst sayfa yenilenmez. Böylece Reddit benzeri sayfalarda açık gönderi ve kaydırma konumu korunurken çok alanlı web uygulamaları yüklenmeyi tamamlayabilir.
 
 ### Elle ekleme, çıkarma ve kalıcı yoksayma
 

@@ -94,6 +94,25 @@ function isLearned(host, domains) {
   return domains.includes(host);
 }
 
+function mainHostAliases(host, requestType = "main_frame") {
+  if (requestType !== "main_frame") return [host];
+  return host.startsWith("www.")
+    ? [host, host.slice(4)]
+    : [host, `www.${host}`];
+}
+
+function sameSiteInitiatorBase(details, host) {
+  if (details.type === "main_frame" || !details.initiator) return null;
+  try {
+    const initiator = normalizeDomain(new URL(details.initiator).hostname);
+    if (!initiator) return null;
+    const base = initiator.startsWith("www.") ? initiator.slice(4) : initiator;
+    return host === base || host.endsWith(`.${base}`) ? base : null;
+  } catch {
+    return null;
+  }
+}
+
 function isLocalHost(host) {
   return host === "localhost" ||
     host === "::1" ||
@@ -474,7 +493,10 @@ async function learnAndRetry(details) {
   }
   detectionCandidates.delete(host);
 
-  const learnedDomains = normalizeDomains([...settings.learnedDomains, host]);
+  const learnedDomains = normalizeDomains([
+    ...settings.learnedDomains,
+    ...mainHostAliases(host, details.type)
+  ]);
   const now = Date.now();
   await chrome.storage.local.set({
     learnedDomains,
@@ -493,12 +515,15 @@ async function learnAndRetry(details) {
   await setBadge(true, false, true, details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
 
-  // Gömülü bir kaynak yüzünden üst sayfayı yenilemek kaydırma konumunu,
-  // SPA durumunu veya açık gönderiyi kaybettirebilir. Yeni PAC kuralı sonraki
-  // kaynak isteklerinde kullanılacaktır; yalnız başarısız ana gezinme yenilenir.
-  if (details.type !== "main_frame") return;
+  // Harici bir gömülü kaynak yüzünden üst sayfayı yenilemek açık gönderiyi ve
+  // SPA durumunu kaybettirebilir. Ancak ana sitenin kendi API/alt alanı yeni
+  // öğrenildiyse mevcut sayfa o başarısız isteği çoğu zaman tekrarlamaz; bu
+  // durumda aynı site ailesi için yalnız bir kez yenilemek gerekir.
+  const sameSiteBase = sameSiteInitiatorBase(details, host);
+  if (details.type !== "main_frame" && !sameSiteBase) return;
 
-  const retryKey = `${details.tabId}:${host}`;
+  const retryScope = details.type === "main_frame" ? "main" : "embedded";
+  const retryKey = `${details.tabId}:${retryScope}:${sameSiteBase || host}`;
   const lastRetry = retryCooldowns.get(retryKey) || 0;
   if (now - lastRetry < 60_000) return;
   retryCooldowns.set(retryKey, now);
@@ -596,7 +621,10 @@ async function checkGlobalStatus(value, tabId = null) {
     !isLearned(domain, settings.learnedDomains) &&
     !isCovered(domain, settings.ignoredDomains)
   ) {
-    const learnedDomains = normalizeDomains([...settings.learnedDomains, domain]);
+    const learnedDomains = normalizeDomains([
+      ...settings.learnedDomains,
+      ...mainHostAliases(domain)
+    ]);
     const now = Date.now();
     await chrome.storage.local.set({
       learnedDomains,
