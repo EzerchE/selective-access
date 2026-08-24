@@ -1,0 +1,26 @@
+# Local-only development material
+ops/
+.env
+.env.*
+!.env.example
+secrets/
+private/
+
+# Credentials and release artifacts
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.crx
+*.zip
+*.log
+*.db
+*.sqlite*
+
+# Tool output
+coverage/
+node_modules/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Otomatik Erişim",
+  "short_name": "Oto Erişim",
+  "version": "4.0.1",
+  "description": "Erişilemeyen ana sayfa ve gömülü kaynakları öğrenir, yalnızca onları yerel DPI geçidine alır.",
+  "minimum_chrome_version": "102",
+  "permissions": [
+    "activeTab",
+    "notifications",
+    "proxy",
+    "storage",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "128": "assets/icon-128.png"
+  },
+  "action": {
+    "default_title": "Otomatik Erişim",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "assets/icon-128.png"
+    }
+  }
+}

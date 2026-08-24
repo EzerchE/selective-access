@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Otomatik Erişim</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </div>
+        <div>
+          <h1>Otomatik Erişim</h1>
+          <p>Hata görür, öğrenir ve yalnız hedefi yönlendirir · <span id="appVersion">v…</span></p>
+        </div>
+        <label class="switch" title="Eklentiyi aç veya kapat">
+          <input id="enabled" type="checkbox">
+          <span class="slider"></span>
+        </label>
+      </header>
+
+      <section id="statusCard" class="status-card is-off" aria-live="polite">
+        <span id="statusDot" class="status-dot"></span>
+        <div>
+          <strong id="statusTitle">Hazırlanıyor…</strong>
+          <p id="statusText">Ayarlar okunuyor.</p>
+        </div>
+      </section>
+
+      <p class="privacy-note">Etkinleştirildiğinde istek alan adları ve bağlantı hata türleri yalnız cihazınızda işlenip saklanır. Globalping’e yalnız “Genel durumu kontrol et” düğmesiyle alan adı gönderilir.</p>
+
+      <section class="current-site">
+        <div>
+          <span class="eyebrow">AÇIK SEKME</span>
+          <strong id="currentDomain">Bu sayfa eklenemez</strong>
+        </div>
+        <button id="siteAction" class="button secondary" type="button" disabled>Şimdi geçide al</button>
+      </section>
+
+      <section class="flow-card" aria-label="Otomatik bağlantı akışı">
+        <div><span>1</span><strong>Normal dene</strong></div>
+        <i>→</i>
+        <div><span>2</span><strong>Engeli algıla</strong></div>
+        <i>→</i>
+        <div><span>3</span><strong>Otomatik aş</strong></div>
+      </section>
+
+      <section id="diagnosticCard" class="diagnostic-card" aria-live="polite" hidden>
+        <span class="eyebrow">BAĞLANTI TEŞHİSİ</span>
+        <strong id="diagnosticTitle">Bağlantı sorunu</strong>
+        <p id="diagnosticText"></p>
+        <button id="checkStatus" class="button diagnostic-button" type="button">Genel durumu kontrol et</button>
+        <p class="privacy-note">Yalnız bu düğmeye basıldığında alan adı, üç kıtadan ölçüm için Globalping’e gönderilir.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">ÖĞRENİLEN ENGELLER</span>
+            <h2>Otomatik yönlendirilen siteler</h2>
+          </div>
+          <span id="domainCount" class="count">0</span>
+        </div>
+        <div id="domainList" class="domain-list" aria-live="polite"></div>
+        <p class="hint">Bağlantı hataları algılandıkça bu liste otomatik büyür. Bir hedefi kaldırmak için satırındaki × düğmesine basın.</p>
+      </section>
+
+      <details class="advanced">
+        <summary>Yerel geçit ayarı</summary>
+        <div class="proxy-row">
+          <label>
+            Sunucu
+            <input type="text" value="127.0.0.1" disabled>
+          </label>
+          <label>
+            Port
+            <input id="proxyPort" type="number" min="1" max="65535" value="1080">
+          </label>
+        </div>
+        <p class="hint">Güvenlik için yalnızca bilgisayarınızdaki SOCKS5 geçidine bağlanır.</p>
+      </details>
+
+      <div id="notice" class="notice" hidden></div>
+
+      <footer>
+        <button id="save" class="button primary" type="button">Kaydet ve uygula</button>
+        <button id="retry" class="button ghost" type="button">Yeniden uygula</button>
+      </footer>
+    </main>
+    <script src="popup-preview.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

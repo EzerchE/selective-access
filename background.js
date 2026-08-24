@@ -1,0 +1,581 @@
+const DEFAULT_SETTINGS = Object.freeze({
+  schemaVersion: 4,
+  enabled: false,
+  learnedDomains: [],
+  proxyHost: "127.0.0.1",
+  proxyPort: 1080,
+  lastDetectedDomain: null,
+  lastDetectedAt: null,
+  lastProxyError: null,
+  lastIssueType: null,
+  lastIssueDomain: null,
+  lastIssueError: null,
+  lastIssueAt: null,
+  lastGlobalCheck: null
+});
+
+const RETRYABLE_ERRORS = Object.freeze([
+  "ERR_CONNECTION_RESET",
+  "ERR_CONNECTION_CLOSED",
+  "ERR_CONNECTION_TIMED_OUT",
+  "ERR_TIMED_OUT",
+  "ERR_EMPTY_RESPONSE",
+  "ERR_SSL_PROTOCOL_ERROR"
+]);
+
+const DNS_DIAGNOSTIC_ERRORS = Object.freeze([
+  "ERR_ADDRESS_INVALID",
+  "ERR_NAME_NOT_RESOLVED"
+]);
+
+const RETRYABLE_TYPES = new Set([
+  "main_frame",
+  "sub_frame",
+  "media",
+  "image",
+  "xmlhttprequest",
+  "websocket",
+  "other"
+]);
+
+const retryCooldowns = new Map();
+const tabIssues = new Map();
+let learningQueue = Promise.resolve();
+
+function actionTarget(tabId, values) {
+  return Number.isInteger(tabId) && tabId >= 0 ? { ...values, tabId } : values;
+}
+
+function normalizeDomain(value) {
+  const candidate = String(value ?? "").trim().toLowerCase();
+  if (!candidate) return null;
+
+  try {
+    const withScheme = candidate.includes("://") ? candidate : `https://${candidate}`;
+    const hostname = new URL(withScheme).hostname.replace(/^\.+|\.+$/g, "");
+    if (!hostname || hostname === "localhost" || hostname.includes(" ")) return null;
+    return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDomains(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(normalizeDomain)
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function normalizePort(value) {
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65535
+    ? port
+    : DEFAULT_SETTINGS.proxyPort;
+}
+
+function isCovered(host, domains) {
+  return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function isLocalHost(host) {
+  return host === "localhost" ||
+    host === "::1" ||
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.");
+}
+
+async function getSettings() {
+  const saved = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    schemaVersion: DEFAULT_SETTINGS.schemaVersion,
+    enabled: Boolean(saved.enabled),
+    learnedDomains: normalizeDomains(saved.learnedDomains),
+    proxyHost: DEFAULT_SETTINGS.proxyHost,
+    proxyPort: normalizePort(saved.proxyPort)
+  };
+}
+
+function buildPacScript(settings) {
+  const learnedDomains = JSON.stringify(settings.learnedDomains);
+  const proxy = `SOCKS5 ${settings.proxyHost}:${settings.proxyPort}`;
+
+  return `
+function FindProxyForURL(url, host) {
+  host = host.toLowerCase().replace(/\\.$/, "");
+  var learnedDomains = ${learnedDomains};
+
+  if (isPlainHostName(host) ||
+      host === "localhost" ||
+      host === "::1" ||
+      shExpMatch(host, "127.*") ||
+      shExpMatch(host, "10.*") ||
+      shExpMatch(host, "192.168.*")) {
+    return "DIRECT";
+  }
+
+  for (var i = 0; i < learnedDomains.length; i++) {
+    var domain = learnedDomains[i];
+    if (host === domain || dnsDomainIs(host, "." + domain)) {
+      return "${proxy}";
+    }
+  }
+
+  return "DIRECT";
+}`.trim();
+}
+
+async function setBadge(enabled, hasError = false, learned = false, tabId = null) {
+  await chrome.action.setBadgeText(actionTarget(tabId, {
+    text: hasError ? "!" : learned ? "NEW" : enabled ? "AUTO" : ""
+  }));
+  await chrome.action.setBadgeBackgroundColor(actionTarget(tabId, {
+    color: hasError ? "#dc2626" : learned ? "#2563eb" : "#0f766e"
+  }));
+  await chrome.action.setTitle(actionTarget(tabId, {
+    title: hasError
+      ? "Otomatik Erişim — yerel geçit hatası"
+      : learned
+        ? "Otomatik Erişim — yeni engelli hedef öğrenildi"
+        : enabled
+          ? "Otomatik Erişim — engel algılama etkin"
+          : "Otomatik Erişim — kapalı"
+  }));
+}
+
+async function setIssueBadge(enabled, issueType, tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  tabIssues.set(tabId, issueType);
+  const isDown = issueType === "globally_down";
+  const isDns = issueType === "dns_filtered" || issueType === "dns_unresolved";
+  await chrome.action.setBadgeText({ tabId, text: isDown ? "DOWN" : isDns ? "DNS" : "?" });
+  await chrome.action.setBadgeBackgroundColor({ tabId, color: isDown ? "#dc2626" : "#d97706" });
+  await chrome.action.setTitle({
+    tabId,
+    title: isDown
+      ? "Otomatik Erişim — genel kesinti olası"
+      : isDns
+        ? "Otomatik Erişim — DNS yanıtı incelenmeli"
+        : enabled
+          ? "Otomatik Erişim — bağlantı sorunu sürüyor"
+          : "Otomatik Erişim — kapalı"
+  });
+}
+
+async function clearTabIssue(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  tabIssues.delete(tabId);
+  const settings = await getSettings();
+  await setBadge(settings.enabled, Boolean(settings.lastProxyError), false, tabId);
+}
+
+async function refreshTabBadge(tabId) {
+  const issueType = tabIssues.get(tabId);
+  const settings = await getSettings();
+  if (issueType) await setIssueBadge(settings.enabled, issueType, tabId);
+  else await setBadge(settings.enabled, Boolean(settings.lastProxyError), false, tabId);
+}
+
+async function applyProxy() {
+  const settings = await getSettings();
+
+  if (!settings.enabled || settings.learnedDomains.length === 0) {
+    await chrome.proxy.settings.clear({ scope: "regular" });
+    await setBadge(settings.enabled);
+    return { ok: true, enabled: settings.enabled };
+  }
+
+  const current = await chrome.proxy.settings.get({ incognito: false });
+  if (["not_controllable", "controlled_by_other_extensions"].includes(current.levelOfControl)) {
+    const message = "Chrome proxy ayarı başka bir eklenti veya yönetici tarafından kontrol ediliyor.";
+    await chrome.storage.local.set({ lastProxyError: message });
+    await setBadge(true, true);
+    return { ok: false, enabled: true, error: message };
+  }
+
+  const config = {
+    mode: "pac_script",
+    pacScript: {
+      data: buildPacScript(settings),
+      mandatory: true
+    }
+  };
+
+  await chrome.proxy.settings.set({ value: config, scope: "regular" });
+  await chrome.storage.local.set({ lastProxyError: null });
+  await setBadge(true);
+  return { ok: true, enabled: true };
+}
+
+async function saveSettings(patch) {
+  const current = await getSettings();
+  const next = {
+    ...current,
+    ...patch,
+    schemaVersion: DEFAULT_SETTINGS.schemaVersion,
+    enabled: patch.enabled === undefined ? current.enabled : Boolean(patch.enabled),
+    learnedDomains: patch.learnedDomains === undefined
+      ? current.learnedDomains
+      : normalizeDomains(patch.learnedDomains),
+    proxyHost: DEFAULT_SETTINGS.proxyHost,
+    proxyPort: patch.proxyPort === undefined ? current.proxyPort : normalizePort(patch.proxyPort),
+    lastProxyError: null
+  };
+
+  await chrome.storage.local.set(next);
+  const result = await applyProxy();
+  return { ...next, applyResult: result };
+}
+
+async function getPublicState() {
+  const settings = await getSettings();
+  const proxyState = await chrome.proxy.settings.get({ incognito: false });
+  return {
+    ...settings,
+    levelOfControl: proxyState.levelOfControl,
+    effectiveMode: proxyState.value?.mode ?? "unknown"
+  };
+}
+
+function isRetryableError(details) {
+  return details.tabId >= 0 &&
+    RETRYABLE_TYPES.has(details.type) &&
+    RETRYABLE_ERRORS.some((error) => String(details.error || "").includes(error));
+}
+
+function matchingError(details, candidates) {
+  return candidates.find((error) => String(details.error || "").includes(error)) || null;
+}
+
+async function notifyLearnedDomain(domain) {
+  await chrome.notifications.create(`learned:${domain}`, {
+    type: "basic",
+    iconUrl: "assets/icon-128.png",
+    title: "Engel algılandı",
+    message: `${domain} otomatik yönlendirmeye eklendi. Bundan sonra erişim yerel geçit üzerinden denenecek.`
+  });
+}
+
+async function notifyLikelyGlobalOutage(domain) {
+  await chrome.notifications.create(`outage:${domain}`, {
+    type: "basic",
+    iconUrl: "assets/icon-128.png",
+    title: "Genel kesinti olası",
+    message: `${domain} birden fazla dış noktadan da erişilemiyor. Site şu anda genel olarak kapalı olabilir.`
+  });
+}
+
+function getRequestHost(details) {
+  try {
+    return normalizeDomain(new URL(details.url).hostname);
+  } catch {
+    return null;
+  }
+}
+
+async function recordMainFrameDnsIssue(details) {
+  if (details.tabId < 0 || details.type !== "main_frame") return false;
+  const error = matchingError(details, DNS_DIAGNOSTIC_ERRORS);
+  if (!error) return false;
+
+  const settings = await getSettings();
+  if (!settings.enabled) return true;
+  const host = getRequestHost(details);
+  if (!host || isLocalHost(host)) return true;
+
+  const issueType = error === "ERR_ADDRESS_INVALID" ? "dns_filtered" : "dns_unresolved";
+  await chrome.storage.local.set({
+    lastIssueType: issueType,
+    lastIssueDomain: host,
+    lastIssueError: error,
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await setIssueBadge(true, issueType, details.tabId);
+  return true;
+}
+
+async function learnAndRetry(details) {
+  if (!isRetryableError(details)) return;
+
+  const settings = await getSettings();
+  if (!settings.enabled) return;
+
+  const host = getRequestHost(details);
+
+  if (!host || isLocalHost(host)) return;
+
+  if (isCovered(host, settings.learnedDomains)) {
+    if (details.type === "main_frame") {
+      await chrome.storage.local.set({
+        lastIssueType: "route_failed",
+        lastIssueDomain: host,
+        lastIssueError: matchingError(details, RETRYABLE_ERRORS),
+        lastIssueAt: new Date().toISOString(),
+        lastGlobalCheck: null
+      });
+      await setIssueBadge(true, "route_failed", details.tabId);
+    }
+    return;
+  }
+
+  const learnedDomains = normalizeDomains([...settings.learnedDomains, host]);
+  const now = Date.now();
+  await chrome.storage.local.set({
+    learnedDomains,
+    lastDetectedDomain: host,
+    lastDetectedAt: new Date(now).toISOString(),
+    lastProxyError: null,
+    lastIssueType: details.type === "main_frame" ? "route_learned" : settings.lastIssueType,
+    lastIssueDomain: details.type === "main_frame" ? host : settings.lastIssueDomain,
+    lastIssueError: details.type === "main_frame" ? matchingError(details, RETRYABLE_ERRORS) : settings.lastIssueError,
+    lastIssueAt: details.type === "main_frame" ? new Date(now).toISOString() : settings.lastIssueAt,
+    lastGlobalCheck: details.type === "main_frame" ? null : settings.lastGlobalCheck
+  });
+
+  const applied = await applyProxy();
+  if (!applied.ok) return;
+  await setBadge(true, false, true, details.tabId);
+  await notifyLearnedDomain(host).catch(console.error);
+
+  // Gömülü bir kaynak yüzünden üst sayfayı yenilemek kaydırma konumunu,
+  // SPA durumunu veya açık gönderiyi kaybettirebilir. Yeni PAC kuralı sonraki
+  // kaynak isteklerinde kullanılacaktır; yalnız başarısız ana gezinme yenilenir.
+  if (details.type !== "main_frame") return;
+
+  const retryKey = `${details.tabId}:${host}`;
+  const lastRetry = retryCooldowns.get(retryKey) || 0;
+  if (now - lastRetry < 60_000) return;
+  retryCooldowns.set(retryKey, now);
+
+  setTimeout(() => {
+    chrome.tabs.reload(details.tabId, { bypassCache: true }).catch(() => {});
+  }, 500);
+}
+
+function summarizeGlobalMeasurement(domain, measurement) {
+  const results = Array.isArray(measurement?.results) ? measurement.results : [];
+  const finished = results.filter(({ result }) =>
+    result?.status === "finished" && Number.isInteger(result?.statusCode));
+  const targetFailures = results.filter(({ result }) =>
+    result?.status === "failed" && result?.failureSource === "target");
+  const locations = results.map(({ probe, result }) => ({
+    country: probe?.country || "?",
+    city: probe?.city || "",
+    status: result?.status || "unknown",
+    statusCode: Number.isInteger(result?.statusCode) ? result.statusCode : null
+  }));
+
+  let status = "inconclusive";
+  if (finished.length >= 2) status = "online";
+  else if (finished.length === 1) status = "regional";
+  else if (targetFailures.length >= 2) status = "likely_down";
+
+  return {
+    domain,
+    status,
+    checkedAt: new Date().toISOString(),
+    reachable: finished.length,
+    total: results.length,
+    locations
+  };
+}
+
+async function checkGlobalStatus(value, tabId = null) {
+  const domain = normalizeDomain(value);
+  if (!domain || isLocalHost(domain)) throw new Error("Geçerli bir genel alan adı gerekli.");
+
+  const createdResponse = await fetch("https://api.globalping.io/v1/measurements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({
+      type: "http",
+      target: domain,
+      locations: [
+        { continent: "EU", limit: 1 },
+        { continent: "NA", limit: 1 },
+        { continent: "AS", limit: 1 }
+      ],
+      measurementOptions: {
+        protocol: "HTTPS",
+        request: { method: "HEAD", path: "/" }
+      }
+    })
+  });
+
+  if (!createdResponse.ok) {
+    throw new Error(createdResponse.status === 429
+      ? "Genel durum servisi istek sınırına ulaştı; biraz sonra tekrar deneyin."
+      : "Genel durum ölçümü başlatılamadı.");
+  }
+
+  const created = await createdResponse.json();
+  if (!created?.id) throw new Error("Genel durum servisi ölçüm kimliği döndürmedi.");
+
+  let measurement = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const resultResponse = await fetch(`https://api.globalping.io/v1/measurements/${created.id}`, {
+      headers: { "Accept": "application/json" }
+    });
+    if (!resultResponse.ok) throw new Error("Genel durum ölçümü okunamadı.");
+    measurement = await resultResponse.json();
+    if (measurement.status !== "in-progress") break;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }
+
+  if (!measurement || measurement.status === "in-progress") {
+    throw new Error("Genel durum ölçümü zamanında tamamlanmadı.");
+  }
+
+  const summary = summarizeGlobalMeasurement(domain, measurement);
+  await chrome.storage.local.set({ lastGlobalCheck: summary });
+  const settings = await getSettings();
+  if (summary.status === "likely_down") {
+    await setIssueBadge(settings.enabled, "globally_down", tabId);
+    await notifyLikelyGlobalOutage(domain).catch(console.error);
+  } else if (
+    summary.status === "online" &&
+    settings.enabled &&
+    settings.lastIssueDomain === domain &&
+    ["dns_filtered", "dns_unresolved"].includes(settings.lastIssueType) &&
+    !isCovered(domain, settings.learnedDomains)
+  ) {
+    const learnedDomains = normalizeDomains([...settings.learnedDomains, domain]);
+    const now = Date.now();
+    await chrome.storage.local.set({
+      learnedDomains,
+      lastDetectedDomain: domain,
+      lastDetectedAt: new Date(now).toISOString(),
+      lastProxyError: null,
+      lastIssueType: "route_learned",
+      lastIssueDomain: domain,
+      lastIssueError: settings.lastIssueError,
+      lastIssueAt: new Date(now).toISOString(),
+      lastGlobalCheck: summary
+    });
+
+    const applied = await applyProxy();
+    if (applied.ok && Number.isInteger(tabId) && tabId >= 0) {
+      await setBadge(true, false, true, tabId);
+      await notifyLearnedDomain(domain).catch(console.error);
+      setTimeout(() => {
+        chrome.tabs.reload(tabId, { bypassCache: true }).catch(() => {});
+      }, 500);
+    }
+  } else if (Number.isInteger(tabId) && tabId >= 0) {
+    await clearTabIssue(tabId);
+  }
+  return summary;
+}
+
+async function clearIssueAfterSuccess(details) {
+  if (details.tabId < 0 || details.type !== "main_frame") return;
+  await clearTabIssue(details.tabId);
+  const host = getRequestHost(details);
+  const settings = await getSettings();
+  if (!host || settings.lastIssueDomain !== host) return;
+
+  await chrome.storage.local.set({
+    lastIssueType: null,
+    lastIssueDomain: null,
+    lastIssueError: null,
+    lastIssueAt: null,
+    lastGlobalCheck: null
+  });
+}
+
+async function initialize() {
+  const existing = await chrome.storage.local.get(null);
+  if (existing.schemaVersion !== DEFAULT_SETTINGS.schemaVersion) {
+    await chrome.storage.local.set({
+      schemaVersion: DEFAULT_SETTINGS.schemaVersion,
+      learnedDomains: normalizeDomains(existing.learnedDomains),
+      enabled: Boolean(existing.enabled),
+      proxyHost: DEFAULT_SETTINGS.proxyHost,
+      proxyPort: normalizePort(existing.proxyPort),
+      lastDetectedDomain: existing.lastDetectedDomain || null,
+      lastDetectedAt: existing.lastDetectedAt || null,
+      lastProxyError: null,
+      lastIssueType: existing.lastIssueType || null,
+      lastIssueDomain: existing.lastIssueDomain || null,
+      lastIssueError: existing.lastIssueError || null,
+      lastIssueAt: existing.lastIssueAt || null,
+      lastGlobalCheck: existing.lastGlobalCheck || null
+    });
+  }
+  await applyProxy();
+}
+
+chrome.runtime.onInstalled.addListener(() => initialize().catch(console.error));
+
+chrome.runtime.onStartup.addListener(() => applyProxy().catch(console.error));
+
+chrome.proxy.onProxyError.addListener(async (details) => {
+  const message = details?.error || "Yerel proxy bağlantısı kurulamadı.";
+  await chrome.storage.local.set({ lastProxyError: message });
+  const settings = await getSettings();
+  await setBadge(settings.enabled, true);
+});
+
+chrome.webRequest.onErrorOccurred.addListener(
+  (details) => {
+    learningQueue = learningQueue
+      .then(async () => {
+        const handledAsDns = await recordMainFrameDnsIssue(details);
+        if (!handledAsDns) await learnAndRetry(details);
+      })
+      .catch(console.error);
+    return learningQueue;
+  },
+  { urls: ["http://*/*", "https://*/*"] }
+);
+
+chrome.webRequest.onCompleted.addListener(
+  (details) => clearIssueAfterSuccess(details).catch(console.error),
+  { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
+);
+
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => clearTabIssue(details.tabId).catch(console.error),
+  { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
+);
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  refreshTabBadge(tabId).catch(console.error);
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabIssues.delete(tabId);
+  for (const key of retryCooldowns.keys()) {
+    if (key.startsWith(`${tabId}:`)) retryCooldowns.delete(key);
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  (async () => {
+    switch (message?.type) {
+      case "getState":
+        return { ok: true, state: await getPublicState() };
+      case "saveSettings":
+        return { ok: true, state: await saveSettings(message.patch || {}) };
+      case "reapply":
+        return { ok: true, result: await applyProxy(), state: await getPublicState() };
+      case "checkGlobalStatus":
+        return {
+          ok: true,
+          result: await checkGlobalStatus(
+            message.domain,
+            Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id
+          )
+        };
+      default:
+        return { ok: false, error: "Bilinmeyen istek." };
+    }
+  })()
+    .then(sendResponse)
+    .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+  return true;
+});
