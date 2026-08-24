@@ -434,6 +434,27 @@ function assertBadge(details, tabId, text) {
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);
 
+  await send({ type: "saveSettings", patch: { learnedDomains: ["frame.example"] } });
+  const scriptCountBeforeDependency = scriptExecutions.length;
+  await listeners.requestError({
+    tabId: 88,
+    frameId: 12,
+    parentFrameId: 0,
+    type: "image",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://api.frame.example/media/preview",
+    initiator: "https://frame.example"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.deepEqual([...storage.learnedDomains], ["api.frame.example", "frame.example"]);
+  assert.equal(scriptExecutions.length, scriptCountBeforeDependency + 1);
+  assert.equal(scriptExecutions.at(-1).args[0], "frame.example");
+  assert.deepEqual([...scriptExecutions.at(-1).target.frameIds], [0]);
+  assert.equal(
+    storage.debugLog.some((entry) => entry.event === "iframe-retry-scheduled"),
+    true
+  );
+
   const clearedDebugLog = await send({ type: "clearDebugLog" });
   assert.equal(clearedDebugLog.ok, true);
   assert.deepEqual([...storage.debugLog], []);

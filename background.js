@@ -49,6 +49,7 @@ const retryCooldowns = new Map();
 const tabIssues = new Map();
 const detectionCandidates = new Map();
 const reloadTimers = new Map();
+const iframeRetryTimers = new Map();
 const pendingLearnedNotifications = new Set();
 let learnedNotificationTimer = null;
 let learningQueue = Promise.resolve();
@@ -492,6 +493,36 @@ function retryLearnedIframe(details, host) {
   }));
 }
 
+function scheduleInitiatorIframeRetry(details, learnedDomains) {
+  if (!Number.isInteger(details.frameId) || details.frameId <= 0 || !details.initiator) return;
+  let initiatorHost = null;
+  try {
+    initiatorHost = normalizeDomain(new URL(details.initiator).hostname);
+  } catch {
+    return;
+  }
+  if (!initiatorHost || !isLearned(initiatorHost, learnedDomains)) return;
+
+  const key = `${details.tabId}:${initiatorHost}`;
+  const existing = iframeRetryTimers.get(key);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    iframeRetryTimers.delete(key);
+    retryLearnedIframe({
+      tabId: details.tabId,
+      type: "sub_frame",
+      parentFrameId: Number.isInteger(details.parentFrameId) ? details.parentFrameId : 0
+    }, initiatorHost);
+  }, 700);
+  iframeRetryTimers.set(key, timer);
+  appendDebug(existing ? "iframe-retry-rescheduled" : "iframe-retry-scheduled", {
+    tabId: details.tabId,
+    host: initiatorHost,
+    learnedDependency: getRequestHost(details),
+    delayMs: 700
+  });
+}
+
 async function sendTestNotification() {
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
@@ -655,6 +686,7 @@ async function learnAndRetry(details) {
   await setBadge(true, false, true, details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
   retryLearnedIframe(details, host);
+  scheduleInitiatorIframeRetry(details, learnedDomains);
 
   // Gömülü API, video, görsel veya iframe hedefleri öğrenilir ancak açık sayfa
   // yenilenmez. Modern siteler bu istekleri çoğunlukla kendileri tekrarlar;
@@ -843,6 +875,8 @@ chrome.webRequest.onErrorOccurred.addListener(
     const host = getRequestHost(details);
     appendDebug("request-error", {
       tabId: details.tabId,
+      frameId: Number.isInteger(details.frameId) ? details.frameId : null,
+      parentFrameId: Number.isInteger(details.parentFrameId) ? details.parentFrameId : null,
       host,
       requestType: details.type,
       error: details.error || null,
@@ -887,6 +921,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   const timer = reloadTimers.get(tabId);
   if (timer) clearTimeout(timer);
   reloadTimers.delete(tabId);
+  for (const [key, timer] of iframeRetryTimers) {
+    if (key.startsWith(`${tabId}:`)) {
+      clearTimeout(timer);
+      iframeRetryTimers.delete(key);
+    }
+  }
   for (const key of retryCooldowns.keys()) {
     if (key.startsWith(`${tabId}:`)) retryCooldowns.delete(key);
   }
