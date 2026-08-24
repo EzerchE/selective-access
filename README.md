@@ -45,7 +45,7 @@ Algılama ve yeniden deneme kuralları belirli bir hedefe, markaya veya sabit al
 
 ### Kamuya açık dağıtım
 
-Proje bütün kullanıcılar için aynı genel yapılandırmayla geliştirilir. Kullanıcıya, cihaza veya ağa özgü DNS adresleri, öğrenilmiş hedefler, eklenti kimlikleri, mutlak dosya yolları ve hata günlükleri kaynak depoya eklenmez. Kurucu gerekli kullanıcı yollarını ve paketlenmemiş eklenti kimliğini yalnız kurulum sırasında yerel olarak belirler. Her sürüm değişikliğinde manifest, README ve davranışı açıklayan ilgili belgeler birlikte güncellenir.
+Proje bütün kullanıcılar için aynı genel yapılandırmayla geliştirilir. Kullanıcıya, cihaza veya ağa özgü DNS adresleri, öğrenilmiş hedefler, eklenti kimlikleri, mutlak dosya yolları ve hata günlükleri kaynak depoya eklenmez. Yerel yardımcı herhangi bir Chrome eklenti kimliği veya kullanıcıya özel ağ değeri gerektirmez. Her sürüm değişikliğinde manifest, README ve davranışı açıklayan ilgili belgeler birlikte güncellenir.
 
 ### Otomatik hedef öğrenme
 
