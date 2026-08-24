@@ -15,10 +15,35 @@ if (-not $isAdmin) {
     $quotedScript = $PSCommandPath.Replace("'", "''")
     $quotedSid = $ChromeUserSid.Replace("'", "''")
     $quotedLocalAppData = $ChromeLocalAppData.Replace("'", "''")
-    $elevatedCommand = "& '$quotedScript' -ChromeUserSid '$quotedSid' -ChromeLocalAppData '$quotedLocalAppData'; exit `$LASTEXITCODE"
+    $logPath = Join-Path $env:TEMP "SelectiveAccess-install.log"
+    $quotedLogPath = $logPath.Replace("'", "''")
+    $elevatedCommand = @"
+`$installExitCode = 0
+Start-Transcript -Path '$quotedLogPath' -Force | Out-Null
+try {
+    & '$quotedScript' -ChromeUserSid '$quotedSid' -ChromeLocalAppData '$quotedLocalAppData'
+}
+catch {
+    `$installExitCode = 1
+    Write-Error (`$_ | Out-String)
+}
+finally {
+    Stop-Transcript | Out-Null
+}
+exit `$installExitCode
+"@
     $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevatedCommand))
     $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encodedCommand)
     $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        Write-Host "Yonetici kurulumu tamamlanamadi. Tani gunlugu: $logPath" -ForegroundColor Red
+        if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Tail 25
+        }
+    }
+    else {
+        Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
+    }
     exit $process.ExitCode
 }
 
