@@ -2,7 +2,7 @@
 
 Son güncelleme: 24 Ağustos 2026
 
-Otomatik Erişim'in tek amacı, bağlantı hatası yaşayan alan adlarını kullanıcının kendi bilgisayarındaki yerel SOCKS5 geçidine seçici olarak yönlendirmektir.
+Otomatik Erişim'in amacı, bağlantı hatası yaşayan alan adlarını kullanıcının kendi bilgisayarındaki yerel SOCKS5 geçidine seçici olarak yönlendirmek ve kullanıcının isteğiyle dış erişilebilirlik ölçümü yapmaktır. Bu bildirim ürünün gerçek veri akışını açıklamak içindir; belirli bir mevzuata eksiksiz uyum garantisi değildir.
 
 ## Yerel olarak işlenen veriler
 
@@ -10,11 +10,17 @@ Eklenti etkinleştirildiğinde istek yapılan alan adlarını, Chrome bağlantı
 
 ## Üçüncü tarafa aktarım
 
-Kurulum yardımcısı, ağ sağlayıcısının alan adı yanıtını engellediği durumlarda DNS sorgularını cihazdaki yerel `dnsproxy` hizmeti üzerinden şifreli olarak Cloudflare (`1.1.1.1`) ve Google (`8.8.8.8`) DoH çözümleyicilerine gönderir. Bu sağlayıcılar sorgulanan alan adını ve bağlantının kaynak IP adresini görebilir; tam URL ve sayfa içeriği DNS sorgusuna dahil değildir. Kullanıcı popup içindeki **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı ayrıca Globalping API'sine gönderilir.
+Kurulum yardımcısı, cihazdaki **tüm DNS sorgularını** (yalnız eklentinin öğrendiği hedefleri değil) yerel `dnsproxy` üzerinden şifreli olarak Cloudflare (`1.1.1.1`) ve Google (`8.8.8.8`) DoH çözümleyicilerine gönderir. Bu sağlayıcılar sorgulanan alan adını ve bağlantının kaynak IP adresini görebilir; kendi gizlilik ve saklama koşulları geçerlidir. Tam URL, sayfa içeriği ve HTTPS içeriği DNS sorgusuna dahil değildir.
+
+Kullanıcı popup içindeki **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu aktarım otomatik değildir. Cloudflare, Google ve Globalping bağımsız veri alıcılarıdır; proje bu hizmetlerin kayıtlarını denetlemez.
+
+Geliştiriciye ait bir telemetri, analiz, reklam veya uzaktan kayıt sunucusu yoktur.
 
 ## Saklama ve silme
 
 Öğrenilen alan adları kullanıcı silene, eklenti verilerini temizleyene veya eklentiyi kaldırana kadar yerel cihazda kalır. Popup üzerinden girdiler ayrı ayrı silinebilir.
+
+Chrome eklentisini kaldırmak yerel listeyi siler; sistem geneli DNS kuralını ve yardımcı hizmetleri kaldırmak için ayrıca `helper/uninstall.cmd` çalıştırılmalıdır. Üçüncü taraf DNS ve ölçüm sağlayıcılarındaki kayıtların saklanması ilgili sağlayıcının politikasına tabidir.
 
 ## Reklam ve satış
 
@@ -28,6 +34,6 @@ Eklenti kullanıcı verisini satmaz, reklam hedefleme amacıyla kullanmaz ve ü�
 - `activeTab`: kullanıcı popup'ı açtığında yalnız etkin sekmenin alan adını göstermek ve isteğe bağlı işlem uygulamak.
 - `notifications`: yeni bir hedef otomatik öğrenildiğinde yalnız cihaz üzerinde Chrome bildirimi göstermek.
 
-Bu eklentinin kullanıcı verilerini kullanımı, Chrome Web Store User Data Policy'deki Limited Use şartlarına uygundur; veriler yalnız açıklanan tek amacı sağlamak için işlenir.
+Veriler yalnız yukarıda açıklanan işlevleri sağlamak için işlenmek üzere tasarlanmıştır. Herhangi bir mağaza dağıtımından önce mağaza veri beyanı, bu metin ve ürün davranışı yeniden doğrulanmalıdır.
 
-Gizlilik veya silme talepleri için GitHub deposundaki Issues ya da Security kanalı kullanılabilir; destek talebine gezinme kayıtları veya başka hassas bilgiler eklenmemelidir.
+Proje geliştiricisine gizlilik veya yerel silme hakkında soru iletmek için GitHub deposundaki Issues; güvenlik açığı için Security kanalı kullanılabilir. Destek talebine gezinme kayıtları veya başka hassas bilgiler eklenmemelidir. Ticari veya mağaza dağıtımından önce veri sorumlusunun açık kimliği, iletişim bilgileri ve gerekli hukuki dayanak/aydınlatma unsurları dağıtıcı tarafından tamamlanmalıdır.

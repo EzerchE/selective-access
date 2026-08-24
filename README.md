@@ -1,6 +1,6 @@
 # Otomatik Erişim
 
-Otomatik Erişim, Chrome'da açılmayan siteleri ve sayfaların içindeki erişilemeyen video, görsel, iframe, CDN, API veya WebSocket kaynaklarını algılayıp yalnızca sorunlu alan adlarını yerel bir bağlantı geçidine yönlendiren açık kaynaklı bir eklentidir.
+Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -24,7 +24,7 @@ Bir engel ilk kez algılanıp hedef otomatik yönlendirmeye eklendiğinde göste
 
 DPI, **Deep Packet Inspection** yani **Derin Paket İnceleme** ifadesinin kısaltmasıdır. İnternet sağlayıcıları ve ağ yöneticileri, bağlantıların yalnızca hangi adrese gittiğine değil, paketlerin belirli teknik özelliklerine de bakarak trafiği sınıflandırabilir. Bazı erişim engelleri bu inceleme sırasında bağlantının kesilmesi, sıfırlanması veya yanıtsız bırakılmasıyla uygulanır.
 
-DPI atlama, şifre kırmak veya site güvenliğini aşmak değildir. Bağlantının ağ üzerinde gönderiliş biçimini değiştirerek DPI sisteminin trafiği tanıyıp kesmesini zorlaştırır. HTTPS bağlantısı uçtan uca şifreli kalır; eklenti sertifika kurmaz, TLS içeriğini çözmez ve sayfa içeriğini okumaz.
+Bu projede kullanılan DPI uyumluluk yöntemi şifre kırmaz ve site güvenlik denetimlerini geçersiz kılmaz. Bağlantının ağ üzerinde gönderiliş biçimini değiştirir. HTTPS bağlantısı uçtan uca şifreli kalır; eklenti sertifika kurmaz, TLS içeriğini çözmez ve sayfa içeriğini okumaz. Bir hedefe teknik olarak bağlanabilmek, o hedefe erişim yetkisi vermez.
 
 Bu yöntem IP adresinizi veya ülkenizi değiştirmez. Dolayısıyla bir VPN değildir.
 
@@ -61,7 +61,7 @@ Popup, açık sekmenin alan adını gösterir. Kullanıcı **Şimdi geçide al**
 
 Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Kurulum yardımcısı bu durumlar için yalnız loopback üzerinde çalışan yerel bir `dnsproxy` görevi kurar. DNS sorguları HTTPS ile Cloudflare ve Google çözümleyicilerine gönderilir.
 
-Bu DNS kuralı sistem genelinde etkilidir. `helper/uninstall.cmd`, yalnız Otomatik Erişim'e ait görev ve DNS kuralını geri alır.
+Bu DNS kuralı sistem genelinde etkilidir: cihazdaki diğer uygulamaların sorguları da Cloudflare ve Google'a gider. Kurucu bunu değişiklik yapmadan önce açıkça bildirip `EVET` onayı ister. `helper/uninstall.cmd`, yalnız Otomatik Erişim'e ait görev ve DNS kuralını geri alır.
 
 ### Dışarıdan genel durum kontrolü
 
@@ -100,6 +100,14 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 
 > Proje şu anda Windows ve Google Chrome için hazırlanmıştır.
 
+### Kurmadan önce bilin
+
+- Yardımcı, yönetici yetkisiyle iki yerel hizmet ve sistem geneli DNS kuralı kurar.
+- Cihazdaki tüm DNS sorguları şifreli biçimde Cloudflare ve Google'a gönderilir; bu tarafların kendi gizlilik koşulları geçerlidir.
+- Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir. Kurucu başka bir sistem geneli NRPT kuralı bulursa çakışmayı önlemek için durur.
+- Araç VPN veya anonimlik hizmeti değildir; IP adresini ya da ülkeyi değiştirmez ve erişim garantisi vermez.
+- Kurulumdan önce [`PRIVACY.md`](PRIVACY.md) ve [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgelerini okuyun.
+
 1. Depoyu indirin veya klonlayın.
 2. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın.
 3. Chrome'da `chrome://extensions` adresini açın.
@@ -136,6 +144,10 @@ Eklenti sayfaya kod enjekte etmez, sayfa içeriğini değiştirmez ve HTTPS traf
 
 Ayrıntılar için [`PRIVACY.md`](PRIVACY.md) dosyasına bakın.
 
+## Sorumlu kullanım
+
+Bu proje yalnız hukuka, yetkili makam kararlarına, ağ politikalarına ve üçüncü taraf hizmet şartlarına uygun kullanımlar için sunulur. Erişim kontrolü, hesap, ödeme duvarı, lisans veya güvenlik sınırlarını ihlal etme yetkisi vermez. Üçüncü taraf adları ve ekran görüntüleri yalnız arayüz örneğidir; proje bu hizmetlerle bağlantılı veya onlarca onaylanmış değildir. Ayrıntılar için [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgesine bakın.
+
 ## Kaldırma
 
 1. Eklentiyi Chrome'dan kaldırın veya kapatın.
@@ -157,7 +169,7 @@ Kaldırma betiği ByeDPI hizmetini, yerel şifreli DNS görevini, proje etiketli
 - `helper/bin/ciadpi.exe`: [hufrea/byedpi](https://github.com/hufrea/byedpi)
 - `helper/bin/dnsproxy.exe`: [AdGuardTeam/dnsproxy](https://github.com/AdguardTeam/dnsproxy)
 
-Kaynak, sürüm, SHA-256 ve lisans bilgileri [`helper/bin/SOURCE.md`](helper/bin/SOURCE.md) ile [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) dosyalarında yer alır.
+Kaynak, sürüm, SHA-256 ve lisans bilgileri [`helper/bin/SOURCE.md`](helper/bin/SOURCE.md) ile [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) dosyalarında yer alır. GPL kapsamındaki dnsproxy'nin aynı sürüme ait karşılık gelen kaynak arşivi ikiliyle birlikte `helper/source/` altında sunulur.
 
 ## Lisans
 

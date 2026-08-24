@@ -53,6 +53,27 @@ function Get-TextSha256([string]$Value) {
     }
 }
 
+$requiredLegalFiles = @(
+    "LICENSE",
+    "PRIVACY.md",
+    "RESPONSIBLE_USE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "helper\bin\BYEDPI_LICENSE.txt",
+    "helper\bin\DNSPROXY_LICENSE.txt",
+    "helper\source\dnsproxy-v0.84.1.tar.gz"
+)
+foreach ($relativePath in $requiredLegalFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {
+        throw "Gerekli hukuki/lisans dosyasi eksik: $relativePath"
+    }
+}
+
+$expectedDnsproxySourceHash = "FB99AE07D991BB58277CA857389933CBDC6CBF86F1A1C3EAB8CCD4DF4E333EEC"
+$actualDnsproxySourceHash = (Get-FileHash -LiteralPath (Join-Path $root "helper\source\dnsproxy-v0.84.1.tar.gz") -Algorithm SHA256).Hash
+if ($actualDnsproxySourceHash -ne $expectedDnsproxySourceHash) {
+    throw "dnsproxy kaynak arsivi beklenen surumle eslesmiyor."
+}
+
 foreach ($file in $tracked | Where-Object { $_.Extension -notmatch '^\.(?:png|jpg|jpeg|gif|ico|exe)$' }) {
     $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
     foreach ($token in [regex]::Matches($content, '[A-Za-z0-9.-]+')) {

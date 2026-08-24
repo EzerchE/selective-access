@@ -4,4 +4,4 @@ Güvenlik açığını herkese açık issue içinde ayrıntılandırmayın. GitH
 
 Rapora kimlik bilgisi, kişisel veri veya kullanıcı trafiği eklemeyin. Gerekli en küçük anonim yeniden üretim örneğini paylaşın.
 
-Proje uzaktan kod çalıştırmaz. Yerel yardımcı yalnız `127.0.0.1` üzerinde dinlemelidir. `helper/bin/ciadpi.exe` üçüncü taraf ByeDPI projesinden gelir; kaynak ve SHA-256 bilgisi `helper/bin/SOURCE.md` içinde tutulur.
+Eklenti uzaktan kod çalıştırmaz. Yerel yardımcılar yalnız loopback üzerinde dinlemelidir. Birlikte dağıtılan üçüncü taraf ikililerin kaynak, sürüm, lisans ve SHA-256 bilgileri `helper/bin/SOURCE.md` ile `THIRD_PARTY_NOTICES.md` içinde tutulur. Kurulum paketini çalıştırmadan önce hash değerlerini doğrulayın; yayımlanan masaüstü paketleri mümkün olduğunda kod imzalı olmalıdır.

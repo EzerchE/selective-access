@@ -16,6 +16,19 @@ if (-not $isAdmin) {
     exit $process.ExitCode
 }
 
+Write-Host "Otomatik Erisim yardimci kurulumu" -ForegroundColor Cyan
+Write-Host "- Yalniz yerel bilgisayarda calisan iki hizmet kurulur."
+Write-Host "- Chrome'da secilen hedefler 127.0.0.1:1080 gecidine yonlendirilir."
+Write-Host "- CIHAZDAKI TUM DNS SORGULARI sistem genelinde Cloudflare ve Google DoH hizmetlerine sifreli gonderilir."
+Write-Host "- Bu saglayicilar sorgulanan alan adini ve kaynak IP adresini gorebilir; kendi gizlilik kosullari gecerlidir."
+Write-Host "- Kurumsal/yonetilen bir cihazda yonetici izni olmadan kurmayin. helper\uninstall.cmd degisiklikleri geri alir."
+Write-Host ""
+$confirmation = Read-Host "Bu degisiklikleri anladiniz ve kuruluma devam etmek istiyor musunuz? [EVET/hayir]"
+if ($confirmation -cne "EVET") {
+    Write-Host "Kurulum kullanici tarafindan iptal edildi. Hicbir degisiklik yapilmadi." -ForegroundColor Yellow
+    exit 2
+}
+
 $serviceName = "SelectiveAccessByeDPI"
 $dnsServiceName = "SelectiveAccessDns"
 $dnsTaskName = "SelectiveAccessDns"
@@ -31,6 +44,13 @@ if (-not (Test-Path -LiteralPath $sourceExecutable -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $sourceDnsExecutable -PathType Leaf)) {
     throw "Eklenti yardimci paketindeki dnsproxy.exe bulunamadi: $sourceDnsExecutable"
+}
+
+$foreignDefaultRules = Get-DnsClientNrptRule | Where-Object {
+    $_.Namespace -contains "." -and $_.Comment -ne $dnsRuleComment
+}
+if ($foreignDefaultRules) {
+    throw "Baska bir sistem geneli DNS/NRPT kurali bulundu. Ag politikasini bozmamak icin kurulum hicbir degisiklik yapmadan durduruldu."
 }
 
 New-Item -ItemType Directory -Path $installDirectory -Force | Out-Null
@@ -98,9 +118,6 @@ for ($attempt = 0; $attempt -lt 20; $attempt++) {
 if (-not (Get-NetUDPEndpoint -LocalAddress "127.0.0.2" -LocalPort 53 -ErrorAction SilentlyContinue)) {
     throw "Sifreli DNS hizmeti 127.0.0.2:53 adresinde baslatilamadi."
 }
-Add-DnsClientNrptRule -Namespace "." -NameServers "127.0.0.2" -Comment $dnsRuleComment | Out-Null
-Clear-DnsClientCache
-
 # Sadece loopback dinlenir; yerel agdaki diger cihazlar bu SOCKS gecidine erisemez.
 $binaryPath = ('"{0}" --ip 127.0.0.1 --port 1080 --no-udp --split 1 --oob 1 --auto r --oob 1 --auto t --fake -1 --tlsrec 1+s --auto s' -f $targetExecutable)
 New-Service `
@@ -110,6 +127,10 @@ New-Service `
     -Description "Secici Erisim icin yalnizca 127.0.0.1:1080 adresinde calisan ByeDPI SOCKS5 gecidi." `
     -StartupType Automatic | Out-Null
 Start-Service -Name $serviceName
+
+# Sistem geneli DNS degisikligi, her iki yerel hizmet de basariyla basladiktan sonra en son uygulanir.
+Add-DnsClientNrptRule -Namespace "." -NameServers "127.0.0.2" -Comment $dnsRuleComment | Out-Null
+Clear-DnsClientCache
 
 $service = Get-Service -Name $serviceName
 Write-Host ""
