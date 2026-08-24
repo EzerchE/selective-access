@@ -181,10 +181,10 @@ try {
     $dnsSettings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
     Register-ScheduledTask -TaskName $dnsTaskName -Action $dnsAction -Principal $dnsPrincipal -Settings $dnsSettings -Description "Yalniz secici DNS hedefleri varken calisan yerel DoH cozumleyicisi." | Out-Null
 
-    $syncArguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" -DesiredFile "{1}" -ResultFile "{2}"' -f $targetSyncScript, $desiredFile, $resultFile)
+    $syncArguments = ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -DesiredFile "{1}" -ResultFile "{2}"' -f $targetSyncScript, $desiredFile, $resultFile)
     $syncAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $syncArguments
     $syncPrincipal = New-ScheduledTaskPrincipal -UserId $ChromeUserSid -LogonType Interactive -RunLevel Highest
-    $syncSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) -MultipleInstances Queue
+    $syncSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) -MultipleInstances Queue -Hidden
     Register-ScheduledTask -TaskName $dnsSyncTaskName -Action $syncAction -Principal $syncPrincipal -Settings $syncSettings -Description "Otomatik Erisim alan adina ozel DNS kurallarini esler." | Out-Null
 
     $binaryPath = ('"{0}" --ip 127.0.0.1 --port 1080 --no-udp --split 1 --oob 1 --auto r --oob 1 --auto t --fake -1 --tlsrec 1+s --auto s' -f $targetExecutable)
