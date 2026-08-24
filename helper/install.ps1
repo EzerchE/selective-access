@@ -11,11 +11,13 @@ $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
-    $arguments = @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $PSCommandPath),
-        "-ChromeUserSid", ('"{0}"' -f $ChromeUserSid),
-        "-ChromeLocalAppData", ('"{0}"' -f $ChromeLocalAppData)
-    )
+    Write-Host "Kuruluma devam etmek icin Windows yonetici izni gerekiyor." -ForegroundColor Yellow
+    $quotedScript = $PSCommandPath.Replace("'", "''")
+    $quotedSid = $ChromeUserSid.Replace("'", "''")
+    $quotedLocalAppData = $ChromeLocalAppData.Replace("'", "''")
+    $elevatedCommand = "& '$quotedScript' -ChromeUserSid '$quotedSid' -ChromeLocalAppData '$quotedLocalAppData'; exit `$LASTEXITCODE"
+    $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevatedCommand))
+    $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encodedCommand)
     $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
     exit $process.ExitCode
 }

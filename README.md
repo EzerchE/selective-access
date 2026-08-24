@@ -2,7 +2,7 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
-Güncel sürüm: **4.5.1**
+Güncel sürüm: **4.5.2**
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -136,9 +136,11 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 ### Güncelleme
 
 1. Depodaki dosyaları güncelleyin.
-2. `helper/install.cmd` dosyasını yeniden çalıştırın.
-3. `chrome://extensions` sayfasında Otomatik Erişim kartındaki yenile simgesine basın.
-4. Popup başlığındaki sürümün `manifest.json` ile eşleştiğini kontrol edin.
+2. `chrome://extensions` sayfasında Otomatik Erişim kartının kendi yenile simgesine basın. Sayfanın üstündeki genel **Güncelle** düğmesi paketlenmemiş proje dosyalarını indirmez.
+3. Popup başlığındaki sürümün `manifest.json` ile eşleştiğini kontrol edin.
+4. Yalnız güncelleme `helper/` klasörünü değiştirdiyse veya popup yerel yardımcının eksik olduğunu bildiriyorsa `helper/install.cmd` dosyasını yeniden çalıştırıp kartı bir kez daha yenileyin.
+
+`helper/install.cmd` yönetici yetkisi gerektiren Windows hizmeti, görev ve yerel köprü kurulumu içindir; yalnız Chrome eklentisini yeniden yüklemek için çalıştırılmaz.
 
 ## İzinler neden gerekli?
 

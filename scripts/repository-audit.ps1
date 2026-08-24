@@ -97,4 +97,12 @@ if ($readme -notmatch $versionPattern) {
     throw "README güncel manifest sürümünü belirtmiyor: $($manifest.version)"
 }
 
+$backgroundSource = Get-Content -LiteralPath (Join-Path $root 'background.js') -Raw
+$popupSource = Get-Content -LiteralPath (Join-Path $root 'popup.js') -Raw
+$backgroundSchema = [regex]::Match($backgroundSource, 'schemaVersion:\s*(\d+)')
+$popupSchema = [regex]::Match($popupSource, 'EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)')
+if (-not $backgroundSchema.Success -or -not $popupSchema.Success -or $backgroundSchema.Groups[1].Value -ne $popupSchema.Groups[1].Value) {
+    throw "Popup ve arka plan veri semasi birbiriyle uyusmuyor."
+}
+
 Write-Host "Depo denetimi başarılı." -ForegroundColor Green

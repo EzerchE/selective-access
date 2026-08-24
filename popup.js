@@ -26,6 +26,8 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
+const EXPECTED_SCHEMA_VERSION = 6;
+
 let currentHost = null;
 let currentTabId = null;
 let currentState = null;
@@ -154,7 +156,7 @@ function render(state) {
   currentState = state;
   learnedDomains = Array.isArray(state.learnedDomains) ? [...state.learnedDomains] : [];
   ignoredDomains = Array.isArray(state.ignoredDomains) ? [...state.ignoredDomains] : [];
-  const versionMismatch = state.schemaVersion !== 5;
+  const versionMismatch = state.schemaVersion !== EXPECTED_SCHEMA_VERSION;
   protocolReady = !versionMismatch;
   elements.enabled.checked = state.enabled;
   elements.enabled.disabled = versionMismatch;
