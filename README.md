@@ -4,7 +4,7 @@ Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü k
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
-![Otomatik Erişim genel arayüz örneği](assets/screenshots/popup-v4-2.png)
+![Otomatik Erişim site bağımsız arayüzü](assets/screenshots/popup-v4-4-clean.png)
 
 ## Kısaca ne yapar?
 
