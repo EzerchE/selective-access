@@ -5,7 +5,7 @@
 - Manifest V3 kullanılır ve uzaktan JavaScript çalıştırılmaz.
 - Tek amaç, başarısız alan adlarını yerel geçide seçici yönlendirmektir.
 - Varsayılan durum kapalıdır; kullanıcı popup anahtarıyla etkinleştirir.
-- İzinler mevcut işlev için gereken `activeTab`, `notifications`, `proxy`, `storage`, `webRequest` ve HTTP/HTTPS host erişimiyle sınırlandırılmıştır.
+- İzinler mevcut işlev için gereken `activeTab`, `nativeMessaging`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest` ve HTTP/HTTPS host erişimiyle sınırlandırılmıştır.
 - Veri kullanımı popup ve `PRIVACY.md` içinde açıklanmak üzere tasarlanmıştır; mağaza incelemesi uyumluluk garantisi değildir.
 
 ## Yayından önce tamamlanacaklar

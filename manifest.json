@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Otomatik Erişim",
   "short_name": "Oto Erişim",
-  "version": "4.5.0",
+  "version": "4.5.1",
   "description": "Bağlantı hatası yaşayan hedefleri öğrenir ve yalnızca onları yerel uyumluluk geçidine yönlendirir.",
   "minimum_chrome_version": "102",
   "permissions": [

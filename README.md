@@ -2,6 +2,8 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
+Güncel sürüm: **4.5.1**
+
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
 ![Otomatik Erişim site bağımsız arayüzü](assets/screenshots/popup-v4-4-clean.png)
@@ -41,6 +43,10 @@ Bir DPI yöntemini bütün bağlantılara uygulamak gereksiz yan etkilere neden 
 
 Algılama ve yeniden deneme kuralları belirli bir hedefe, markaya veya sabit alan adı listesine bağlı değildir. Kararlar yalnız Chrome'un bildirdiği istek türü, bağlantı hatası, frame kimliği, başlatıcı alan ilişkisi ve doğrudan erişim doğrulamasına göre verilir. Kod ile arayüz örneklerinde gerçek hedef adları kullanılmaz; test ve önizleme verileri IANA'nın dokümantasyon için ayırdığı `.example` alan adlarıyla oluşturulur.
 
+### Kamuya açık dağıtım
+
+Proje bütün kullanıcılar için aynı genel yapılandırmayla geliştirilir. Kullanıcıya, cihaza veya ağa özgü DNS adresleri, öğrenilmiş hedefler, eklenti kimlikleri, mutlak dosya yolları ve hata günlükleri kaynak depoya eklenmez. Kurucu gerekli kullanıcı yollarını ve paketlenmemiş eklenti kimliğini yalnız kurulum sırasında yerel olarak belirler. Her sürüm değişikliğinde manifest, README ve davranışı açıklayan ilgili belgeler birlikte güncellenir.
+
 ### Otomatik hedef öğrenme
 
 Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
@@ -65,7 +71,7 @@ Yoksayılan hedefler ayrı listede görülebilir ve `↩` düğmesiyle yeniden o
 
 ### DNS engelleri için şifreli çözümleme
 
-Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Normal sorgular kullanıcının mevcut DNS, Pi-hole veya Unbound yapılandırmasında kalır. Chrome yalnız ana sayfada DNS çözümleme hatası gördüğünde alan adını Cloudflare DoH ile çerezsiz olarak doğrular. Alternatif DNS adres döndürürse yalnız o tam alan adı için `127.0.0.2` üzerindeki yerel çözücüye seçici NRPT kuralı eklenir.
+Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Normal sorgular kullanıcının mevcut sistem ve ağ DNS yapılandırmasında kalır. Chrome yalnız ana sayfada DNS çözümleme hatası gördüğünde alan adını Cloudflare DoH ile çerezsiz olarak doğrular. Alternatif DNS adres döndürürse yalnız o tam alan adı için `127.0.0.2` üzerindeki yerel çözücüye seçici NRPT kuralı eklenir.
 
 Genel `.` NRPT kuralı veya ağ bağdaştırıcısı DNS değişikliği yapılmaz. `dnsproxy` yalnız seçici listede en az bir hedef varken çalışır; liste boşaldığında durur. Alan adına özel kural Windows düzeyinde olduğundan aynı hedefi isteyen başka bir uygulamanın sorgusu da o sırada seçici çözücüye gidebilir. `helper/uninstall.cmd` yalnız Otomatik Erişim'e ait görevleri ve alan adına özel kuralları geri alır.
 
@@ -115,7 +121,7 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 ### Kurmadan önce bilin
 
 - Yardımcı, yönetici yetkisiyle yerel geçidi ve alan adına özel DNS kurallarını uygulayan yerel köprüyü kurar.
-- Kullanıcının DNS/Pi-hole ayarı değiştirilmez. Yalnız yerel DNS'in çözemediği ve alternatif DNS'te doğrulanan hedefler Cloudflare ve Google DoH çözücülerine yöneltilir.
+- Kullanıcının sistem veya ağ DNS ayarı değiştirilmez. Yalnız mevcut çözümleyicinin açamadığı ve alternatif DNS'te doğrulanan hedefler Cloudflare ve Google DoH çözücülerine yöneltilir.
 - Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir. Yardımcı başka ürünlere ait DNS kurallarını değiştirmez.
 - Araç VPN veya anonimlik hizmeti değildir; IP adresini ya da ülkeyi değiştirmez ve erişim garantisi vermez.
 - Kurulumdan önce [`PRIVACY.md`](PRIVACY.md) ve [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgelerini okuyun.
@@ -152,7 +158,7 @@ Eklenti genel sayfa içeriğini toplamaz veya HTTPS trafiğini çözmez. Otomati
 - HTTPS içeriği şifreli kalır; özel sertifika kurulmaz.
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
 - Hata ayıklama günlüğü yalnız Chrome'un yerel eklenti deposunda tutulur ve kullanıcı kendisi paylaşmadıkça cihazdan çıkmaz.
-- Normal DNS sorguları mevcut DNS/Pi-hole yapılandırmasında kalır. DNS hatası veren alan adı Cloudflare DoH ile otomatik doğrulanır; yalnız doğrulanan seçici hedeflerin sorguları Cloudflare ve Google'a şifreli gönderilir. Bu sağlayıcılar ilgili alan adını ve kaynak IP adresini görebilir.
+- Normal DNS sorguları mevcut sistem ve ağ DNS yapılandırmasında kalır. DNS hatası veren alan adı Cloudflare DoH ile otomatik doğrulanır; yalnız doğrulanan seçici hedeflerin sorguları Cloudflare ve Google'a şifreli gönderilir. Bu sağlayıcılar ilgili alan adını ve kaynak IP adresini görebilir.
 - Globalping'e yalnız kullanıcı genel durum kontrolünü başlattığında açık sekmenin alan adı gönderilir.
 - Otomatik doğrulama isteği üçüncü tarafa değil, yalnız hatayı veren hedef URL'ye doğrudan ve çerezsiz gönderilir.
 - Tam URL, sayfa içeriği ve öğrenilmiş alan adı listesinin tamamı dış servislere gönderilmez.
@@ -178,7 +184,7 @@ Kaldırma betiği ByeDPI hizmetini, yerel DNS görevlerini, Chrome yerel köprü
 - Yerel hata belirtileri erişim engelini kesin olarak kanıtlayamaz. Tekrarlı hata ve doğrudan kontrol yanlış algılama riskini azaltır; kullanıcı gerekirse hedefi listeden çıkarabilir veya kalıcı olarak yoksayabilir.
 - Ağ sağlayıcıları engelleme yöntemlerini değiştirebilir; çalışan DPI profilinin ileride güncellenmesi gerekebilir.
 - Başka bir eklenti veya kurumsal politika Chrome proxy ayarlarını kontrol ediyorsa iki yapı aynı anda çalışamayabilir.
-- Alan adına özel DNS kuralı etkin olduğu sürede aynı hedefi isteyen diğer uygulamaların DNS çözümlemesi de yerel DoH çözücüsünü kullanabilir; diğer bütün alan adları mevcut DNS/Pi-hole ayarında kalır.
+- Alan adına özel DNS kuralı etkin olduğu sürede aynı hedefi isteyen diğer uygulamaların DNS çözümlemesi de yerel DoH çözücüsünü kullanabilir; diğer bütün alan adları mevcut sistem ve ağ DNS ayarında kalır.
 - Kullanımın bulunduğunuz yerdeki mevzuata ve ağ kurallarına uygunluğunu kontrol etmek kullanıcının sorumluluğundadır.
 
 ## Üçüncü taraf bileşenler

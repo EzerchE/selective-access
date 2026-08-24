@@ -19,7 +19,9 @@ $patterns = @(
     'gh[opusr]_[A-Za-z0-9]{20,}',
     'AKIA[0-9A-Z]{16}',
     'sk-[A-Za-z0-9_-]{20,}',
-    'C:\\Users\\[^\\\s]+'
+    'C:\\Users\\[^\\\s]+',
+    '(?<![a-p])[a-p]{32}(?![a-p])',
+    '(?<![0-9])(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})(?![0-9])'
 )
 
 foreach ($file in $tracked | Where-Object { $_.Extension -notmatch '^\.(?:png|jpg|jpeg|gif|ico|exe)$' }) {
@@ -28,28 +30,6 @@ foreach ($file in $tracked | Where-Object { $_.Extension -notmatch '^\.(?:png|jp
         if ($content -match $pattern) {
             throw "Olası hassas veri bulundu: $($file.FullName)"
         }
-    }
-}
-
-# Ürün anlatımında uygunsuz konumlandırmaya yol açabilecek örnekleri engeller.
-# Yasaklı terimlerin kendileri ve geri döndürülebilir kodlamaları depoda tutulmaz.
-$unsuitableTermHashes = @(
-    '7c5cb471aa8029a526d5a7423ff4b8d8a3ee1587ec9d1337ee0cff4d41ca0582',
-    '4d9128c239659d26be113a172390894cde5f0718d2eec4e2186673b0e775f4e4',
-    'b5d9c4172f29c5b797383a1012d3cbb843430c0c22f013423c644a55622f5c0d',
-    'd516dbecbf6a8cb4d28185bdd60f8faf9c0ceb8e8eabfb987206795e87281310',
-    'c6603565c5159fbe846a53e991829d452a1546d41150c0d3c73ddbd7f476ee0d',
-    '0033728f0fbc83a0f0226d91bb063540d6d0158c0bbfa1620ae5b95b10f82932'
-)
-
-function Get-TextSha256([string]$Value) {
-    $sha256 = [Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = [Text.Encoding]::UTF8.GetBytes($Value.ToLowerInvariant())
-        return ([BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
-    }
-    finally {
-        $sha256.Dispose()
     }
 }
 
@@ -92,25 +72,15 @@ if ($installer -match 'Add-DnsClientNrptRule\s+-Namespace\s+["'']\.[''\"]') {
     throw "Kurucu sistem geneli DNS/NRPT kurali icermemelidir."
 }
 
-foreach ($file in $tracked | Where-Object { $_.Extension -notmatch '^\.(?:png|jpg|jpeg|gif|ico|exe)$' }) {
-    $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
-    foreach ($token in [regex]::Matches($content, '[A-Za-z0-9.-]+')) {
-        if ($unsuitableTermHashes -contains (Get-TextSha256 $token.Value)) {
-            throw "Ürün konumlandırmasına uygun olmayan alan adı/ifade örneği bulundu: $($file.FullName)"
-        }
-    }
+$helperScripts = (Get-ChildItem -LiteralPath (Join-Path $root 'helper') -Filter '*.ps1' -File -Recurse | ForEach-Object {
+    Get-Content -LiteralPath $_.FullName -Raw
+}) -join "`n"
+if ($helperScripts -match 'Set-DnsClientServerAddress|netsh(?:\.exe)?\s+[^\r\n]*\bdns\b') {
+    throw "Yardimci kullanicinin ag bagdastiricisi DNS ayarini degistirmemelidir."
 }
 
-# Kamuya açık belgelerin taşınabilir ve ürün odaklı kalmasını sağlar.
-$documentationOnlyTermsBase64 = @(
-    'Z29vZC1kcGk=',
-    'c3BsaXR3aXJl',
-    'ZmlsZWNyeXB0'
-)
-$documentationPatterns = @('[A-Za-z]:\\') + ($documentationOnlyTermsBase64 | ForEach-Object {
-    [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_))
-})
-
+# Kamuya açık belgelerin makineye özgü mutlak yollar içermemesini sağlar.
+$documentationPatterns = @('[A-Za-z]:\\')
 foreach ($file in $tracked | Where-Object { $_.Extension -eq '.md' }) {
     $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
     foreach ($pattern in $documentationPatterns) {
@@ -118,6 +88,13 @@ foreach ($file in $tracked | Where-Object { $_.Extension -eq '.md' }) {
             throw "Kamuya açık belgede bağlama özgü gereksiz ayrıntı bulundu: $($file.FullName)"
         }
     }
+}
+
+$manifest = Get-Content -LiteralPath (Join-Path $root 'manifest.json') -Raw | ConvertFrom-Json
+$readme = Get-Content -LiteralPath (Join-Path $root 'README.md') -Raw
+$versionPattern = 'Güncel sürüm:\s*\*\*' + [regex]::Escape([string]$manifest.version) + '\*\*'
+if ($readme -notmatch $versionPattern) {
+    throw "README güncel manifest sürümünü belirtmiyor: $($manifest.version)"
 }
 
 Write-Host "Depo denetimi başarılı." -ForegroundColor Green

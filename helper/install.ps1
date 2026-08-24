@@ -22,7 +22,7 @@ if (-not $isAdmin) {
 
 Write-Host "Otomatik Erisim yardimci kurulumu" -ForegroundColor Cyan
 Write-Host "- Chrome'da ogrenilen hedefler 127.0.0.1:1080 gecidine yonlendirilir."
-Write-Host "- Mevcut DNS, Pi-hole ve ag ayarlari varsayilan olarak aynen kalir."
+Write-Host "- Mevcut sistem, ag ve DNS ayarlari varsayilan olarak aynen kalir."
 Write-Host "- Yalniz yerel DNS'in cozemedigi ve alternatif DNS'te dogrulanan hedefler icin alan adina ozel sifreli DNS kurali uygulanir."
 Write-Host "- Genel DNS kurali, ag bagdastiricisi DNS degisikligi veya tum sorgulari dis saglayiciya yonlendirme yapilmaz."
 Write-Host ""
@@ -192,5 +192,5 @@ Write-Host ""
 Write-Host "Kurulum tamamlandi." -ForegroundColor Green
 Write-Host "Hizmet: $($service.DisplayName) ($($service.Status))"
 Write-Host "Gecit:  127.0.0.1:1080"
-Write-Host "DNS:    Mevcut DNS/Pi-hole varsayilan; alternatif DNS yalniz dogrulanan hedeflerde ve ihtiyac varken calisir."
+Write-Host "DNS:    Mevcut sistem ve ag DNS'i varsayilan; alternatif DNS yalniz dogrulanan hedeflerde ve ihtiyac varken calisir."
 Write-Host "Chrome: Eklentiyi chrome://extensions sayfasindan bir kez yenileyin."
