@@ -1,9 +1,8 @@
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 6,
+  schemaVersion: 7,
   enabled: false,
   learnedDomains: [],
   ignoredDomains: [],
-  dnsFallbackDomains: [],
   proxyHost: "127.0.0.1",
   proxyPort: 1080,
   lastDetectedDomain: null,
@@ -18,9 +17,6 @@ const DEFAULT_SETTINGS = Object.freeze({
   lastNotificationDomain: null,
   lastNotificationAt: null,
   lastNotificationError: null,
-  lastDnsSyncStatus: null,
-  lastDnsSyncAt: null,
-  lastDnsSyncError: null,
   debugEnabled: false,
   debugLog: []
 });
@@ -32,11 +28,6 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_TIMED_OUT",
   "ERR_EMPTY_RESPONSE",
   "ERR_SSL_PROTOCOL_ERROR"
-]);
-
-const DNS_DIAGNOSTIC_ERRORS = Object.freeze([
-  "ERR_ADDRESS_INVALID",
-  "ERR_NAME_NOT_RESOLVED"
 ]);
 
 const RETRYABLE_TYPES = new Set([
@@ -65,8 +56,6 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
 });
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
-const DNS_NATIVE_HOST = "com.ezerche.selective_access";
-const DNS_PROBE_TIMEOUT_MS = 4_500;
 let debugQueue = Promise.resolve();
 
 function appendDebug(event, data = {}) {
@@ -151,8 +140,6 @@ async function getSettings() {
     debugEnabled: Boolean(saved.debugEnabled),
     learnedDomains,
     ignoredDomains,
-    dnsFallbackDomains: normalizeDomains(saved.dnsFallbackDomains)
-      .filter((domain) => isLearned(domain, learnedDomains) && !isCovered(domain, ignoredDomains)),
     proxyHost: DEFAULT_SETTINGS.proxyHost,
     proxyPort: normalizePort(saved.proxyPort)
   };
@@ -209,18 +196,15 @@ async function setIssueBadge(enabled, issueType, tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   tabIssues.set(tabId, issueType);
   const isDown = issueType === "globally_down";
-  const isDns = issueType === "dns_filtered" || issueType === "dns_unresolved";
-  await chrome.action.setBadgeText({ tabId, text: isDown ? "DOWN" : isDns ? "DNS" : "?" });
+  await chrome.action.setBadgeText({ tabId, text: isDown ? "DOWN" : "?" });
   await chrome.action.setBadgeBackgroundColor({ tabId, color: isDown ? "#dc2626" : "#d97706" });
   await chrome.action.setTitle({
     tabId,
     title: isDown
       ? "Otomatik Erişim — genel kesinti olası"
-      : isDns
-        ? "Otomatik Erişim — DNS yanıtı incelenmeli"
-        : enabled
-          ? "Otomatik Erişim — bağlantı sorunu sürüyor"
-          : "Otomatik Erişim — kapalı"
+      : enabled
+        ? "Otomatik Erişim — bağlantı sorunu sürüyor"
+        : "Otomatik Erişim — kapalı"
   });
 }
 
@@ -278,10 +262,6 @@ async function saveSettings(patch) {
     ? current.learnedDomains
     : normalizeDomains(patch.learnedDomains))
     .filter((domain) => !isCovered(domain, ignoredDomains));
-  const dnsFallbackDomains = (patch.dnsFallbackDomains === undefined
-    ? current.dnsFallbackDomains
-    : normalizeDomains(patch.dnsFallbackDomains))
-    .filter((domain) => isLearned(domain, learnedDomains) && !isCovered(domain, ignoredDomains));
   const next = {
     ...current,
     ...patch,
@@ -292,7 +272,6 @@ async function saveSettings(patch) {
       : Boolean(patch.debugEnabled),
     learnedDomains,
     ignoredDomains,
-    dnsFallbackDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
     proxyPort: patch.proxyPort === undefined ? current.proxyPort : normalizePort(patch.proxyPort),
     lastProxyError: null,
@@ -303,8 +282,7 @@ async function saveSettings(patch) {
 
   await chrome.storage.local.set(next);
   const result = await applyProxy();
-  const dnsSyncResult = await syncDnsFallbackDomains(next);
-  return { ...next, applyResult: result, dnsSyncResult };
+  return { ...next, applyResult: result };
 }
 
 async function getPublicState() {
@@ -361,72 +339,6 @@ async function directRequestResponds(url) {
     return false;
   } finally {
     clearTimeout(timeout);
-  }
-}
-
-async function alternateDnsResolves(domain) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DNS_PROBE_TIMEOUT_MS);
-  try {
-    const query = async (type) => {
-      const response = await fetch(
-        `https://target.example/dns-query?name=${encodeURIComponent(domain)}&type=${type}`,
-        {
-          method: "GET",
-          headers: { "Accept": "application/dns-json" },
-          credentials: "omit",
-          redirect: "error",
-          cache: "no-store",
-          signal: controller.signal
-        }
-      );
-      if (!response.ok) return false;
-      const result = await response.json();
-      return result?.Status === 0 && Array.isArray(result.Answer) && result.Answer.some((answer) =>
-        [1, 5, 28].includes(Number(answer?.type)) && Boolean(answer?.data));
-    };
-    const results = await Promise.allSettled([query("A"), query("AAAA")]);
-    return results.some((result) => result.status === "fulfilled" && result.value === true);
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function syncDnsFallbackDomains(settings = null) {
-  const current = settings || await getSettings();
-  const domains = current.enabled
-    ? normalizeDomains(current.dnsFallbackDomains)
-      .filter((domain) => isLearned(domain, current.learnedDomains))
-    : [];
-  try {
-    if (typeof chrome.runtime.sendNativeMessage !== "function") {
-      throw new Error("Seçici DNS yardımcısı bu Chrome sürümünde kullanılamıyor.");
-    }
-    const response = await chrome.runtime.sendNativeMessage(DNS_NATIVE_HOST, { domains });
-    if (!response?.ok) {
-      throw new Error(response?.error || "Seçici DNS yardımcısı yanıt vermedi.");
-    }
-    const state = {
-      lastDnsSyncStatus: "synced",
-      lastDnsSyncAt: new Date().toISOString(),
-      lastDnsSyncError: null
-    };
-    await chrome.storage.local.set(state);
-    await appendDebug("dns-fallback-synced", { domains, count: domains.length });
-    return { ok: true, domains };
-  } catch (error) {
-    const message = String(error?.message || error || "Seçici DNS yardımcısına ulaşılamadı.")
-      .replace(/^Error when communicating with the native messaging host:\s*/i, "")
-      .replace(/^Specified native messaging host not found\.?$/i, "Seçici DNS yardımcısı kurulu değil.");
-    await chrome.storage.local.set({
-      lastDnsSyncStatus: "failed",
-      lastDnsSyncAt: new Date().toISOString(),
-      lastDnsSyncError: message
-    });
-    await appendDebug("dns-fallback-sync-failed", { domains, error: message });
-    return { ok: false, error: message, domains };
   }
 }
 
@@ -658,81 +570,6 @@ function getRequestHost(details) {
   }
 }
 
-async function recordMainFrameDnsIssue(details) {
-  if (details.tabId < 0 || details.type !== "main_frame") return false;
-  const error = matchingError(details, DNS_DIAGNOSTIC_ERRORS);
-  if (!error) return false;
-
-  const settings = await getSettings();
-  if (!settings.enabled) return true;
-  const host = getRequestHost(details);
-  if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return true;
-
-  const issueType = error === "ERR_ADDRESS_INVALID" ? "dns_filtered" : "dns_unresolved";
-  await chrome.storage.local.set({
-    lastIssueType: issueType,
-    lastIssueDomain: host,
-    lastIssueError: error,
-    lastIssueAt: new Date().toISOString(),
-    lastGlobalCheck: null
-  });
-  await setIssueBadge(true, issueType, details.tabId);
-
-  const retryKey = `${details.tabId}:dns:${host}`;
-  const now = Date.now();
-  const lastRetry = retryCooldowns.get(retryKey) || 0;
-  if (now - lastRetry < 60_000) return true;
-  retryCooldowns.set(retryKey, now);
-
-  const alternateResolved = await alternateDnsResolves(host);
-  await appendDebug("dns-fallback-probe", {
-    tabId: details.tabId,
-    host,
-    error,
-    alternateResolved
-  });
-  if (!alternateResolved) return true;
-
-  const aliases = mainHostAliases(host);
-  const learnedDomains = normalizeDomains([...settings.learnedDomains, ...aliases]);
-  const dnsFallbackDomains = normalizeDomains([...settings.dnsFallbackDomains, ...aliases]);
-  const proposed = { ...settings, learnedDomains, dnsFallbackDomains };
-  const dnsSync = await syncDnsFallbackDomains(proposed);
-  if (!dnsSync.ok) {
-    await chrome.storage.local.set({
-      lastIssueType: "dns_helper_unavailable",
-      lastIssueDomain: host,
-      lastIssueError: dnsSync.error,
-      lastIssueAt: new Date().toISOString()
-    });
-    await setIssueBadge(true, "dns_unresolved", details.tabId);
-    return true;
-  }
-
-  await chrome.storage.local.set({
-    learnedDomains,
-    dnsFallbackDomains,
-    lastDetectedDomain: host,
-    lastDetectedAt: new Date(now).toISOString(),
-    lastProxyError: null,
-    lastIssueType: "route_learned",
-    lastIssueDomain: host,
-    lastIssueError: error,
-    lastIssueAt: new Date(now).toISOString(),
-    lastGlobalCheck: null
-  });
-  const applied = await applyProxy();
-  if (!applied.ok) {
-    await syncDnsFallbackDomains(settings);
-    return true;
-  }
-
-  await setBadge(true, false, true, details.tabId);
-  await notifyLearnedDomain(host).catch(console.error);
-  scheduleTabReload(details.tabId);
-  return true;
-}
-
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
@@ -789,13 +626,17 @@ async function learnAndRetry(details) {
   if (!candidate.ready) return;
 
   const directlyReachable = await directRequestResponds(details.url);
+  const repeatedMainReset = details.type === "main_frame" &&
+    ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
+    candidate.count >= candidate.required;
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,
     requestType: details.type,
-    reachable: directlyReachable
+    reachable: directlyReachable,
+    overriddenByRepeatedMainReset: directlyReachable && repeatedMainReset
   });
-  if (directlyReachable) {
+  if (directlyReachable && !repeatedMainReset) {
     detectionCandidates.delete(host);
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
@@ -936,58 +777,6 @@ async function checkGlobalStatus(value, tabId = null) {
   if (summary.status === "likely_down") {
     await setIssueBadge(settings.enabled, "globally_down", tabId);
     await notifyLikelyGlobalOutage(domain).catch(console.error);
-  } else if (
-    summary.status === "online" &&
-    settings.enabled &&
-    settings.lastIssueDomain === domain &&
-    ["dns_filtered", "dns_unresolved"].includes(settings.lastIssueType) &&
-    !isLearned(domain, settings.learnedDomains) &&
-    !isCovered(domain, settings.ignoredDomains)
-  ) {
-    const learnedDomains = normalizeDomains([
-      ...settings.learnedDomains,
-      ...mainHostAliases(domain)
-    ]);
-    const dnsFallbackDomains = normalizeDomains([
-      ...settings.dnsFallbackDomains,
-      ...mainHostAliases(domain)
-    ]);
-    const now = Date.now();
-    const dnsSync = await syncDnsFallbackDomains({
-      ...settings,
-      learnedDomains,
-      dnsFallbackDomains
-    });
-    if (!dnsSync.ok) {
-      await chrome.storage.local.set({
-        lastIssueType: "dns_helper_unavailable",
-        lastIssueDomain: domain,
-        lastIssueError: dnsSync.error,
-        lastIssueAt: new Date(now).toISOString(),
-        lastGlobalCheck: summary
-      });
-      await setIssueBadge(true, "dns_unresolved", tabId);
-      return summary;
-    }
-    await chrome.storage.local.set({
-      learnedDomains,
-      dnsFallbackDomains,
-      lastDetectedDomain: domain,
-      lastDetectedAt: new Date(now).toISOString(),
-      lastProxyError: null,
-      lastIssueType: "route_learned",
-      lastIssueDomain: domain,
-      lastIssueError: settings.lastIssueError,
-      lastIssueAt: new Date(now).toISOString(),
-      lastGlobalCheck: summary
-    });
-
-    const applied = await applyProxy();
-    if (applied.ok && Number.isInteger(tabId) && tabId >= 0) {
-      await setBadge(true, false, true, tabId);
-      await notifyLearnedDomain(domain).catch(console.error);
-      scheduleTabReload(tabId);
-    }
   } else if (Number.isInteger(tabId) && tabId >= 0) {
     await clearTabIssue(tabId);
   }
@@ -1017,7 +806,6 @@ async function initialize() {
       schemaVersion: DEFAULT_SETTINGS.schemaVersion,
       learnedDomains: normalizeDomains(existing.learnedDomains),
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
-      dnsFallbackDomains: normalizeDomains(existing.dnsFallbackDomains),
       enabled: Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
       proxyHost: DEFAULT_SETTINGS.proxyHost,
@@ -1032,17 +820,18 @@ async function initialize() {
       lastGlobalCheck: existing.lastGlobalCheck || null
     });
   }
+  await chrome.storage.local.remove([
+    "dnsFallbackDomains",
+    "lastDnsSyncStatus",
+    "lastDnsSyncAt",
+    "lastDnsSyncError"
+  ]);
   await applyProxy();
-  await syncDnsFallbackDomains();
 }
 
 chrome.runtime.onInstalled.addListener(() => initialize().catch(console.error));
 
-chrome.runtime.onStartup.addListener(() => {
-  applyProxy()
-    .then(() => syncDnsFallbackDomains())
-    .catch(console.error);
-});
+chrome.runtime.onStartup.addListener(() => applyProxy().catch(console.error));
 
 chrome.proxy.onProxyError.addListener(async (details) => {
   const message = details?.error || "Yerel proxy bağlantısı kurulamadı.";
@@ -1065,10 +854,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
     learningQueue = learningQueue
-      .then(async () => {
-        const handledAsDns = await recordMainFrameDnsIssue(details);
-        if (!handledAsDns) await learnAndRetry(details);
-      })
+      .then(() => learnAndRetry(details))
       .catch(console.error);
     return learningQueue;
   },

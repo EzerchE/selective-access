@@ -10,9 +10,7 @@ Eklenti etkinleştirildiğinde istek yapılan alan adlarını, Chrome bağlantı
 
 ## Üçüncü tarafa aktarım
 
-Kullanıcının mevcut sistem ve ağ DNS ayarı değiştirilmez. Chrome ana sayfada DNS çözümleme hatası gördüğünde yalnız hatayı veren alan adını Cloudflare DoH uç noktasına otomatik ve çerezsiz olarak göndererek alternatif DNS'te adres bulunup bulunmadığını doğrular. Adres bulunursa bu alan adı yerel Chrome–Windows köprüsüne iletilir ve yalnız o alan adına özel Windows NRPT kuralı uygulanır. Bu seçici hedefin sonraki DNS sorguları yerel `dnsproxy` üzerinden Cloudflare (`1.1.1.1`) ve Google (`8.8.8.8`) DoH çözümleyicilerine gider. Diğer alan adları kullanıcının mevcut DNS yapılandırmasında kalır. Sağlayıcılar kendilerine gönderilen alan adını ve bağlantının kaynak IP adresini görebilir; kendi gizlilik ve saklama koşulları geçerlidir. Tam URL, sayfa içeriği ve HTTPS içeriği DNS sorgusuna dahil değildir.
-
-Kullanıcı popup içindeki **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu aktarım otomatik değildir. Cloudflare, Google ve Globalping bağımsız veri alıcılarıdır; proje bu hizmetlerin kayıtlarını denetlemez.
+Kullanıcı popup içindeki **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu aktarım otomatik değildir. Globalping bağımsız veri alıcısıdır; proje bu hizmetin kayıtlarını denetlemez.
 
 Geliştiriciye ait bir telemetri, analiz, reklam veya uzaktan kayıt sunucusu yoktur.
 
@@ -20,7 +18,7 @@ Geliştiriciye ait bir telemetri, analiz, reklam veya uzaktan kayıt sunucusu yo
 
 Öğrenilen ve yoksayılan alan adları kullanıcı silene, eklenti verilerini temizleyene veya eklentiyi kaldırana kadar yerel cihazda kalır. Popup üzerinden öğrenilen hedefler çıkarılabilir veya yoksayılabilir; yoksayma kararı ayrı ayrı geri alınabilir.
 
-Chrome eklentisini kaldırmak yerel listeyi siler; yerel hizmetleri, Chrome yerel köprüsünü ve alan adına özel DNS kurallarını kaldırmak için ayrıca `helper/uninstall.cmd` çalıştırılmalıdır. Üçüncü taraf DNS ve ölçüm sağlayıcılarındaki kayıtların saklanması ilgili sağlayıcının politikasına tabidir.
+Chrome eklentisini kaldırmak yerel listeyi siler; yerel geçit hizmetini kaldırmak için ayrıca `helper/uninstall.cmd` yönetici olarak çalıştırılmalıdır. Globalping ölçüm kayıtlarının saklanması ilgili sağlayıcının politikasına tabidir.
 
 ## Reklam ve satış
 
@@ -34,7 +32,6 @@ Eklenti kullanıcı verisini satmaz, reklam hedefleme amacıyla kullanmaz ve ü�
 - `activeTab`: kullanıcı popup'ı açtığında yalnız etkin sekmenin alan adını göstermek ve isteğe bağlı işlem uygulamak.
 - `notifications`: yeni bir hedef otomatik öğrenildiğinde yalnız cihaz üzerinde Chrome bildirimi göstermek.
 - `scripting`: otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden yeniden yüklemek için ilgili frame'i bulmak ve yalnız adresini yenilemek.
-- `nativeMessaging`: doğrulanmış seçici DNS alan adı listesini yalnız cihazdaki kurulu DNS köprüsüne iletmek; köprü başka komut kabul etmez.
 
 Veriler yalnız yukarıda açıklanan işlevleri sağlamak için işlenmek üzere tasarlanmıştır. Herhangi bir mağaza dağıtımından önce mağaza veri beyanı, bu metin ve ürün davranışı yeniden doğrulanmalıdır.
 

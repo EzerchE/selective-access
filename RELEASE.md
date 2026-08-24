@@ -3,7 +3,7 @@
 Her kod değişikliğinde:
 
 1. `node --check background.js` ve `node tests/background.test.cjs` çalıştırılır.
-2. `powershell -ExecutionPolicy Bypass -File scripts/repository-audit.ps1` çalıştırılır.
+2. `node scripts/repository-audit.cjs` çalıştırılır.
 3. Her sürüm değişikliğinde `manifest.json`, `README.md` içindeki güncel sürüm ve davranışı açıklayan ilgili belgeler birlikte güncellenir.
 4. Yalnız audit başarılıysa commit oluşturulup GitHub deposuna push edilir.
 5. Chrome Web Store paketi yalnız mağaza sürümü için gerekli çalışma zamanı dosyalarını ve belgeleri içerir.

@@ -2,7 +2,7 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
-Güncel sürüm: **4.5.5**
+Güncel sürüm: **4.6.0**
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -49,7 +49,7 @@ Proje bütün kullanıcılar için aynı genel yapılandırmayla geliştirilir. 
 
 ### Otomatik hedef öğrenme
 
-Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Her iki durumda da çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolünün bağlantı kuramaması gerekir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
+Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolü yanlış algılamayı azaltır. Bununla birlikte aynı ana sayfada kısa sürede tekrarlanan bağlantı sıfırlama veya kapanma hatası, tek bir anlık başarılı kontrolün önüne geçer; böylece kararsız doğrudan yolun hedefi dakikalarca bekletmesi engellenir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
@@ -69,25 +69,18 @@ Popup, açık sekmenin alan adını gösterir. Kullanıcı **Şimdi geçide al**
 
 Yoksayılan hedefler ayrı listede görülebilir ve `↩` düğmesiyle yeniden otomatik algılamaya açılabilir. Bir üst alan adı yoksayılırsa alt alan adları da yoksayılmış kabul edilir.
 
-### DNS engelleri için şifreli çözümleme
-
-Bazı ağlar engelli alan adları için yanlış DNS yanıtı döndürür veya hiç yanıt vermez. Normal sorgular kullanıcının mevcut sistem ve ağ DNS yapılandırmasında kalır. Chrome yalnız ana sayfada DNS çözümleme hatası gördüğünde alan adını Cloudflare DoH ile çerezsiz olarak doğrular. Alternatif DNS adres döndürürse yalnız o tam alan adı için `127.0.0.2` üzerindeki yerel çözücüye seçici NRPT kuralı eklenir.
-
-Genel `.` NRPT kuralı veya ağ bağdaştırıcısı DNS değişikliği yapılmaz. `dnsproxy` yalnız seçici listede en az bir hedef varken çalışır; liste boşaldığında durur. Alan adına özel kural Windows düzeyinde olduğundan aynı hedefi isteyen başka bir uygulamanın sorgusu da o sırada seçici çözücüye gidebilir. `helper/uninstall.cmd` yalnız Otomatik Erişim'e ait görevleri ve alan adına özel kuralları geri alır.
-
 ### Dışarıdan genel durum kontrolü
 
-DNS veya bağlantı hatası görüldüğünde kullanıcı **Genel durumu kontrol et** düğmesine basabilir. Hedef, Globalping üzerinden Avrupa, Kuzey Amerika ve Asya'daki üç dış noktadan sınanır.
+Bağlantı hatası görüldüğünde kullanıcı **Genel durumu kontrol et** düğmesine basabilir. Hedef, Globalping üzerinden Avrupa, Kuzey Amerika ve Asya'daki üç dış noktadan sınanır.
 
-- Birden fazla dış nokta siteye ulaşabiliyorsa sorun yerel, DNS kaynaklı veya bölgesel olabilir.
+- Birden fazla dış nokta siteye ulaşabiliyorsa sorun yerel veya bölgesel olabilir.
 - Birden fazla kıtadan da ulaşılamıyorsa hedef yönlendirme listesine eklenmez; popup durumu ve **Genel kesinti olası** Chrome bildirimi gösterilir.
-- DNS hatası yaşayan hedef otomatik DoH doğrulamasında veya isteğe bağlı dış kontrolde açık bulunursa seçici DNS ve geçit listesine eklenip yeniden denenir.
 
 Bu kontrol kendiliğinden çalışmaz. Yalnız düğmeye basıldığında açık sekmenin alan adı Globalping'e gönderilir.
 
 ### Durum göstergeleri
 
-Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenilen hedefleri, DNS sorunlarını, olası genel kesintileri ve yerel proxy hatalarını gösterir.
+Araç çubuğu rozeti ve popup; otomatik algılamanın durumunu, yeni öğrenilen hedefleri, olası genel kesintileri ve yerel proxy hatalarını gösterir.
 
 ### Yerel hata ayıklama günlüğü
 
@@ -109,10 +102,9 @@ Chrome bağlantıları başlangıçta doğrudandır. Desteklenen bir bağlantı 
 6. Yerel ByeDPI hizmeti bağlantıya DPI atlatma profilini uygular.
 7. Ana sayfa hatasıysa sekme bir kez yenilenir; gömülü kaynak hatasıysa sayfa yerinde bırakılır.
 
-Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağdaki diğer cihazlara açılmaz:
+Yerel hizmet yalnızca aşağıdaki loopback adresini dinler ve yerel ağdaki diğer cihazlara açılmaz:
 
 - `127.0.0.1:1080`: ByeDPI SOCKS5 geçidi
-- `127.0.0.2:53`: Yalnız seçici DNS hedefleri varken çalışan şifreli DNS geçidi
 
 ## Kurulum
 
@@ -120,16 +112,16 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 
 ### Kurmadan önce bilin
 
-- Yardımcı, yönetici yetkisiyle yerel geçidi ve alan adına özel DNS kurallarını uygulayan yerel köprüyü kurar.
-- Kullanıcının sistem veya ağ DNS ayarı değiştirilmez. Yalnız mevcut çözümleyicinin açamadığı ve alternatif DNS'te doğrulanan hedefler Cloudflare ve Google DoH çözücülerine yöneltilir.
-- Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir. Yardımcı başka ürünlere ait DNS kurallarını değiştirmez.
+- Yardımcı, yönetici yetkisiyle yalnız yerel geçit Windows hizmetini kurar.
+- Eklenti ve yardımcı kullanıcının sistem, modem veya ağ DNS ayarını değiştirmez ve alternatif DNS hizmeti çalıştırmaz.
+- Yönetilen/kurumsal cihazda ağ yöneticisinin izni gerekir.
 - Araç VPN veya anonimlik hizmeti değildir; IP adresini ya da ülkeyi değiştirmez ve erişim garantisi vermez.
 - Kurulumdan önce [`PRIVACY.md`](PRIVACY.md) ve [`RESPONSIBLE_USE.md`](RESPONSIBLE_USE.md) belgelerini okuyun.
 
 1. Depoyu indirin veya klonlayın.
 2. Chrome'da `chrome://extensions` adresini açın.
 3. **Geliştirici modu**nu açıp **Paketlenmemiş öğe yükle** ile proje klasörünü seçin.
-4. [`helper/install.cmd`](helper/install.cmd) dosyasını çalıştırın ve Windows yönetici iznini onaylayın. Kurucu yüklü eklenti kimliğini bulup yerel köprüyü yalnız bu eklentiye açar.
+4. [`helper/install.cmd`](helper/install.cmd) dosyasına sağ tıklayıp **Yönetici olarak çalıştır** seçeneğini kullanın. Kurucu yalnız yerel geçit hizmetini kurar.
 5. Kurulumdan sonra eklenti kartındaki yenile düğmesine bir kez basın.
 6. Eklenti popup'ındaki ana anahtarı etkinleştirin.
 
@@ -140,13 +132,12 @@ Yerel hizmetler yalnızca aşağıdaki loopback adreslerini dinler ve yerel ağd
 3. Popup başlığındaki sürümün `manifest.json` ile eşleştiğini kontrol edin.
 4. Yalnız güncelleme `helper/` klasörünü değiştirdiyse veya popup yerel yardımcının eksik olduğunu bildiriyorsa `helper/install.cmd` dosyasını yeniden çalıştırıp kartı bir kez daha yenileyin.
 
-`helper/install.cmd` yönetici yetkisi gerektiren Windows hizmeti, görev ve yerel köprü kurulumu içindir; yalnız Chrome eklentisini yeniden yüklemek için çalıştırılmaz.
+`helper/install.cmd` yalnız yönetici yetkisi gerektiren Windows hizmeti kurulumu içindir; Chrome eklentisini yenilemek veya ayar değiştirmek bu dosyayı çalıştırmaz. Kurulum ve kaldırma dosyaları PowerShell çağırmaz.
 
 ## İzinler neden gerekli?
 
 - `webRequest` ve HTTP/HTTPS adres erişimi: Bağlantı hatalarını ve başarılı ana sayfa isteklerini algılamak.
 - `notifications`: Bir hedef ilk kez otomatik öğrenildiğinde kullanıcıya erişimin hazır olduğunu bildirmek.
-- `nativeMessaging`: Yalnız yerel DNS'in çözemediği doğrulanmış alan adlarını yönetici tarafından kurulmuş yerel DNS köprüsüne iletmek.
 - `scripting`: Yalnız otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden yeniden yüklemek.
 - `proxy`: Öğrenilen alan adları için seçici PAC/SOCKS5 yönlendirmesi uygulamak.
 - `storage`: Ayarları, teşhis durumunu, öğrenilen ve yoksayılan hedefleri cihazda saklamak.
@@ -160,7 +151,7 @@ Eklenti genel sayfa içeriğini toplamaz veya HTTPS trafiğini çözmez. Otomati
 - HTTPS içeriği şifreli kalır; özel sertifika kurulmaz.
 - Öğrenilen alan adları ve hata geçmişi geliştiriciye gönderilmez.
 - Hata ayıklama günlüğü yalnız Chrome'un yerel eklenti deposunda tutulur ve kullanıcı kendisi paylaşmadıkça cihazdan çıkmaz.
-- Normal DNS sorguları mevcut sistem ve ağ DNS yapılandırmasında kalır. DNS hatası veren alan adı Cloudflare DoH ile otomatik doğrulanır; yalnız doğrulanan seçici hedeflerin sorguları Cloudflare ve Google'a şifreli gönderilir. Bu sağlayıcılar ilgili alan adını ve kaynak IP adresini görebilir.
+- Sistem, modem ve ağ DNS ayarlarına dokunulmaz; eklenti DNS sağlayıcısı seçmez veya DNS sorgusu yönlendirmez.
 - Globalping'e yalnız kullanıcı genel durum kontrolünü başlattığında açık sekmenin alan adı gönderilir.
 - Otomatik doğrulama isteği üçüncü tarafa değil, yalnız hatayı veren hedef URL'ye doğrudan ve çerezsiz gönderilir.
 - Tam URL, sayfa içeriği ve öğrenilmiş alan adı listesinin tamamı dış servislere gönderilmez.
@@ -177,7 +168,7 @@ Bu proje yalnız hukuka, yetkili makam kararlarına, ağ politikalarına ve üç
 1. Eklentiyi Chrome'dan kaldırın veya kapatın.
 2. [`helper/uninstall.cmd`](helper/uninstall.cmd) dosyasını çalıştırın ve yönetici iznini onaylayın.
 
-Kaldırma betiği ByeDPI hizmetini, yerel DNS görevlerini, Chrome yerel köprüsünü, proje etiketli alan adına özel DNS kurallarını ve kurulu yardımcı dosyaları kaldırır.
+Kaldırma betiği ByeDPI hizmetini ve kurulu yardımcı dosyaları kaldırır. Önceki sürümlerden kalan, yalnız bu projeye ait DNS görevi ve kuralları da yükseltme temizliği kapsamında silinir.
 
 ## Sınırlar
 
@@ -186,15 +177,14 @@ Kaldırma betiği ByeDPI hizmetini, yerel DNS görevlerini, Chrome yerel köprü
 - Yerel hata belirtileri erişim engelini kesin olarak kanıtlayamaz. Tekrarlı hata ve doğrudan kontrol yanlış algılama riskini azaltır; kullanıcı gerekirse hedefi listeden çıkarabilir veya kalıcı olarak yoksayabilir.
 - Ağ sağlayıcıları engelleme yöntemlerini değiştirebilir; çalışan DPI profilinin ileride güncellenmesi gerekebilir.
 - Başka bir eklenti veya kurumsal politika Chrome proxy ayarlarını kontrol ediyorsa iki yapı aynı anda çalışamayabilir.
-- Alan adına özel DNS kuralı etkin olduğu sürede aynı hedefi isteyen diğer uygulamaların DNS çözümlemesi de yerel DoH çözücüsünü kullanabilir; diğer bütün alan adları mevcut sistem ve ağ DNS ayarında kalır.
+- DNS çözümleme hataları bu sürümün kapsamı dışındadır; Chrome ve kullanıcının mevcut ağ yapılandırması aynen kullanılır.
 - Kullanımın bulunduğunuz yerdeki mevzuata ve ağ kurallarına uygunluğunu kontrol etmek kullanıcının sorumluluğundadır.
 
 ## Üçüncü taraf bileşenler
 
 - `helper/bin/ciadpi.exe`: [hufrea/byedpi](https://github.com/hufrea/byedpi)
-- `helper/bin/dnsproxy.exe`: [AdGuardTeam/dnsproxy](https://github.com/AdguardTeam/dnsproxy)
 
-Kaynak, sürüm, SHA-256 ve lisans bilgileri [`helper/bin/SOURCE.md`](helper/bin/SOURCE.md) ile [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) dosyalarında yer alır. GPL kapsamındaki dnsproxy'nin aynı sürüme ait karşılık gelen kaynak arşivi ikiliyle birlikte `helper/source/` altında sunulur.
+Kaynak, sürüm, SHA-256 ve lisans bilgileri [`helper/bin/SOURCE.md`](helper/bin/SOURCE.md) ile [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) dosyalarında yer alır.
 
 ## Lisans
 

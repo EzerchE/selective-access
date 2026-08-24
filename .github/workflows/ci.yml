@@ -13,11 +13,9 @@ jobs:
         with:
           node-version: 22
       - name: Syntax and tests
-        shell: pwsh
         run: |
           node --check background.js
           node --check popup.js
           node tests/background.test.cjs
       - name: Sensitive data audit
-        shell: pwsh
-        run: ./scripts/repository-audit.ps1
+        run: node scripts/repository-audit.cjs

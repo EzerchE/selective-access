@@ -26,7 +26,7 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
-const EXPECTED_SCHEMA_VERSION = 6;
+const EXPECTED_SCHEMA_VERSION = 7;
 
 let currentHost = null;
 let currentTabId = null;
@@ -204,8 +204,6 @@ function render(state) {
         `Son bildirim gösterilemedi: ${state.lastNotificationError || "Chrome veya Windows bildirim ayarını kontrol edin."}`,
         true
       );
-    } else if (state.lastDnsSyncStatus === "failed") {
-      showNotice(`Seçici DNS uygulanamadı: ${state.lastDnsSyncError || "Yardımcı kurulumu yeniden çalıştırılmalı."}`, true);
     }
   }
 }
@@ -226,9 +224,7 @@ function renderDiagnostic(state) {
     if (globalCheck.status === "online") {
       elements.diagnosticCard.classList.add("is-online");
       elements.diagnosticTitle.textContent = "Site genel olarak açık";
-      elements.diagnosticText.textContent = state.lastIssueType === "route_learned"
-        ? `${locationText} DNS engeli doğrulandı; hedef otomatik geçide eklendi ve sayfa yeniden deneniyor.`
-        : `${locationText} Sorun DNS filtresi, yerel ağ veya bölgesel erişim yolunda.`;
+      elements.diagnosticText.textContent = `${locationText} Site dış noktalardan erişilebilir; sorun yerel ağ veya bölgesel erişim yolunda olabilir.`;
     } else if (globalCheck.status === "likely_down") {
       elements.diagnosticCard.classList.add("is-down");
       elements.diagnosticTitle.textContent = "Genel kesinti olası";
@@ -246,16 +242,7 @@ function renderDiagnostic(state) {
   }
 
   elements.diagnosticCard.classList.add("is-warning");
-  if (state.lastIssueType === "dns_filtered") {
-    elements.diagnosticTitle.textContent = "DNS filtresi yanıtı engelliyor olabilir";
-    elements.diagnosticText.textContent = "Chrome geçerli bir sunucu adresi alamadı. Siteyi geçide eklemek yerine önce DNS filtrelerini ve genel durumu kontrol edin.";
-  } else if (state.lastIssueType === "dns_unresolved") {
-    elements.diagnosticTitle.textContent = "Alan adı çözümlenemedi";
-    elements.diagnosticText.textContent = "DNS sunucusu bu alan adı için adres döndürmedi; bu durum geçici, yerel veya genel olabilir.";
-  } else if (state.lastIssueType === "dns_helper_unavailable") {
-    elements.diagnosticTitle.textContent = "Seçici DNS yardımcısına ulaşılamadı";
-    elements.diagnosticText.textContent = state.lastIssueError || "Yardımcı kurulumu yeniden çalıştırıldıktan sonra yalnız bu hedef için alternatif DNS uygulanabilir.";
-  } else if (state.lastIssueType === "route_failed") {
+  if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
     elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
   } else if (state.lastIssueType === "transient_reachable") {
@@ -462,7 +449,7 @@ if (previewMode) {
         levelOfControl: "controlled_by_this_extension"
       }
     : {
-        schemaVersion: 6,
+        schemaVersion: 7,
         enabled: true,
         learnedDomains: ["media-cdn.example"],
         ignoredDomains: ["ignored.example"],

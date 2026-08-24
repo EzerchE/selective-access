@@ -9,7 +9,6 @@ const reloads = [];
 const badgeTexts = [];
 const notifications = [];
 const scriptExecutions = [];
-const nativeMessages = [];
 const scriptExecutionResults = [0, 1];
 let proxyConfig = null;
 let clearCount = 0;
@@ -17,7 +16,6 @@ let measurementShouldBeDown = false;
 let notificationPermission = "granted";
 let notificationCreateError = null;
 const directlyReachableHosts = new Set();
-const dohResolvedHosts = new Set();
 
 const chrome = {
   storage: {
@@ -33,6 +31,9 @@ const chrome = {
       },
       async set(values) {
         Object.assign(storage, values);
+      },
+      async remove(keys) {
+        for (const key of Array.isArray(keys) ? keys : [keys]) delete storage[key];
       }
     }
   },
@@ -114,10 +115,6 @@ const chrome = {
     }
   },
   runtime: {
-    async sendNativeMessage(host, message) {
-      nativeMessages.push({ host, message });
-      return { ok: true, domainCount: message.domains.length };
-    },
     onInstalled: {
       addListener(listener) {
         listeners.installed = listener;
@@ -140,20 +137,6 @@ const chrome = {
 };
 
 const fetch = async (url, options = {}) => {
-  if (String(url).startsWith("https://target.example/dns-query?")) {
-    const parsed = new URL(url);
-    const host = parsed.searchParams.get("name");
-    const resolved = dohResolvedHosts.has(host);
-    return {
-      ok: true,
-      status: 200,
-      async json() {
-        return resolved
-          ? { Status: 0, Answer: [{ type: 1, data: "203.0.113.10" }] }
-          : { Status: 3, Answer: [] };
-      }
-    };
-  }
   if (options.method === "GET" && options.headers?.Range === "bytes=0-0") {
     const host = new URL(url).hostname;
     if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
@@ -223,11 +206,11 @@ function assertBadge(details, tabId, text) {
 (async () => {
   await listeners.installed();
   assert.equal(storage.enabled, false);
-  assert.equal(storage.schemaVersion, 6);
+  assert.equal(storage.schemaVersion, 7);
   assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
-  assert.deepEqual([...storage.dnsFallbackDomains], []);
+  assert.equal(Object.hasOwn(storage, "dnsFallbackDomains"), false);
   assert.deepEqual([...listeners.requestFilter.urls], ["http://*/*", "https://*/*"]);
 
   const enabled = await send({
@@ -249,8 +232,6 @@ function assertBadge(details, tabId, text) {
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
-  assert.deepEqual([...storage.dnsFallbackDomains], []);
-  assert.deepEqual([...nativeMessages.at(-1).message.domains], []);
   await listeners.requestError({
     tabId: 42,
     frameId: 9,
@@ -324,8 +305,9 @@ function assertBadge(details, tabId, text) {
     });
   }
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
-  assert.equal(storage.lastIssueType, "transient_reachable");
+  assert.equal(storage.learnedDomains.includes("normal-available.example"), true);
+  assert.equal(storage.learnedDomains.includes("www.normal-available.example"), true);
+  assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(notifications.length, 2);
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -338,36 +320,36 @@ function assertBadge(details, tabId, text) {
   }
   assert.equal(storage.learnedDomains.includes("slow-but-valid.example"), false);
   assert.equal(storage.lastIssueType, "transient_unverified");
+  await listeners.requestCompleted({
+    tabId: 56,
+    type: "main_frame",
+    url: "https://slow-but-valid.example/"
+  });
+  assert.equal(storage.lastIssueType, null);
 
+  const learnedBeforeResolutionError = [...storage.learnedDomains];
   await listeners.requestError({
     tabId: 7,
     type: "main_frame",
-    error: "net::ERR_ADDRESS_INVALID",
-    url: "https://blocked-by-dns.example/"
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://resolution-error.example/"
   });
-  assert.equal(storage.lastIssueType, "dns_filtered");
-  assert.equal(storage.lastIssueDomain, "blocked-by-dns.example");
-  assertBadge(badgeTexts.at(-1), 7, "DNS");
-  assert.deepEqual([...storage.learnedDomains], ["media-cdn.example"]);
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   const globalStatus = await send({
     type: "checkGlobalStatus",
-    domain: "blocked-by-dns.example",
+    domain: "resolution-error.example",
     tabId: 7
   });
   assert.equal(globalStatus.ok, true);
   assert.equal(globalStatus.result.status, "online");
   assert.equal(globalStatus.result.reachable, 2);
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
-  assert.deepEqual([...storage.dnsFallbackDomains], ["blocked-by-dns.example", "www.blocked-by-dns.example"]);
-  assert.deepEqual([...nativeMessages.at(-1).message.domains], ["blocked-by-dns.example", "www.blocked-by-dns.example"]);
-  assert.equal(storage.lastIssueType, "route_learned");
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.lastIssueType, null);
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:\d+$/);
-  assert.equal(reloads.at(-1).tabId, 7);
-  const dnsLearnedProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(dnsLearnedProxy("https://blocked-by-dns.example/", "blocked-by-dns.example"), "SOCKS5 127.0.0.1:1080");
+  assert.equal(reloads.at(-1).tabId, 55);
   assert.deepEqual([...listeners.completedFilter.types], ["main_frame"]);
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
@@ -383,7 +365,7 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications[3].id, "outage:globally-down.example");
   assert.equal(notifications[3].options.title, "Genel kesinti olası");
   assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
-  assert.deepEqual([...storage.learnedDomains], ["blocked-by-dns.example", "media-cdn.example", "www.blocked-by-dns.example"]);
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   listeners.tabActivated({ tabId: 44 });
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -397,30 +379,26 @@ function assertBadge(details, tabId, text) {
   assertBadge(badgeTexts.at(-1), 33, "AUTO");
 
   await listeners.requestCompleted({
-    tabId: 7,
+    tabId: 55,
     type: "main_frame",
-    url: "https://blocked-by-dns.example/"
+    url: "https://normal-available.example/"
   });
   assert.equal(storage.lastIssueType, null);
-  assert.equal(storage.lastGlobalCheck, null);
-  assert.equal(storage.lastDetectedDomain, "blocked-by-dns.example");
+  assert.equal(storage.lastGlobalCheck.status, "likely_down");
+  assert.equal(storage.lastDetectedDomain, "normal-available.example");
   assert.equal(reloads.length, 1);
-  assert.equal(reloads[0].tabId, 7);
+  assert.equal(reloads[0].tabId, 55);
   const learnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 127.0.0.1:1080");
   assert.equal(learnedProxy("https://portal.example/", "portal.example"), "DIRECT");
 
-  dohResolvedHosts.add("automatic-dns.example");
   await listeners.requestError({
     tabId: 88,
     type: "main_frame",
     error: "net::ERR_NAME_NOT_RESOLVED",
-    url: "https://automatic-dns.example/"
+    url: "https://another-resolution-error.example/"
   });
-  await new Promise((resolve) => setTimeout(resolve, 2_100));
-  assert.equal(storage.learnedDomains.includes("automatic-dns.example"), true);
-  assert.equal(storage.dnsFallbackDomains.includes("automatic-dns.example"), true);
-  assert.equal(reloads.at(-1).tabId, 88);
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   await listeners.requestError({
     tabId: 42,
@@ -428,19 +406,17 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_BLOCKED_BY_CLIENT",
     url: "https://ads.example.net/banner.png"
   });
-  assert.deepEqual([...storage.learnedDomains], ["automatic-dns.example", "blocked-by-dns.example", "media-cdn.example", "www.automatic-dns.example", "www.blocked-by-dns.example"]);
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   await listeners.requestError({
     tabId: 42,
     type: "xmlhttprequest",
     error: "net::ERR_NAME_NOT_RESOLVED",
-    url: "https://tracker.dns-filtered.example/pixel"
+    url: "https://tracker.resolution-error.example/pixel"
   });
-  assert.deepEqual([...storage.learnedDomains], ["automatic-dns.example", "blocked-by-dns.example", "media-cdn.example", "www.automatic-dns.example", "www.blocked-by-dns.example"]);
+  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
-  assert.deepEqual([...storage.dnsFallbackDomains], []);
-  assert.deepEqual([...nativeMessages.at(-1).message.domains], []);
   const reloadCountBeforeApp = reloads.length;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await listeners.requestError({
@@ -468,7 +444,7 @@ function assertBadge(details, tabId, text) {
   );
   assert.equal(reloads.length, reloadCountBeforeApp + 1);
   await new Promise((resolve) => setTimeout(resolve, 600));
-  assert.equal(notifications.length, 6);
+  assert.equal(notifications.length, 5);
   assert.match(notifications.at(-1).options.title, /2 hedef/);
   assert.equal(notifications.at(-1).options.requireInteraction, undefined);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
