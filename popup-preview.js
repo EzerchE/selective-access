@@ -16,7 +16,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
 
   globalThis.chrome = {
     runtime: {
-      getManifest: () => ({ version: "4.0.1" }),
+      getManifest: () => ({ version: "4.0.2" }),
       async sendMessage(message) {
         if (message?.type === "saveSettings") {
           previewState = { ...previewState, ...(message.patch || {}) };
