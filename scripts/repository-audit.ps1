@@ -42,6 +42,7 @@ $requiredLegalFiles = @(
     "helper\bin\DNSPROXY_LICENSE.txt",
     "helper\native\SelectiveAccessDnsHost.cs",
     "helper\sync-dns.ps1",
+    "helper\sync-dns.vbs",
     "helper\source\dnsproxy-v0.84.1.tar.gz"
 )
 foreach ($relativePath in $requiredLegalFiles) {
@@ -78,9 +79,9 @@ $helperScripts = (Get-ChildItem -LiteralPath (Join-Path $root 'helper') -Filter 
 if ($helperScripts -match 'Set-DnsClientServerAddress|netsh(?:\.exe)?\s+[^\r\n]*\bdns\b') {
     throw "Yardimci kullanicinin ag bagdastiricisi DNS ayarini degistirmemelidir."
 }
-if ($installer -notmatch '\$syncArguments\s*=\s*\([^\r\n]*-NonInteractive[^\r\n]*-WindowStyle\s+Hidden' -or
+if ($installer -notmatch '\$syncAction\s*=\s*New-ScheduledTaskAction\s+-Execute\s+\(Join-Path\s+\$env:WINDIR\s+"System32\\wscript\.exe"\)' -or
     $installer -notmatch '\$syncSettings\s*=\s*New-ScheduledTaskSettingsSet[^\r\n]*-Hidden') {
-    throw "Secici DNS esitleme gorevi gorunur PowerShell penceresi acmamalidir."
+    throw "Secici DNS esitleme gorevi konsol penceresi olusturmayan baslaticiyi kullanmalidir."
 }
 
 # Kamuya açık belgelerin makineye özgü mutlak yollar içermemesini sağlar.

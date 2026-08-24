@@ -67,10 +67,12 @@ $targetDnsExecutable = Join-Path $installDirectory "dnsproxy.exe"
 $targetNativeHost = Join-Path $installDirectory "SelectiveAccessDnsHost.exe"
 $targetNativeManifest = Join-Path $installDirectory "$nativeHostName.json"
 $targetSyncScript = Join-Path $installDirectory "sync-dns.ps1"
+$targetSyncLauncher = Join-Path $installDirectory "sync-dns.vbs"
 $sourceExecutable = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "bin\ciadpi.exe"))
 $sourceDnsExecutable = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "bin\dnsproxy.exe"))
 $sourceNativeHost = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "native\SelectiveAccessDnsHost.cs"))
 $sourceSyncScript = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "sync-dns.ps1"))
+$sourceSyncLauncher = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "sync-dns.vbs"))
 $extensionRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $dataDirectory = Join-Path $ChromeLocalAppData "SelectiveAccess"
 $desiredFile = Join-Path $dataDirectory "dns-domains.txt"
@@ -80,7 +82,7 @@ $expectedHashes = @{
     $sourceDnsExecutable = "09461CCE5C1DC0D7D1673FB3DEF0DBD014924D1481479D12CEBECB7BA93E8B2B"
 }
 
-foreach ($path in @($sourceExecutable, $sourceDnsExecutable, $sourceNativeHost, $sourceSyncScript)) {
+foreach ($path in @($sourceExecutable, $sourceDnsExecutable, $sourceNativeHost, $sourceSyncScript, $sourceSyncLauncher)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Kurulum dosyasi bulunamadi: $path"
     }
@@ -157,6 +159,7 @@ try {
     Copy-Item -LiteralPath $sourceExecutable -Destination $targetExecutable -Force
     Copy-Item -LiteralPath $sourceDnsExecutable -Destination $targetDnsExecutable -Force
     Copy-Item -LiteralPath $sourceSyncScript -Destination $targetSyncScript -Force
+    Copy-Item -LiteralPath $sourceSyncLauncher -Destination $targetSyncLauncher -Force
 
     & $csc /nologo /target:exe /optimize+ /out:$targetNativeHost /reference:System.Web.Extensions.dll $sourceNativeHost
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $targetNativeHost)) {
@@ -181,8 +184,8 @@ try {
     $dnsSettings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
     Register-ScheduledTask -TaskName $dnsTaskName -Action $dnsAction -Principal $dnsPrincipal -Settings $dnsSettings -Description "Yalniz secici DNS hedefleri varken calisan yerel DoH cozumleyicisi." | Out-Null
 
-    $syncArguments = ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -DesiredFile "{1}" -ResultFile "{2}"' -f $targetSyncScript, $desiredFile, $resultFile)
-    $syncAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $syncArguments
+    $syncArguments = ('//B //NoLogo "{0}" "{1}" "{2}" "{3}"' -f $targetSyncLauncher, $targetSyncScript, $desiredFile, $resultFile)
+    $syncAction = New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR "System32\wscript.exe") -Argument $syncArguments
     $syncPrincipal = New-ScheduledTaskPrincipal -UserId $ChromeUserSid -LogonType Interactive -RunLevel Highest
     $syncSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) -MultipleInstances Queue -Hidden
     Register-ScheduledTask -TaskName $dnsSyncTaskName -Action $syncAction -Principal $syncPrincipal -Settings $syncSettings -Description "Otomatik Erisim alan adina ozel DNS kurallarini esler." | Out-Null
