@@ -2,7 +2,7 @@
 
 Otomatik Erişim, Chrome'da bağlantı hatası yaşayan ana sayfa ve gömülü kaynakları algılayıp yalnızca sorunlu alan adlarını kullanıcının bilgisayarındaki yerel uyumluluk geçidine yönlendiren açık kaynaklı bir ağ aracıdır.
 
-Güncel sürüm: **4.6.1**
+Güncel sürüm: **4.6.2**
 
 Kullanıcının hangi sitelerin engelli olduğunu önceden bilmesi, uzun alan adı listeleri hazırlaması veya bütün internet trafiğini bir VPN'e göndermesi gerekmez. Çalışan siteler normal bağlantıyı kullanmaya devam eder; yalnız sorun yaşanan hedeflere müdahale edilir.
 
@@ -49,11 +49,11 @@ Proje bütün kullanıcılar için aynı genel yapılandırmayla geliştirilir. 
 
 ### Otomatik hedef öğrenme
 
-Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolü yanlış algılamayı azaltır. Bununla birlikte aynı ana sayfada kısa sürede tekrarlanan bağlantı sıfırlama veya kapanma hatası, tek bir anlık başarılı kontrolün önüne geçer; böylece kararsız doğrudan yolun hedefi dakikalarca bekletmesi engellenir. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
+Eklenti ana sayfa, iframe, video, görsel, XHR/API, WebSocket ve diğer desteklenen isteklerde bağlantı engeline benzeyen hataları izler. Ana sayfadaki tek bir geçici hata hedefi öğrenmek için yeterli değildir. Tarayıcının çoğu zaman yalnız bir kez istediği gömülü kaynaklarda bağlantı sıfırlama/kapanma hatası hemen doğrulama aşamasına alınır. Çerez gönderilmeyen, yalnız ilk baytı isteyen doğrudan içerik kontrolü yanlış algılamayı azaltır. Aynı ana sayfa veya gömülü hedef kısa sürede tekrar sıfırlanırsa tek seferlik yanıltıcı başarılı kontrol öğrenmeyi engellemez. Zaman aşımı ve TLS hataları tek başına otomatik öğrenmeye yol açmaz.
 
 Öğrenilen kural yalnız hatayı veren tam alan adına uygulanır. Ana sayfa engelinde aynı sitenin `example.com` ve `www.example.com` eşleri birlikte eklenir; diğer alt alan adları kendiliğinden yönlendirilmez. Bu korumalar geçici sunucu, Wi-Fi ve tarayıcı hatalarının erişim engeli sanılması riskini azaltır. Gerçek bir engel otomatik doğrulanamazsa kullanıcı açık hedefi **Şimdi geçide al** ile elle ekleyebilir.
 
-Reklam engelleyicilerin oluşturduğu `ERR_BLOCKED_BY_CLIENT` hataları ve tarayıcının iptal ettiği istekler öğrenilmez, öğrenme kuyruğuna alınmaz ve yerel tanılama günlüğünü doldurmaz.
+Reklam engelleyici, tarayıcı güvenliği, önbellek ve iptal olayları öğrenilmez veya yerel tanılama günlüğünü doldurmaz.
 
 Bir alan adı ilk kez otomatik öğrenildiğinde Chrome bildirimi gösterilir. Bildirim, hedefin artık yerel geçit üzerinden yeniden deneneceğini açıklar.
 

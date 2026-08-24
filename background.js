@@ -56,7 +56,9 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
 });
 const NON_ACTIONABLE_REQUEST_ERRORS = new Set([
   "net::ERR_ABORTED",
-  "net::ERR_BLOCKED_BY_CLIENT"
+  "net::ERR_BLOCKED_BY_CLIENT",
+  "net::ERR_BLOCKED_BY_ORB",
+  "net::ERR_CACHE_MISS"
 ]);
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
@@ -313,16 +315,18 @@ function registerDetectionCandidate(host, details, error) {
   const threshold = AUTO_LEARN_ERROR_THRESHOLDS[error];
   if (!threshold) return { ready: false, supported: false, count: 0 };
   const now = Date.now();
-  for (const [candidateHost, candidate] of detectionCandidates) {
-    if (now - candidate.lastAt > CANDIDATE_WINDOW_MS) detectionCandidates.delete(candidateHost);
+  for (const [candidateKey, candidate] of detectionCandidates) {
+    if (now - candidate.lastAt > CANDIDATE_WINDOW_MS) detectionCandidates.delete(candidateKey);
   }
-  const previous = detectionCandidates.get(host);
+  const scope = details.type === "main_frame" ? "main" : "embedded";
+  const key = `${scope}:${host}`;
+  const previous = detectionCandidates.get(key);
   const count = previous && previous.error === error && now - previous.lastAt <= CANDIDATE_WINDOW_MS
     ? previous.count + 1
     : 1;
-  detectionCandidates.set(host, { count, lastAt: now, error });
+  detectionCandidates.set(key, { count, lastAt: now, error });
   const required = details.type === "main_frame" ? threshold.main : threshold.embedded;
-  return { ready: count >= required, supported: true, count, required };
+  return { ready: count >= required, supported: true, count, required, key };
 }
 
 async function directRequestResponds(url) {
@@ -642,15 +646,21 @@ async function learnAndRetry(details) {
   const repeatedMainReset = details.type === "main_frame" &&
     ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
     candidate.count >= candidate.required;
+  const repeatedEmbeddedReset = details.type !== "main_frame" &&
+    ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
+    candidate.count >= 2;
+  const repeatedReset = repeatedMainReset || repeatedEmbeddedReset;
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,
     requestType: details.type,
     reachable: directlyReachable,
-    overriddenByRepeatedMainReset: directlyReachable && repeatedMainReset
+    overriddenByRepeatedReset: directlyReachable && repeatedReset
   });
-  if (directlyReachable && !repeatedMainReset) {
-    detectionCandidates.delete(host);
+  if (directlyReachable && !repeatedReset) {
+    const keepForRepeatedEmbeddedReset = details.type !== "main_frame" &&
+      ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
+    if (!keepForRepeatedEmbeddedReset) detectionCandidates.delete(candidate.key);
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
         lastIssueType: "transient_reachable",
@@ -663,7 +673,7 @@ async function learnAndRetry(details) {
     }
     return;
   }
-  detectionCandidates.delete(host);
+  detectionCandidates.delete(candidate.key);
 
   const learnedDomains = normalizeDomains([
     ...settings.learnedDomains,
@@ -856,7 +866,7 @@ chrome.proxy.onProxyError.addListener(async (details) => {
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
-    if (NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
+    if (details.tabId < 0 || NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) return;
     const host = getRequestHost(details);
     appendDebug("request-error", {
       tabId: details.tabId,

@@ -423,6 +423,24 @@ function assertBadge(details, tabId, text) {
     error: "net::ERR_ABORTED",
     url: "https://cancelled.example.net/request"
   });
+  await listeners.requestError({
+    tabId: 42,
+    type: "image",
+    error: "net::ERR_BLOCKED_BY_ORB",
+    url: "https://browser-filter.example.net/image"
+  });
+  await listeners.requestError({
+    tabId: 42,
+    type: "font",
+    error: "net::ERR_CACHE_MISS",
+    url: "https://cache-event.example.net/font"
+  });
+  await listeners.requestError({
+    tabId: -1,
+    type: "xmlhttprequest",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://probe.example.net/check"
+  });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
   assert.equal(storage.debugLog.filter((entry) =>
@@ -491,6 +509,24 @@ function assertBadge(details, tabId, text) {
     storage.debugLog.some((entry) => entry.event === "iframe-retry-scheduled"),
     true
   );
+
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  directlyReachableHosts.add("intermittent-media.example");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await listeners.requestError({
+      tabId: 91,
+      frameId: 4,
+      parentFrameId: 0,
+      type: "image",
+      error: "net::ERR_CONNECTION_RESET",
+      url: "https://intermittent-media.example/asset"
+    });
+  }
+  assert.deepEqual([...storage.learnedDomains], ["intermittent-media.example"]);
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "direct-check" &&
+    entry.host === "intermittent-media.example" &&
+    entry.overriddenByRepeatedReset === true), true);
 
   const clearedDebugLog = await send({ type: "clearDebugLog" });
   assert.equal(clearedDebugLog.ok, true);
