@@ -9,6 +9,7 @@ const reloads = [];
 const badgeTexts = [];
 const notifications = [];
 const scriptExecutions = [];
+const scriptExecutionResults = [0, 1];
 let proxyConfig = null;
 let clearCount = 0;
 let measurementShouldBeDown = false;
@@ -85,7 +86,7 @@ const chrome = {
   scripting: {
     async executeScript(details) {
       scriptExecutions.push(details);
-      return [{ result: 1 }];
+      return [{ result: scriptExecutionResults.length ? scriptExecutionResults.shift() : 1 }];
     }
   },
   webRequest: {
@@ -227,6 +228,8 @@ function assertBadge(details, tabId, text) {
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
     tabId: 42,
+    frameId: 9,
+    parentFrameId: 0,
     type: "sub_frame",
     error: "net::ERR_CONNECTION_RESET",
     url: "https://media-cdn.example/embed/video"
@@ -241,9 +244,11 @@ function assertBadge(details, tabId, text) {
   assert.equal(notifications[0].options.requireInteraction, undefined);
   assert.equal(storage.lastNotificationStatus, "created");
   assert.equal(reloads.length, 0);
-  assert.equal(scriptExecutions.length, 1);
+  assert.equal(scriptExecutions.length, 2);
   assert.equal(scriptExecutions[0].args[0], "media-cdn.example");
   assert.deepEqual([...scriptExecutions[0].target.frameIds], [0]);
+  assert.deepEqual([...scriptExecutions[1].target.frameIds], [9]);
+  assert.equal(scriptExecutions[1].args[0], "https://media-cdn.example/embed/video");
 
   const ignored = await send({
     type: "saveSettings",

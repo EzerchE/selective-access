@@ -426,33 +426,70 @@ function notifyLearnedDomain(domain) {
 
 function retryLearnedIframe(details, host) {
   if (details.type !== "sub_frame" || !Number.isInteger(details.tabId) || details.tabId < 0) return;
-  setTimeout(() => {
-    chrome.scripting.executeScript({
-      target: { tabId: details.tabId, frameIds: [0] },
-      args: [host],
-      func: (targetHost) => {
-        const frames = [...document.querySelectorAll("iframe[src]")];
-        const frame = frames.find((candidate) => {
+  const parentFrameId = Number.isInteger(details.parentFrameId) && details.parentFrameId >= 0
+    ? details.parentFrameId
+    : 0;
+  chrome.scripting.executeScript({
+    target: { tabId: details.tabId, frameIds: [parentFrameId] },
+    args: [host],
+    func: (targetHost) => {
+      const roots = [document];
+      while (roots.length > 0) {
+        const root = roots.pop();
+        for (const frame of root.querySelectorAll("iframe[src]")) {
           try {
-            return new URL(candidate.src, location.href).hostname.toLowerCase() === targetHost;
-          } catch {
-            return false;
-          }
-        });
-        if (!frame) return 0;
-        frame.src = frame.src;
+            if (new URL(frame.src, location.href).hostname.toLowerCase() === targetHost) {
+              frame.src = frame.src;
+              return 1;
+            }
+          } catch {}
+        }
+        for (const element of root.querySelectorAll("*")) {
+          if (element.shadowRoot) roots.push(element.shadowRoot);
+        }
+      }
+      return 0;
+    }
+  }).then(async (results) => {
+    if (results?.[0]?.result === 1) {
+      await appendDebug("iframe-retry", {
+        tabId: details.tabId,
+        host,
+        matched: true,
+        method: "parent-dom"
+      });
+      return;
+    }
+
+    if (!Number.isInteger(details.frameId) || details.frameId <= 0) {
+      await appendDebug("iframe-retry", {
+        tabId: details.tabId,
+        host,
+        matched: false,
+        method: "parent-dom"
+      });
+      return;
+    }
+
+    const frameResults = await chrome.scripting.executeScript({
+      target: { tabId: details.tabId, frameIds: [details.frameId] },
+      args: [details.url],
+      func: (targetUrl) => {
+        location.replace(targetUrl);
         return 1;
       }
-    }).then((results) => appendDebug("iframe-retry", {
+    });
+    await appendDebug("iframe-retry", {
       tabId: details.tabId,
       host,
-      matched: results?.[0]?.result === 1
-    })).catch((error) => appendDebug("iframe-retry-failed", {
-      tabId: details.tabId,
-      host,
-      error: error.message
-    }));
-  }, 500);
+      matched: frameResults?.[0]?.result === 1,
+      method: "frame-id"
+    });
+  }).catch((error) => appendDebug("iframe-retry-failed", {
+    tabId: details.tabId,
+    host,
+    error: error.message
+  }));
 }
 
 async function sendTestNotification() {

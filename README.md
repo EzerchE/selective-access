@@ -55,7 +55,7 @@ Kısa süre içinde art arda öğrenilen hedefler tek Chrome bildiriminde grupla
 
 ### Sayfa durumunu koruyan yeniden deneme
 
-Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Harici bir iframe hedefi sonradan öğrenildiğinde içerik betiği yalnız eşleşen iframe'in adresini yeniden yükler; üst sayfa yenilenmez. API, video ve görsel hedefleri öğrenilir ancak sayfa durumu korunur. Böylece gereksiz ikinci refresh oluşmaz; açık gönderi, form ve kaydırma konumu kaybolmaz.
+Doğrudan açılan ana sayfa başarısızsa yeni bağlantı kuralının Chrome ağ katmanına yerleşmesi için kısa süre beklenir ve sekme bir kez yenilenir. Harici bir iframe hedefi sonradan öğrenildiğinde içerik betiği üst sayfa ve açık Shadow DOM'larda yalnız eşleşen iframe'i hemen yeniden yükler. DOM eşleşmesi hata sonrası kaldırılmışsa Chrome'un bildirdiği alt çerçeve kimliğiyle yalnız o frame yeniden yönlendirilir. API, video ve görsel hedefleri öğrenilir ancak sayfa durumu korunur.
 
 ### Elle ekleme, çıkarma ve kalıcı yoksayma
 
