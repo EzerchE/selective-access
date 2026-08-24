@@ -47,6 +47,7 @@ const retryCooldowns = new Map();
 const tabIssues = new Map();
 const detectionCandidates = new Map();
 const reloadTimers = new Map();
+const tabRecoveryStates = new Map();
 const iframeRetryTimers = new Map();
 const pendingLearnedNotifications = new Set();
 let learnedNotificationTimer = null;
@@ -83,6 +84,9 @@ const DEBUG_BATCH_SIZE = 20;
 const MAX_CONCURRENT_PROBES = 3;
 const DIRECT_PROBE_CACHE_MS = 2_000;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
+const RECOVERY_WINDOW_MS = 30_000;
+const RECOVERY_SETTLE_DELAY_MS = 1_500;
+const MAX_SETTLED_RECOVERY_RELOADS = 2;
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -526,32 +530,97 @@ function enqueueHostTask(details, task) {
   return current;
 }
 
-function scheduleTabReload(tabId, delayMs = 1_500) {
+function scheduleTabReload(tabId, delayMs = 1_500, scheduleReason = "main-route") {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   const existing = reloadTimers.get(tabId);
   if (existing) {
-    clearTimeout(existing);
-    appendDebug("reload-rescheduled", { tabId, delayMs });
+    clearTimeout(existing.timer);
+    appendDebug("reload-rescheduled", { tabId, delayMs, scheduleReason });
   } else {
-    appendDebug("reload-scheduled", { tabId, delayMs });
+    appendDebug("reload-scheduled", { tabId, delayMs, scheduleReason });
   }
   const timer = setTimeout(() => {
     reloadTimers.delete(tabId);
-    appendDebug("reload-fired", { tabId });
+    if (scheduleReason === "main-route") {
+      const recovery = tabRecoveryStates.get(tabId);
+      if (recovery) recovery.rootReloadPending = false;
+    }
+    appendDebug("reload-fired", { tabId, scheduleReason });
     chrome.tabs.reload(tabId, { bypassCache: true })
-      .then(() => appendDebug("reload-accepted", { tabId }))
-      .catch((error) => appendDebug("reload-failed", { tabId, error: error.message }));
+      .then(() => appendDebug("reload-accepted", { tabId, scheduleReason }))
+      .catch((error) => appendDebug("reload-failed", {
+        tabId,
+        scheduleReason,
+        error: error.message
+      }));
   }, delayMs);
-  reloadTimers.set(tabId, timer);
+  reloadTimers.set(tabId, { timer, scheduleReason });
 }
 
-function cancelTabReload(tabId, reason = "completed") {
-  const timer = reloadTimers.get(tabId);
-  if (!timer) return false;
-  clearTimeout(timer);
+function cancelTabReload(tabId, reason = "completed", expectedScheduleReason = null) {
+  const scheduled = reloadTimers.get(tabId);
+  if (!scheduled || (expectedScheduleReason && scheduled.scheduleReason !== expectedScheduleReason)) {
+    return false;
+  }
+  clearTimeout(scheduled.timer);
   reloadTimers.delete(tabId);
-  appendDebug("reload-cancelled", { tabId, reason });
+  appendDebug("reload-cancelled", {
+    tabId,
+    reason,
+    scheduleReason: scheduled.scheduleReason
+  });
   return true;
+}
+
+function comparableMainHost(host) {
+  return String(host || "").replace(/^www\./, "");
+}
+
+function beginTabRecovery(tabId, mainHost, now = Date.now()) {
+  if (!Number.isInteger(tabId) || tabId < 0 || !mainHost) return;
+  tabRecoveryStates.set(tabId, {
+    mainHost,
+    expiresAt: now + RECOVERY_WINDOW_MS,
+    rootReloadPending: true,
+    settledReloads: 0
+  });
+}
+
+function scheduleSettledRecoveryReload(details) {
+  const tabId = details.tabId;
+  const recovery = tabRecoveryStates.get(tabId);
+  if (!recovery) return false;
+  if (Date.now() > recovery.expiresAt) {
+    tabRecoveryStates.delete(tabId);
+    return false;
+  }
+  if (recovery.rootReloadPending) return false;
+  if (Number.isInteger(details.frameId) && details.frameId !== 0) return false;
+
+  const initiatorHost = details.initiator
+    ? getRequestHost({ url: details.initiator })
+    : null;
+  if (!initiatorHost ||
+      comparableMainHost(initiatorHost) !== comparableMainHost(recovery.mainHost)) {
+    return false;
+  }
+
+  const existing = reloadTimers.get(tabId);
+  if (existing?.scheduleReason !== "dependency-settled") {
+    if (recovery.settledReloads >= MAX_SETTLED_RECOVERY_RELOADS) return false;
+    recovery.settledReloads += 1;
+  }
+  scheduleTabReload(tabId, RECOVERY_SETTLE_DELAY_MS, "dependency-settled");
+  return true;
+}
+
+function trackMainNavigation(details) {
+  const recovery = tabRecoveryStates.get(details.tabId);
+  if (!recovery) return;
+  const host = getRequestHost(details);
+  if (!host || comparableMainHost(host) !== comparableMainHost(recovery.mainHost)) {
+    tabRecoveryStates.delete(details.tabId);
+  }
 }
 
 async function flushLearnedNotifications() {
@@ -933,17 +1002,21 @@ async function learnAndRetry(details) {
   retryLearnedIframe(details, host);
   scheduleInitiatorIframeRetry(details, learnedDomains);
 
-  // Gömülü API, video, görsel veya iframe hedefleri öğrenilir ancak açık sayfa
-  // yenilenmez. Modern siteler bu istekleri çoğunlukla kendileri tekrarlar;
-  // zorunlu yenileme açık gönderi, form ve uygulama durumunu kaybettirebilir.
-  if (details.type !== "main_frame") return;
+  // Normal gezinmede gömülü hedefler sayfayı yenilemez. Ancak ana hedef için
+  // otomatik kurtarma başlatılmışsa, ilk yeniden yüklemede keşfedilen bağımlılıkları
+  // kısa bir sakinleşme penceresinde toplar ve sınırlı bir ek deneme yapar.
+  if (details.type !== "main_frame") {
+    scheduleSettledRecoveryReload(details);
+    return;
+  }
 
   const retryKey = `${details.tabId}:main:${host}`;
   const lastRetry = retryCooldowns.get(retryKey) || 0;
   if (now - lastRetry < 60_000) return;
   retryCooldowns.set(retryKey, now);
 
-  scheduleTabReload(details.tabId);
+  beginTabRecovery(details.tabId, host, now);
+  scheduleTabReload(details.tabId, 1_500, "main-route");
 }
 
 function summarizeGlobalMeasurement(domain, measurement) {
@@ -1128,7 +1201,12 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 chrome.webRequest.onCompleted.addListener(
   (details) => {
-    cancelTabReload(details.tabId, "main-completed");
+    const cancelledRootRetry = cancelTabReload(
+      details.tabId,
+      "main-completed",
+      "main-route"
+    );
+    if (cancelledRootRetry) tabRecoveryStates.delete(details.tabId);
     const debugWrite = appendDebug("main-completed", {
       tabId: details.tabId,
       host: getRequestHost(details),
@@ -1142,7 +1220,10 @@ chrome.webRequest.onCompleted.addListener(
 );
 
 chrome.webRequest.onBeforeRequest.addListener(
-  (details) => clearTabIssue(details.tabId).catch(console.error),
+  (details) => {
+    trackMainNavigation(details);
+    return clearTabIssue(details.tabId).catch(console.error);
+  },
   { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
 );
 
@@ -1152,6 +1233,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabIssues.delete(tabId);
+  tabRecoveryStates.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {
     if (key.startsWith(`${tabId}:`)) {

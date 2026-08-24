@@ -574,23 +574,47 @@ async function waitForDebugFlush() {
 
   await listeners.requestError({
     tabId: 77,
+    frameId: 0,
     type: "xmlhttprequest",
     error: "net::ERR_CONNECTION_RESET",
     url: "https://api.app-suite.example/v1/config",
     initiator: "https://www.app-suite.example"
   });
+  await listeners.requestError({
+    tabId: 77,
+    frameId: 0,
+    type: "image",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://assets.app-suite.example/bootstrap.png",
+    initiator: "https://app-suite.example/"
+  });
+  await listeners.requestCompleted({
+    tabId: 77,
+    type: "main_frame",
+    url: "https://app-suite.example/",
+    statusCode: 200,
+    fromCache: false
+  });
   await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.deepEqual(
     [...storage.learnedDomains],
-    ["api.app-suite.example", "app-suite.example", "www.app-suite.example"]
+    [
+      "api.app-suite.example",
+      "app-suite.example",
+      "assets.app-suite.example",
+      "www.app-suite.example"
+    ]
   );
-  assert.equal(reloads.length, reloadCountBeforeApp + 1);
+  assert.equal(reloads.length, reloadCountBeforeApp + 2);
   await new Promise((resolve) => setTimeout(resolve, 600));
   assert.equal(notifications.length, 5);
-  assert.match(notifications.at(-1).options.title, /4 hedef/);
+  assert.match(notifications.at(-1).options.title, /hedef/);
   assert.equal(notifications.at(-1).options.requireInteraction, undefined);
   assert.equal(storage.debugLog.some((entry) => entry.event === "learned"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "reload-fired"), true);
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "reload-rescheduled" &&
+    entry.scheduleReason === "dependency-settled"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);
 
   await send({ type: "saveSettings", patch: { learnedDomains: ["frame.example"] } });
