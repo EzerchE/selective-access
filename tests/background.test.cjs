@@ -205,7 +205,10 @@ function send(message) {
 function evaluatePac(data) {
   const pac = {
     isPlainHostName: (host) => !host.includes("."),
-    shExpMatch: (host, pattern) => host.startsWith(pattern.replace("*", "")),
+    shExpMatch: (host, pattern) => {
+      const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
+      return host.startsWith(prefix);
+    },
     dnsDomainIs: (host, suffix) => host.endsWith(suffix)
   };
   vm.runInNewContext(data, pac);
@@ -321,9 +324,12 @@ async function waitForDebugFlush() {
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
   assert.equal(notifications.length, 2);
-  assert.equal(directProbeUrls.includes("https://normal-available.example/"), true);
-  assert.equal(directProbeUrls.some((url) => url.includes("/embed/content")), false);
-  assert.equal(directProbeUrls.some((url) => url.includes("?") || url.includes("#")), false);
+  const sanitizedProbe = new URL(directProbeUrls.at(-1));
+  assert.equal(sanitizedProbe.protocol, "https:");
+  assert.equal(sanitizedProbe.hostname, "normal-available.example");
+  assert.equal(sanitizedProbe.pathname, "/");
+  assert.equal(sanitizedProbe.search, "");
+  assert.equal(sanitizedProbe.hash, "");
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await listeners.requestError({
