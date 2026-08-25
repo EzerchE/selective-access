@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.8.1**
+Current version: **4.8.2**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
@@ -18,6 +18,7 @@ The extension UI follows Chrome's interface language: Turkish for Turkish browse
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
 - Learned rules apply only to the exact hostname that produced the error.
+- After a routed main page loads, the extension occasionally verifies the origin root twice without the gateway. When both checks respond, the matching hostname aliases are removed from routing and the user is notified.
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
 - The extension and helper do not change DNS providers, system DNS settings, or router configuration.
@@ -55,7 +56,7 @@ The uninstaller removes only this project's local service and installation direc
 - `proxy`: apply local PAC/SOCKS5 routing only to learned domains.
 - `storage`: keep settings, learned and ignored domains, and optional diagnostic records on the device.
 - `activeTab`: show the active tab's domain and associate user actions with that tab.
-- `notifications`: report newly learned targets and user-requested status-check results.
+- `notifications`: report newly learned targets, restored direct access, and user-requested status-check results.
 - `scripting`: retry only an automatically learned external iframe without reloading the top-level page.
 
 The extension does not execute remote JavaScript, collect page content, decrypt HTTPS, or install a private certificate.

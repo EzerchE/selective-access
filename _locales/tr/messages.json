@@ -93,6 +93,8 @@
   "learnedManyTitle": { "message": "$1 hedef yönlendirmeye eklendi" },
   "learnedOneMessage": { "message": "$1 artık yerel geçit üzerinden denenecek." },
   "moreTargets": { "message": " ve $1 hedef daha" },
+  "routeRestoredTitle": { "message": "Doğrudan erişim geri geldi" },
+  "routeRestoredMessage": { "message": "$1 yeniden doğrudan erişilebilir olduğu için otomatik yönlendirmeden çıkarıldı." },
   "notificationTestTitle": { "message": "Otomatik Erişim bildirim testi" },
   "notificationTestMessage": { "message": "Bu bildirimi görüyorsanız yeni hedef bildirimleri çalışıyor." },
   "notificationAcceptedWarning": { "message": "Chrome bildirimi kabul etti. Windows genel bildirimleri kapalıysa ekranda görünmeyebilir." },

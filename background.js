@@ -58,6 +58,8 @@ let learnedNotificationTimer = null;
 const learningQueues = new Map();
 const directProbeInFlight = new Map();
 const directProbeCache = new Map();
+const routeRecoveryCooldowns = new Map();
+const routeRecoveryTimers = new Map();
 const probeWaiters = [];
 let activeProbeCount = 0;
 
@@ -87,6 +89,9 @@ const DEBUG_FLUSH_DELAY_MS = 150;
 const DEBUG_BATCH_SIZE = 20;
 const MAX_CONCURRENT_PROBES = 3;
 const DIRECT_PROBE_CACHE_MS = 2_000;
+const ROUTE_RECOVERY_SETTLE_MS = 3_000;
+const ROUTE_RECOVERY_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+const ROUTE_RECOVERY_CONFIRM_DELAY_MS = 400;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
 const RECOVERY_WINDOW_MS = 30_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
@@ -327,13 +332,16 @@ async function refreshTabBadge(tabId) {
   else await setBadge(settings.enabled, Boolean(settings.lastProxyError), false, tabId);
 }
 
-async function applyProxy() {
+async function applyProxy(learnedDomainsOverride = null) {
   const settings = await getSettings();
+  const effectiveSettings = Array.isArray(learnedDomainsOverride)
+    ? { ...settings, learnedDomains: normalizeDomains(learnedDomainsOverride) }
+    : settings;
 
-  if (!settings.enabled || settings.learnedDomains.length === 0) {
+  if (!effectiveSettings.enabled || effectiveSettings.learnedDomains.length === 0) {
     await chrome.proxy.settings.clear({ scope: "regular" });
-    await setBadge(settings.enabled);
-    return { ok: true, enabled: settings.enabled };
+    await setBadge(effectiveSettings.enabled);
+    return { ok: true, enabled: effectiveSettings.enabled };
   }
 
   const current = await chrome.proxy.settings.get({ incognito: false });
@@ -347,7 +355,7 @@ async function applyProxy() {
   const config = {
     mode: "pac_script",
     pacScript: {
-      data: buildPacScript(settings),
+      data: buildPacScript(effectiveSettings),
       mandatory: true
     }
   };
@@ -520,6 +528,118 @@ function directRequestResponds(url) {
   return request;
 }
 
+async function verifyLearnedRouteStillNeeded(details) {
+  const host = getRequestHost(details);
+  if (!host || isLocalHost(host)) return { checked: false, reason: "invalid-host" };
+
+  const settings = await getSettings();
+  if (!settings.enabled || !isLearned(host, settings.learnedDomains)) {
+    return { checked: false, reason: "not-routed" };
+  }
+
+  const aliases = new Set(mainHostAliases(host));
+  const remainingDomains = settings.learnedDomains.filter((domain) => !aliases.has(domain));
+  if (remainingDomains.length === settings.learnedDomains.length) {
+    return { checked: false, reason: "not-routed" };
+  }
+
+  let probeUrl;
+  try {
+    probeUrl = sanitizedProbeUrl(details.url);
+  } catch {
+    return { checked: false, reason: "unsupported-url" };
+  }
+
+  await appendDebug("route-recovery-check-started", { host, tabId: details.tabId });
+  const bypassApplied = await applyProxy(remainingDomains);
+  if (!bypassApplied.ok) {
+    await appendDebug("route-recovery-check-skipped", {
+      host,
+      tabId: details.tabId,
+      reason: "proxy-unavailable"
+    });
+    return { checked: false, reason: "proxy-unavailable" };
+  }
+
+  let firstResponse = false;
+  let secondResponse = false;
+  try {
+    firstResponse = await runDirectProbe(probeUrl);
+    if (firstResponse) {
+      await new Promise((resolve) => setTimeout(resolve, ROUTE_RECOVERY_CONFIRM_DELAY_MS));
+      secondResponse = await runDirectProbe(probeUrl);
+    }
+  } finally {
+    if (!(firstResponse && secondResponse)) await applyProxy();
+  }
+
+  if (!firstResponse || !secondResponse) {
+    await appendDebug("route-recovery-check-failed", {
+      host,
+      tabId: details.tabId,
+      firstResponse,
+      secondResponse
+    });
+    return { checked: true, restored: false };
+  }
+
+  const latest = await getSettings();
+  const learnedDomains = latest.learnedDomains.filter((domain) => !aliases.has(domain));
+  const issueMatches = latest.lastIssueDomain && aliases.has(latest.lastIssueDomain);
+  try {
+    await chrome.storage.local.set({
+      learnedDomains,
+      lastDetectedDomain: latest.lastDetectedDomain && aliases.has(latest.lastDetectedDomain)
+        ? null
+        : latest.lastDetectedDomain,
+      lastIssueType: issueMatches ? null : latest.lastIssueType,
+      lastIssueDomain: issueMatches ? null : latest.lastIssueDomain,
+      lastIssueError: issueMatches ? null : latest.lastIssueError,
+      lastIssueAt: issueMatches ? null : latest.lastIssueAt,
+      lastGlobalCheck: issueMatches ? null : latest.lastGlobalCheck,
+      lastProxyError: null
+    });
+  } catch (error) {
+    await applyProxy();
+    throw error;
+  }
+  await appendDebug("route-recovered", {
+    host,
+    tabId: details.tabId,
+    removedCount: latest.learnedDomains.length - learnedDomains.length,
+    proxyApplied: true
+  });
+  await clearTabIssue(details.tabId);
+  await notifyRecoveredDomain(host).catch(console.error);
+  return { checked: true, restored: true, learnedDomains };
+}
+
+async function scheduleLearnedRouteRecovery(details) {
+  const host = getRequestHost(details);
+  if (!host || isLocalHost(host) || !Number.isInteger(details.tabId) || details.tabId < 0) return;
+  const settings = await getSettings();
+  if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return;
+
+  const routeKey = comparableMainHost(host);
+  const now = Date.now();
+  const lastCheck = routeRecoveryCooldowns.get(routeKey) || 0;
+  if (now - lastCheck < ROUTE_RECOVERY_CHECK_INTERVAL_MS || routeRecoveryTimers.has(routeKey)) return;
+  const timer = setTimeout(() => {
+    routeRecoveryTimers.delete(routeKey);
+    routeRecoveryCooldowns.set(routeKey, Date.now());
+    queueSettingsMutation(() => verifyLearnedRouteStillNeeded(details)).catch(console.error);
+  }, ROUTE_RECOVERY_SETTLE_MS);
+  routeRecoveryTimers.set(routeKey, { timer, tabId: details.tabId });
+}
+
+function cancelRouteRecoveryForTab(tabId) {
+  for (const [routeKey, pending] of routeRecoveryTimers) {
+    if (pending.tabId !== tabId) continue;
+    clearTimeout(pending.timer);
+    routeRecoveryTimers.delete(routeKey);
+  }
+}
+
 function enqueueHostTask(details, task) {
   const host = getRequestHost(details) || `tab-${details.tabId}`;
   const previous = learningQueues.get(host) || Promise.resolve();
@@ -684,6 +804,47 @@ function notifyLearnedDomain(domain) {
     flushLearnedNotifications().catch(console.error);
   }, 2_000);
   return Promise.resolve({ ok: true, scheduled: true });
+}
+
+async function notifyRecoveredDomain(domain) {
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") {
+    await chrome.storage.local.set({
+      lastNotificationStatus: "denied",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: t("notificationPermissionDenied")
+    });
+    return { ok: false, error: t("notificationPermissionDenied") };
+  }
+
+  try {
+    const createdId = await chrome.notifications.create(`restored:${Date.now()}`, {
+      type: "basic",
+      iconUrl: "assets/icon-128.png",
+      title: t("routeRestoredTitle"),
+      message: t("routeRestoredMessage", domain),
+      priority: 1
+    });
+    await chrome.storage.local.set({
+      lastNotificationStatus: "created",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: null
+    });
+    return { ok: true, id: createdId };
+  } catch (error) {
+    const message = error.message || t("notificationCreationFailed");
+    await chrome.storage.local.set({
+      lastNotificationStatus: "failed",
+      lastNotificationDomain: domain,
+      lastNotificationAt: new Date().toISOString(),
+      lastNotificationError: message
+    });
+    return { ok: false, error: message };
+  }
 }
 
 function retryLearnedIframe(details, host) {
@@ -1220,13 +1381,15 @@ chrome.webRequest.onCompleted.addListener(
       fromCache: Boolean(details.fromCache)
     });
     const clearIssue = clearIssueAfterSuccess(details).catch(console.error);
-    return Promise.all([debugWrite, clearIssue]);
+    const recoveryCheck = scheduleLearnedRouteRecovery(details).catch(console.error);
+    return Promise.all([debugWrite, clearIssue, recoveryCheck]);
   },
   { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
 );
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
+    cancelRouteRecoveryForTab(details.tabId);
     trackMainNavigation(details);
     return clearTabIssue(details.tabId).catch(console.error);
   },
@@ -1238,6 +1401,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  cancelRouteRecoveryForTab(tabId);
   tabIssues.delete(tabId);
   tabRecoveryStates.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
