@@ -8,6 +8,8 @@ Güncel sürüm: **4.8.1**
 
 Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün dillerde İngilizce gösterilir.
 
+<img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
+
 ## Temel davranış
 
 - Normal çalışan bağlantılar doğrudan kalır.
