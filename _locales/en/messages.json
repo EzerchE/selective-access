@@ -92,7 +92,6 @@
   "learnedOneTitle": { "message": "Block detected" },
   "learnedManyTitle": { "message": "$1 targets added to routing" },
   "learnedOneMessage": { "message": "$1 will now be tried through the local gateway." },
-  "learnedManyMessage": { "message": "$1$2." },
   "moreTargets": { "message": " and $1 more targets" },
   "notificationTestTitle": { "message": "Automatic Access notification test" },
   "notificationTestMessage": { "message": "If you can see this notification, new-target notifications are working." },

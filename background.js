@@ -654,10 +654,9 @@ async function flushLearnedNotifications() {
       title: domains.length === 1 ? t("learnedOneTitle") : t("learnedManyTitle", String(domains.length)),
       message: domains.length === 1
         ? t("learnedOneMessage", domains[0])
-        : t("learnedManyMessage", [
-            domains.slice(0, 3).join(", "),
+        : `${domains.slice(0, 3).join(", ")}${
             domains.length > 3 ? t("moreTargets", String(domains.length - 3)) : ""
-          ]),
+          }.`,
       priority: 1
     });
     await chrome.storage.local.set({

@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.8.0**
+Current version: **4.8.1**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
