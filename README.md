@@ -1,86 +1,90 @@
-# Otomatik Erişim
+**English** | [Türkçe](README_TR.md)
 
-Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
+# Automatic Access
 
-Güncel sürüm: **4.7.1**
+A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-## Temel davranış
+Current version: **4.8.0**
 
-- Normal çalışan bağlantılar doğrudan kalır.
-- Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
-- Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
-- Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
-- Ana hedef kurtarılırken sonradan öğrenilen sayfa bağımlılıkları kısa bir sakinleşme penceresinde toplanır; gerekirse tek seferde yeniden denenir ve yenileme döngüsü sınırlandırılır.
-- Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
-- Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
-- Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
-- Eklenti veya yardımcı DNS sağlayıcısını, sistem DNS ayarlarını ve modem yapılandırmasını değiştirmez.
+The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
-Bu araç VPN değildir; IP adresini veya ülkeyi değiştirmez. Yalnız kullanıcının erişim yetkisi bulunan hedeflerde ve yürürlükteki kurallara uygun kullanılmalıdır.
+## Core behavior
 
-## Kurulum
+- Connections that work normally remain direct.
+- A single temporary error does not automatically route a target.
+- Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
+- Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
+- During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
+- Learned rules apply only to the exact hostname that produced the error.
+- Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
+- Learned and ignored domains are stored only in `chrome.storage.local`.
+- The extension and helper do not change DNS providers, system DNS settings, or router configuration.
 
-> Şu anda Windows ve Google Chrome desteklenir.
+This tool is not a VPN. It does not change your IP address or country. Use it only for targets you are authorized to access and in accordance with applicable rules.
 
-1. Depoyu indirin veya klonlayın.
-2. Chrome'da `chrome://extensions` sayfasını açın.
-3. **Geliştirici modu**nu açın ve **Paketlenmemiş öğe yükle** ile proje klasörünü seçin.
-4. `helper/install.cmd` dosyasını **Yönetici olarak çalıştır** seçeneğiyle bir kez çalıştırın.
-5. Eklenti kartındaki yenile simgesine basıp popup anahtarını etkinleştirin.
+## Installation
 
-Yönetici izni yalnız Windows hizmetinin kurulması ve kaldırılması için gerekir. Eklenti yenileme veya ayar değişikliği PowerShell, komut penceresi ya da UAC istemi başlatmaz.
+> Windows and Google Chrome are currently supported.
 
-## Güncelleme
+1. Download or clone this repository.
+2. Open `chrome://extensions` in Chrome.
+3. Enable **Developer mode**, select **Load unpacked**, and choose the project folder.
+4. Right-click `helper/install.cmd`, choose **Run as administrator**, and run it once.
+5. Select the reload icon on the extension card, then enable the switch in the popup.
 
-1. Depo dosyalarını güncelleyin.
-2. `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
-3. `helper/` içeriği değişmişse `helper/install.cmd` dosyasını yeniden çalıştırın.
+Administrator permission is required only to install or remove the Windows service. Reloading the extension or changing its settings does not start PowerShell, a command window, or a UAC prompt.
 
-## Kaldırma
+## Updating
 
-1. Eklentiyi Chrome'dan kaldırın.
-2. `helper/uninstall.cmd` dosyasını yönetici olarak çalıştırın.
+1. Update the repository files.
+2. Select the reload icon on the extension card at `chrome://extensions`.
+3. If the contents of `helper/` changed, run `helper/install.cmd` again as administrator.
 
-Kaldırıcı yalnız bu projeye ait yerel hizmeti ve kurulum klasörünü kaldırır; DNS veya başka sistem ağ ayarlarına dokunmaz. İşlem doğrulanamazsa başarı mesajı yerine hata döndürür.
+## Uninstalling
 
-## İzinler
+1. Remove the extension from Chrome.
+2. Run `helper/uninstall.cmd` as administrator.
 
-- `webRequest` ve HTTP/HTTPS/WS/WSS erişimi: desteklenen bağlantı hatalarını ve başarılı ana sayfa yanıtlarını algılamak.
-- `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
-- `storage`: ayarlar ile öğrenilen, yoksayılan ve isteğe bağlı teşhis kayıtlarını cihazda saklamak.
-- `activeTab`: popup açıldığında etkin sekmenin alan adını göstermek ve kullanıcı işlemini o sekmeyle ilişkilendirmek.
-- `notifications`: yeni öğrenilen hedef veya kullanıcı tarafından başlatılan durum kontrolü sonucunu bildirmek.
-- `scripting`: otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden tekrar yüklemek.
+The uninstaller removes only this project's local service and installation directory. It does not alter DNS or other network settings, and it reports an error instead of success when removal cannot be verified.
 
-Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şifresini çözmez ve özel sertifika kurmaz.
+## Permissions
 
-## Yerel yardımcı
+- `webRequest` and HTTP/HTTPS/WS/WSS access: detect supported connection errors and successful main-page responses.
+- `proxy`: apply local PAC/SOCKS5 routing only to learned domains.
+- `storage`: keep settings, learned and ignored domains, and optional diagnostic records on the device.
+- `activeTab`: show the active tab's domain and associate user actions with that tab.
+- `notifications`: report newly learned targets and user-requested status-check results.
+- `scripting`: retry only an automatically learned external iframe without reloading the top-level page.
 
-Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtlı `LocalService` hesabıyla, gecikmeli otomatik başlangıç ve kontrollü yeniden başlatma politikasıyla çalışır. Kurulum:
+The extension does not execute remote JavaScript, collect page content, decrypt HTTPS, or install a private certificate.
 
-- paketlenen ikilinin SHA-256 değerini kopyalamadan önce ve sonra doğrular;
-- klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
-- DNS, NRPT, kayıt defteri veya zamanlanmış görev oluşturmaz ve silmez.
+## Local helper
 
-Üçüncü taraf ikilinin kaynak, sürüm, hash ve lisans bilgileri `helper/bin/SOURCE.md` ile `THIRD_PARTY_NOTICES.md` dosyalarındadır.
+The local gateway listens only on `127.0.0.1:1080`. Its Windows service runs under the restricted `LocalService` account with delayed automatic startup and a controlled restart policy. The installer:
 
-## Teşhis ve genel durum kontrolü
+- verifies the bundled binary's SHA-256 before and after copying it;
+- restricts the installation directory to SYSTEM, administrators, and the service account;
+- does not create or modify DNS rules, NRPT rules, registry entries, or scheduled tasks.
 
-Hata ayıklama günlüğü varsayılan olarak kapalıdır. Açıldığında son 150 sınırlı olayı cihazda tutar; kayıtlar toplu yazılır ve tam URL, sorgu, çerez, form verisi veya sayfa içeriği içermez.
+Source, version, hash, and license information for the third-party binary is recorded in `helper/bin/SOURCE.md` and `THIRD_PARTY_NOTICES.md`.
 
-**Genel durumu kontrol et** işlemi yalnız kullanıcı düğmeye bastığında çalışır. Kontrol edilen alan adı [Globalping](https://globalping.io) API'sine gönderilir; otomatik dış sorgu yapılmaz.
+## Diagnostics and global status checks
 
-## Gizlilik ve güvenlik
+Debug logging is disabled by default. When enabled, the most recent 150 limited events remain on the device and are written in batches. Records do not contain full URLs, queries, cookies, form data, or page content.
 
-- Geliştirici telemetrisi, analiz sunucusu, reklam veya affiliate kodu yoktur.
-- Gezinme verileri satılmaz ve reklam hedeflemede kullanılmaz.
-- Ana anahtar kapatıldığında Chrome proxy ayarı temizlenir.
-- Başka bir eklenti veya yönetici proxy ayarını kontrol ediyorsa bu eklenti onu geçersiz kılmaz.
-- Bildirim Chrome tarafından kabul edildiği halde görünmüyorsa işletim sisteminin bildirim ve rahatsız etmeyin ayarları geçerlidir.
+**Check global status** runs only when the user selects the button. The checked domain is then sent to the [Globalping](https://globalping.io) API; no automatic external measurement is performed.
 
-Ayrıntılar: `PRIVACY.md`, `SECURITY.md` ve `RESPONSIBLE_USE.md`.
+## Privacy and security
 
-## Geliştirme doğrulaması
+- There is no developer telemetry, analytics server, advertising, or affiliate code.
+- Browsing data is not sold or used for advertising.
+- Disabling the main switch clears the Chrome proxy setting.
+- The extension does not override a proxy controlled by another extension or administrator.
+- If Chrome accepts a notification but it is not visible, operating-system notification and do-not-disturb settings still apply.
+
+Details: `PRIVACY.md`, `SECURITY.md`, and `RESPONSIBLE_USE.md`.
+
+## Development checks
 
 ```text
 node --check background.js
@@ -90,15 +94,15 @@ node scripts/repository-audit.cjs
 node scripts/repository-audit.cjs --history
 ```
 
-Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, DNS/PowerShell yasağını, ikili hash'ini, hizmet hesabını, dinamik kod kullanımını ve Git geçmişini kontrol eder.
+The audit checks permission/documentation alignment, sensitive data, public target names, prohibited DNS/PowerShell components, binary hashes, the service account, dynamic code use, localization completeness, and Git history.
 
-## Sınırlar
+## Limitations
 
-- Yalnız Chrome trafiğini kapsar.
-- Gerçek sunucu kesintisini veya internet bağlantısı kaybını düzeltemez.
-- Ağ sağlayıcıları değiştikçe yerel uyumluluk profili güncelleme gerektirebilir.
-- Kaynak kod belirli bir kullanıcıya, cihaza, ağa veya gerçek hedef listesine göre özelleştirilmez.
+- Only Chrome traffic is covered.
+- It cannot repair a real server outage or loss of internet connectivity.
+- The local compatibility profile may need updates as network behavior changes.
+- The source is not customized for a specific user, device, network, or real target list.
 
-## Lisans
+## License
 
-Projenin özgün kodu MIT lisanslıdır. Birlikte dağıtılan üçüncü taraf bileşenler kendi lisans koşullarına tabidir.
+Original project code is licensed under the MIT License. Bundled third-party components remain subject to their own licenses.

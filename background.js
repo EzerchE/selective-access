@@ -1,3 +1,7 @@
+function t(key, substitutions) {
+  return chrome.i18n?.getMessage?.(key, substitutions) || key;
+}
+
 const DEFAULT_SETTINGS = Object.freeze({
   schemaVersion: 8,
   enabled: false,
@@ -284,12 +288,12 @@ async function setBadge(enabled, hasError = false, learned = false, tabId = null
   }));
   await chrome.action.setTitle(actionTarget(tabId, {
     title: hasError
-      ? "Otomatik Erişim — yerel geçit hatası"
+      ? t("badgeGatewayError")
       : learned
-        ? "Otomatik Erişim — yeni engelli hedef öğrenildi"
+        ? t("badgeTargetLearned")
         : enabled
-          ? "Otomatik Erişim — engel algılama etkin"
-          : "Otomatik Erişim — kapalı"
+          ? t("badgeDetectionActive")
+          : t("badgeDisabled")
   }));
 }
 
@@ -302,10 +306,10 @@ async function setIssueBadge(enabled, issueType, tabId) {
   await chrome.action.setTitle({
     tabId,
     title: isDown
-      ? "Otomatik Erişim — genel kesinti olası"
+      ? t("badgeOutageLikely")
       : enabled
-        ? "Otomatik Erişim — bağlantı sorunu sürüyor"
-        : "Otomatik Erişim — kapalı"
+        ? t("badgeIssueContinues")
+        : t("badgeDisabled")
   });
 }
 
@@ -334,7 +338,7 @@ async function applyProxy() {
 
   const current = await chrome.proxy.settings.get({ incognito: false });
   if (["not_controllable", "controlled_by_other_extensions"].includes(current.levelOfControl)) {
-    const message = "Chrome proxy ayarı başka bir eklenti veya yönetici tarafından kontrol ediliyor.";
+    const message = t("proxyControlled");
     await chrome.storage.local.set({ lastProxyError: message });
     await setBadge(true, true);
     return { ok: false, enabled: true, error: message };
@@ -441,7 +445,7 @@ function sanitizedProbeUrl(url) {
   const probeUrl = new URL(url);
   if (probeUrl.protocol === "ws:") probeUrl.protocol = "http:";
   if (probeUrl.protocol === "wss:") probeUrl.protocol = "https:";
-  if (!["http:", "https:"].includes(probeUrl.protocol)) throw new Error("Desteklenmeyen probe protokolü.");
+  if (!["http:", "https:"].includes(probeUrl.protocol)) throw new Error(t("unsupportedProbe"));
   probeUrl.username = "";
   probeUrl.password = "";
   probeUrl.pathname = "/";
@@ -638,19 +642,22 @@ async function flushLearnedNotifications() {
       lastNotificationStatus: "denied",
       lastNotificationDomain: domains.at(-1),
       lastNotificationAt: new Date().toISOString(),
-      lastNotificationError: "Chrome bildirim izni kapalı."
+      lastNotificationError: t("notificationPermissionDenied")
     });
-    return { ok: false, error: "Chrome bildirim izni kapalı." };
+    return { ok: false, error: t("notificationPermissionDenied") };
   }
 
   try {
     const createdId = await chrome.notifications.create(id, {
       type: "basic",
       iconUrl: "assets/icon-128.png",
-      title: domains.length === 1 ? "Engel algılandı" : `${domains.length} hedef yönlendirmeye eklendi`,
+      title: domains.length === 1 ? t("learnedOneTitle") : t("learnedManyTitle", String(domains.length)),
       message: domains.length === 1
-        ? `${domains[0]} artık yerel geçit üzerinden denenecek.`
-        : `${domains.slice(0, 3).join(", ")}${domains.length > 3 ? ` ve ${domains.length - 3} hedef daha` : ""}.`,
+        ? t("learnedOneMessage", domains[0])
+        : t("learnedManyMessage", [
+            domains.slice(0, 3).join(", "),
+            domains.length > 3 ? t("moreTargets", String(domains.length - 3)) : ""
+          ]),
       priority: 1
     });
     await chrome.storage.local.set({
@@ -665,9 +672,9 @@ async function flushLearnedNotifications() {
       lastNotificationStatus: "failed",
       lastNotificationDomain: domains.at(-1),
       lastNotificationAt: new Date().toISOString(),
-      lastNotificationError: error.message || "Bildirim oluşturulamadı."
+      lastNotificationError: error.message || t("notificationCreationFailed")
     });
-    return { ok: false, error: error.message || "Bildirim oluşturulamadı." };
+    return { ok: false, error: error.message || t("notificationCreationFailed") };
   }
 }
 
@@ -782,14 +789,14 @@ async function sendTestNotification() {
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
     : "granted";
-  if (permission !== "granted") return { ok: false, error: "Chrome bildirim izni kapalı." };
+  if (permission !== "granted") return { ok: false, error: t("notificationPermissionDenied") };
   const id = `test:${Date.now()}`;
   try {
     const createdId = await chrome.notifications.create(id, {
       type: "basic",
       iconUrl: "assets/icon-128.png",
-      title: "Otomatik Erişim bildirim testi",
-      message: "Bu bildirimi görüyorsanız yeni hedef bildirimleri çalışıyor.",
+      title: t("notificationTestTitle"),
+      message: t("notificationTestMessage"),
       priority: 1
     });
     await chrome.storage.local.set({
@@ -801,10 +808,10 @@ async function sendTestNotification() {
     return {
       ok: true,
       id: createdId,
-      warning: "Chrome bildirimi kabul etti. Windows genel bildirimleri kapalıysa ekranda görünmeyebilir."
+      warning: t("notificationAcceptedWarning")
     };
   } catch (error) {
-    const message = error.message || "Bildirim oluşturulamadı.";
+    const message = error.message || t("notificationCreationFailed");
     await chrome.storage.local.set({
       lastNotificationStatus: "failed",
       lastNotificationDomain: null,
@@ -819,8 +826,8 @@ async function notifyLikelyGlobalOutage(domain) {
   await chrome.notifications.create(`outage:${domain}`, {
     type: "basic",
     iconUrl: "assets/icon-128.png",
-    title: "Genel kesinti olası",
-    message: `${domain} birden fazla dış noktadan da erişilemiyor. Site şu anda genel olarak kapalı olabilir.`
+    title: t("outageLikely"),
+    message: t("outageNotificationMessage", domain)
   });
 }
 
@@ -1049,7 +1056,7 @@ function summarizeGlobalMeasurement(domain, measurement) {
 
 async function checkGlobalStatus(value, tabId = null) {
   const domain = normalizeDomain(value);
-  if (!domain || isLocalHost(domain)) throw new Error("Geçerli bir genel alan adı gerekli.");
+  if (!domain || isLocalHost(domain)) throw new Error(t("invalidPublicDomain"));
 
   const createdResponse = await fetch("https://api.globalping.io/v1/measurements", {
     method: "POST",
@@ -1071,26 +1078,26 @@ async function checkGlobalStatus(value, tabId = null) {
 
   if (!createdResponse.ok) {
     throw new Error(createdResponse.status === 429
-      ? "Genel durum servisi istek sınırına ulaştı; biraz sonra tekrar deneyin."
-      : "Genel durum ölçümü başlatılamadı.");
+      ? t("globalRateLimited")
+      : t("globalStartFailed"));
   }
 
   const created = await createdResponse.json();
-  if (!created?.id) throw new Error("Genel durum servisi ölçüm kimliği döndürmedi.");
+  if (!created?.id) throw new Error(t("globalNoId"));
 
   let measurement = null;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const resultResponse = await fetch(`https://api.globalping.io/v1/measurements/${created.id}`, {
       headers: { "Accept": "application/json" }
     });
-    if (!resultResponse.ok) throw new Error("Genel durum ölçümü okunamadı.");
+    if (!resultResponse.ok) throw new Error(t("globalReadFailed"));
     measurement = await resultResponse.json();
     if (measurement.status !== "in-progress") break;
     await new Promise((resolve) => setTimeout(resolve, 600));
   }
 
   if (!measurement || measurement.status === "in-progress") {
-    throw new Error("Genel durum ölçümü zamanında tamamlanmadı.");
+    throw new Error(t("globalTimedOut"));
   }
 
   const summary = summarizeGlobalMeasurement(domain, measurement);
@@ -1170,7 +1177,7 @@ chrome.runtime.onInstalled.addListener(() => initialize().catch(console.error));
 chrome.runtime.onStartup.addListener(() => applyProxy().catch(console.error));
 
 chrome.proxy.onProxyError.addListener(async (details) => {
-  const message = details?.error || "Yerel proxy bağlantısı kurulamadı.";
+  const message = details?.error || t("localProxyFailed");
   await chrome.storage.local.set({ lastProxyError: message });
   await appendDebug("proxy-error", { error: message });
   const settings = await getSettings();
@@ -1266,7 +1273,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "reloadTabBypassCache": {
         const tabId = Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id;
         if (!Number.isInteger(tabId) || tabId < 0) {
-          throw new Error("Yenilenecek sekme bulunamadı.");
+          throw new Error(t("tabNotFound"));
         }
         await chrome.storage.local.set({
           lastIssueType: null,
@@ -1291,7 +1298,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await chrome.storage.local.set({ debugLog: [] });
         return { ok: true };
       default:
-        return { ok: false, error: "Bilinmeyen istek." };
+        return { ok: false, error: t("unknownRequest") };
     }
   })()
     .then(sendResponse)

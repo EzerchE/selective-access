@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Otomatik Erişim</title>
+    <title data-i18n="extensionName">Automatic Access</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -14,10 +14,10 @@
           <span></span>
         </div>
         <div>
-          <h1>Otomatik Erişim</h1>
-          <p>Hata görür, öğrenir ve yalnız hedefi yönlendirir · <span id="appVersion">v…</span></p>
+          <h1 data-i18n="extensionName">Automatic Access</h1>
+          <p><span data-i18n="tagline">Detects errors, learns, and routes only the target</span> · <span id="appVersion">v…</span></p>
         </div>
-        <label class="switch" title="Eklentiyi aç veya kapat">
+        <label class="switch" title="Enable or disable the extension" data-i18n-title="toggleTitle">
           <input id="enabled" type="checkbox">
           <span class="slider"></span>
         </label>
@@ -26,89 +26,89 @@
       <section id="statusCard" class="status-card is-off" aria-live="polite">
         <span id="statusDot" class="status-dot"></span>
         <div>
-          <strong id="statusTitle">Hazırlanıyor…</strong>
-          <p id="statusText">Ayarlar okunuyor.</p>
+          <strong id="statusTitle" data-i18n="preparing">Preparing…</strong>
+          <p id="statusText" data-i18n="readingSettings">Reading settings.</p>
         </div>
       </section>
 
-      <p class="privacy-note">Öğrenilen liste cihazınızda kalır. Eklenti bilgisayarınızın DNS ayarlarını değiştirmez. Globalping’e yalnız “Genel durumu kontrol et” düğmesiyle alan adı gönderilir.</p>
+      <p class="privacy-note" data-i18n="privacyNote">The learned list stays on your device. The extension does not change your computer's DNS settings. A domain is sent to Globalping only when you select “Check global status”.</p>
 
       <section class="current-site">
         <div>
-          <span class="eyebrow">AÇIK SEKME</span>
-          <strong id="currentDomain">Bu sayfa eklenemez</strong>
+          <span class="eyebrow" data-i18n="openTab">OPEN TAB</span>
+          <strong id="currentDomain" data-i18n="pageUnavailable">Unavailable for this page</strong>
         </div>
-        <button id="siteAction" class="button secondary" type="button" disabled>Şimdi geçide al</button>
+        <button id="siteAction" class="button secondary" type="button" disabled data-i18n="routeNow">Route now</button>
       </section>
 
-      <section class="flow-card" aria-label="Otomatik bağlantı akışı">
-        <div><span>1</span><strong>Normal dene</strong></div>
+      <section class="flow-card" aria-label="Automatic connection flow" data-i18n-aria-label="flowAria">
+        <div><span>1</span><strong data-i18n="tryDirect">Try direct</strong></div>
         <i>→</i>
-        <div><span>2</span><strong>Engeli algıla</strong></div>
+        <div><span>2</span><strong data-i18n="detectBlock">Detect block</strong></div>
         <i>→</i>
-        <div><span>3</span><strong>Seçici yönlendir</strong></div>
+        <div><span>3</span><strong data-i18n="routeSelectively">Route selectively</strong></div>
       </section>
 
       <section id="diagnosticCard" class="diagnostic-card" aria-live="polite" hidden>
-        <span class="eyebrow">BAĞLANTI TEŞHİSİ</span>
-        <strong id="diagnosticTitle">Bağlantı sorunu</strong>
+        <span class="eyebrow" data-i18n="connectionDiagnosis">CONNECTION DIAGNOSIS</span>
+        <strong id="diagnosticTitle" data-i18n="connectionIssue">Connection issue</strong>
         <p id="diagnosticText"></p>
-        <button id="checkStatus" class="button diagnostic-button" type="button">Genel durumu kontrol et</button>
-        <p id="diagnosticPrivacy" class="privacy-note">Yalnız bu düğmeye basıldığında alan adı, üç kıtadan ölçüm için Globalping’e gönderilir.</p>
+        <button id="checkStatus" class="button diagnostic-button" type="button" data-i18n="checkGlobalStatus">Check global status</button>
+        <p id="diagnosticPrivacy" class="privacy-note" data-i18n="diagnosticPrivacy">Only when you select this button is the domain sent to Globalping for measurements from three continents.</p>
       </section>
 
       <section class="panel">
         <div class="section-heading">
           <div>
-            <span class="eyebrow">ÖĞRENİLEN ENGELLER</span>
-            <h2>Otomatik yönlendirilen siteler</h2>
+            <span class="eyebrow" data-i18n="learnedTargetsEyebrow">LEARNED TARGETS</span>
+            <h2 data-i18n="automaticallyRoutedSites">Automatically routed sites</h2>
           </div>
           <span id="domainCount" class="count">0</span>
         </div>
         <div id="domainList" class="domain-list" aria-live="polite"></div>
-        <p class="hint">× hedefi şimdilik çıkarır; Yoksay hedefi çıkarır ve sonraki hatalarda tekrar öğrenilmesini engeller.</p>
+        <p class="hint" data-i18n="learnedHint">× removes the target for now; Ignore removes it and prevents relearning after future errors.</p>
       </section>
 
       <section class="panel ignored-panel">
         <div class="section-heading">
           <div>
-            <span class="eyebrow">YOKSAYILAN HEDEFLER</span>
-            <h2>Otomatik öğrenilmeyecek siteler</h2>
+            <span class="eyebrow" data-i18n="ignoredTargetsEyebrow">IGNORED TARGETS</span>
+            <h2 data-i18n="neverLearnSites">Sites that will not be learned automatically</h2>
           </div>
           <span id="ignoredCount" class="count">0</span>
         </div>
         <div id="ignoredList" class="domain-list" aria-live="polite"></div>
-        <p class="hint">Yoksayılan hedefler bağlantı hatası verse bile otomatik yönlendirmeye eklenmez. Geri almak için satırındaki ↩ düğmesine basın.</p>
+        <p class="hint" data-i18n="ignoredHint">Ignored targets are not added to automatic routing even after connection errors. Use ↩ on a row to restore one.</p>
       </section>
 
       <details class="advanced">
-        <summary>Yerel geçit ayarı</summary>
+        <summary data-i18n="localGatewaySettings">Local gateway settings</summary>
         <div class="proxy-row">
           <label>
-            Sunucu
+            <span data-i18n="server">Server</span>
             <input type="text" value="127.0.0.1" disabled>
           </label>
           <label>
-            Port
+            <span data-i18n="port">Port</span>
             <input id="proxyPort" type="number" min="1" max="65535" value="1080">
           </label>
         </div>
-        <p class="hint">Güvenlik için yalnızca bilgisayarınızdaki SOCKS5 geçidine bağlanır.</p>
-        <button id="testNotification" class="button ghost inline-button" type="button">Bildirimi test et</button>
+        <p class="hint" data-i18n="gatewayHint">For security, it connects only to the SOCKS5 gateway on this computer.</p>
+        <button id="testNotification" class="button ghost inline-button" type="button" data-i18n="testNotification">Test notification</button>
       </details>
 
       <details class="advanced">
-        <summary>Hata ayıklama günlüğü</summary>
-        <p class="hint">Yalnız zaman, alan adı, istek/hata türü ve yönlendirme aşaması cihazda tutulur; sayfa içeriği kaydedilmez.</p>
+        <summary data-i18n="debugLogTitle">Debug log</summary>
+        <p class="hint" data-i18n="debugHint">Only time, domain, request/error type, and routing stage are kept on the device; page content is not recorded.</p>
         <label class="debug-toggle">
           <input id="debugEnabled" type="checkbox">
-          <span>Debug kaydını etkinleştir</span>
+          <span data-i18n="enableDebug">Enable debug logging</span>
         </label>
         <div id="debugControls" hidden>
-          <pre id="debugLog" class="debug-log">Henüz kayıt yok</pre>
+          <pre id="debugLog" class="debug-log" data-i18n="noLogs">No records yet</pre>
           <div class="debug-actions">
-            <button id="copyDebugLog" class="button ghost inline-button" type="button">Günlüğü kopyala</button>
-            <button id="clearDebugLog" class="button ghost inline-button" type="button">Temizle</button>
+            <button id="copyDebugLog" class="button ghost inline-button" type="button" data-i18n="copyLog">Copy log</button>
+            <button id="clearDebugLog" class="button ghost inline-button" type="button" data-i18n="clear">Clear</button>
           </div>
         </div>
       </details>
@@ -116,10 +116,11 @@
       <div id="notice" class="notice" hidden></div>
 
       <footer>
-        <button id="save" class="button primary" type="button">Kaydet ve uygula</button>
-        <button id="retry" class="button ghost" type="button">Yeniden uygula</button>
+        <button id="save" class="button primary" type="button" data-i18n="saveApply">Save and apply</button>
+        <button id="retry" class="button ghost" type="button" data-i18n="reapply">Reapply</button>
       </footer>
     </main>
+    <script src="i18n.js"></script>
     <script src="popup-preview.js"></script>
     <script src="popup.js"></script>
   </body>

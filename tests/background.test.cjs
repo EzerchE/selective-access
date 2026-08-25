@@ -20,8 +20,22 @@ const directProbeUrls = [];
 const delayedProbeHosts = new Set();
 let activeDirectProbes = 0;
 let maxActiveDirectProbes = 0;
+const testMessages = JSON.parse(fs.readFileSync(
+  path.join(__dirname, "..", "_locales", "tr", "messages.json"),
+  "utf8"
+));
+
+function getMessage(key, substitutions = []) {
+  const values = Array.isArray(substitutions) ? substitutions : [substitutions];
+  return (testMessages[key]?.message || "").replace(/\$(\d+)/g, (_match, index) =>
+    String(values[Number(index) - 1] ?? ""));
+}
 
 const chrome = {
+  i18n: {
+    getMessage,
+    getUILanguage() { return "tr-TR"; }
+  },
   storage: {
     local: {
       async get(keysOrDefaults) {

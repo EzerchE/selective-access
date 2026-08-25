@@ -30,7 +30,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
         if (message?.type === "testNotification") {
           return { ok: true, result: { ok: true, id: "preview-test" } };
         }
-        return { ok: false, error: "Önizlemede desteklenmeyen istek." };
+        return { ok: false, error: t("previewUnsupported") };
       }
     },
     tabs: {

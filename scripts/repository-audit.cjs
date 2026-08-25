@@ -95,7 +95,11 @@ for (const required of [
   "helper/bin/BYEDPI_LICENSE.txt",
   "helper/bin/ciadpi.exe",
   "helper/install.cmd",
-  "helper/uninstall.cmd"
+  "helper/uninstall.cmd",
+  "README_TR.md",
+  "i18n.js",
+  "_locales/en/messages.json",
+  "_locales/tr/messages.json"
 ]) {
   if (!fs.statSync(path.join(root, required), { throwIfNoEntry: false })?.isFile()) {
     fail(`Gerekli dosya eksik: ${required}`);
@@ -117,6 +121,47 @@ if (!sourceRecord.includes("v0.17.3") ||
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 if (manifest.permissions.includes("nativeMessaging")) fail("nativeMessaging izni bulunmamalidir.");
 if (manifest.manifest_version !== 3) fail("Manifest V3 kullanilmalidir.");
+if (manifest.default_locale !== "en") fail("Varsayilan eklenti dili Ingilizce olmalidir.");
+for (const field of [manifest.name, manifest.short_name, manifest.description, manifest.action?.default_title]) {
+  if (!/^__MSG_[A-Za-z0-9_]+__$/.test(field || "")) fail("Manifest metinleri chrome.i18n kullanmalidir.");
+}
+
+const englishMessages = JSON.parse(fs.readFileSync(path.join(root, "_locales/en/messages.json"), "utf8"));
+const turkishMessages = JSON.parse(fs.readFileSync(path.join(root, "_locales/tr/messages.json"), "utf8"));
+const englishKeys = Object.keys(englishMessages).sort();
+const turkishKeys = Object.keys(turkishMessages).sort();
+if (JSON.stringify(englishKeys) !== JSON.stringify(turkishKeys)) {
+  fail("Ingilizce ve Turkce yerellestirme anahtarlari eslesmiyor.");
+}
+for (const [locale, messages] of [["en", englishMessages], ["tr", turkishMessages]]) {
+  for (const [key, entry] of Object.entries(messages)) {
+    if (!entry || typeof entry.message !== "string" || !entry.message.trim()) {
+      fail(`Gecersiz yerellestirme mesaji: ${locale}/${key}`);
+    }
+  }
+}
+for (const key of englishKeys) {
+  const placeholders = (value) => [...value.matchAll(/\$(\d+)/g)].map((match) => match[1]).sort();
+  if (JSON.stringify(placeholders(englishMessages[key].message)) !==
+      JSON.stringify(placeholders(turkishMessages[key].message))) {
+    fail(`Yerellestirme parametreleri eslesmiyor: ${key}`);
+  }
+}
+
+const localizedSources = ["background.js", "popup.js", "popup-preview.js", "i18n.js", "popup.html"]
+  .map((file) => fs.readFileSync(path.join(root, file), "utf8"))
+  .join("\n");
+const usedMessageKeys = new Set([
+  ...[...localizedSources.matchAll(/\bt\(\s*["']([A-Za-z0-9_]+)["']/g)].map((match) => match[1]),
+  ...[...localizedSources.matchAll(/data-i18n(?:-title|-aria-label)?=["']([A-Za-z0-9_]+)["']/g)]
+    .map((match) => match[1]),
+  ...[manifest.name, manifest.short_name, manifest.description, manifest.action.default_title]
+    .map((value) => value.match(/^__MSG_([A-Za-z0-9_]+)__$/)?.[1])
+    .filter(Boolean)
+]);
+for (const key of usedMessageKeys) {
+  if (!englishMessages[key] || !turkishMessages[key]) fail(`Eksik yerellestirme anahtari: ${key}`);
+}
 
 const background = fs.readFileSync(path.join(root, "background.js"), "utf8");
 if (/sendNativeMessage|cloudflare-dns\.com|syncDnsFallbackDomains/.test(background)) {
@@ -167,8 +212,13 @@ for (const file of files.filter((item) => path.extname(item).toLowerCase() === "
 }
 
 const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-if (!readme.includes(`Güncel sürüm: **${manifest.version}**`)) {
+if (!readme.includes(`Current version: **${manifest.version}**`)) {
   fail(`README güncel manifest surumunu belirtmiyor: ${manifest.version}`);
+}
+const turkishReadme = fs.readFileSync(path.join(root, "README_TR.md"), "utf8");
+if (!turkishReadme.includes(`Güncel sürüm: **${manifest.version}**`) ||
+    !readme.includes("README_TR.md") || !turkishReadme.includes("README.md")) {
+  fail("README dil baglantilari veya surumleri eslesmiyor.");
 }
 
 for (const document of ["README.md", "PRIVACY.md", "STORE_READINESS.md"]) {
