@@ -20,6 +20,8 @@ jobs:
       - name: Syntax and tests
         run: |
           node --check background.js
+          node --check i18n.js
+          node --check popup-preview.js
           node --check popup.js
           node tests/background.test.cjs
       - name: Sensitive data audit

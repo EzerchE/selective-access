@@ -68,7 +68,7 @@ function renderDomainList() {
   if (learnedDomains.length === 0) {
     const empty = document.createElement("p");
     empty.className = "domain-empty";
-    empty.textContent = "Henüz engelli bir hedef algılanmadı";
+    empty.textContent = t("noLearnedTargets");
     elements.domainList.append(empty);
     return;
   }
@@ -88,9 +88,9 @@ function renderDomainList() {
     const ignore = document.createElement("button");
     ignore.className = "domain-ignore";
     ignore.type = "button";
-    ignore.textContent = "Yoksay";
-    ignore.title = `${domain} hedefini kalıcı olarak yoksay`;
-    ignore.setAttribute("aria-label", `${domain} hedefini kalıcı olarak yoksay`);
+    ignore.textContent = t("ignore");
+    ignore.title = t("ignoreDomain", domain);
+    ignore.setAttribute("aria-label", t("ignoreDomain", domain));
     ignore.addEventListener("click", () => {
       save({
         learnedDomains: learnedDomains.filter((value) => value !== domain),
@@ -102,8 +102,8 @@ function renderDomainList() {
     remove.className = "domain-remove";
     remove.type = "button";
     remove.textContent = "×";
-    remove.title = `${domain} hedefini kaldır`;
-    remove.setAttribute("aria-label", `${domain} hedefini kaldır`);
+    remove.title = t("removeDomain", domain);
+    remove.setAttribute("aria-label", t("removeDomain", domain));
     remove.addEventListener("click", () => {
       save({ learnedDomains: learnedDomains.filter((value) => value !== domain) });
     });
@@ -121,7 +121,7 @@ function renderIgnoredList() {
   if (ignoredDomains.length === 0) {
     const empty = document.createElement("p");
     empty.className = "domain-empty";
-    empty.textContent = "Yoksayılan bir hedef yok";
+    empty.textContent = t("noIgnoredTargets");
     elements.ignoredList.append(empty);
     return;
   }
@@ -137,8 +137,8 @@ function renderIgnoredList() {
     restore.className = "domain-remove";
     restore.type = "button";
     restore.textContent = "↩";
-    restore.title = `${domain} için yoksaymayı kaldır`;
-    restore.setAttribute("aria-label", `${domain} için yoksaymayı kaldır`);
+    restore.title = t("restoreDomain", domain);
+    restore.setAttribute("aria-label", t("restoreDomain", domain));
     restore.addEventListener("click", () => {
       save({ ignoredDomains: ignoredDomains.filter((value) => value !== domain) });
     });
@@ -171,7 +171,7 @@ function render(state) {
   elements.debugControls.hidden = !state.debugEnabled;
   elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
     ? state.debugLog.map((entry) => JSON.stringify(entry)).join("\n")
-    : "Henüz kayıt yok";
+    : t("noLogs");
 
   const hasControlError = ["not_controllable", "controlled_by_other_extensions"]
     .includes(state.levelOfControl);
@@ -180,29 +180,29 @@ function render(state) {
   elements.statusCard.className = `status-card ${hasError ? "is-error" : state.enabled ? "is-on" : "is-off"}`;
   elements.statusTitle.textContent = hasError
     ? versionMismatch
-      ? "Eklentinin yeniden yüklenmesi gerekiyor"
-      : "Yerel geçit kullanılamıyor"
+      ? t("reloadRequired")
+      : t("gatewayUnavailable")
     : state.enabled
-      ? "Otomatik engel algılama etkin"
-      : "Otomatik erişim kapalı";
+      ? t("detectionEnabled")
+      : t("accessDisabled");
   elements.statusText.textContent = hasError
     ? versionMismatch
-      ? "chrome://extensions sayfasında Otomatik Erişim kartındaki yenile simgesine basın."
-      : state.lastProxyError || "Proxy ayarı başka bir eklenti veya yönetici tarafından kontrol ediliyor."
+      ? t("reloadInstruction")
+      : state.lastProxyError || t("proxyControlled")
     : state.enabled
       ? state.lastDetectedDomain
-        ? `${learnedDomains.length} hedef öğrenildi. Son algılanan: ${state.lastDetectedDomain}`
-        : "Bağlantı hatası algılanırsa hedef kaydedilir; yalnız başarısız ana sayfa bir kez yenilenir."
-      : "Chrome doğrudan bağlanıyor; engel algılama yapılmıyor.";
+        ? t("learnedSummary", [String(learnedDomains.length), state.lastDetectedDomain])
+        : t("detectionWaiting")
+      : t("directMode");
 
   if (versionMismatch) {
-    showNotice("Arka plan kodu eski sürümde kaldı. Eklenti kartını yeniledikten sonra popup'ı tekrar açın.", true);
+    showNotice(t("backgroundOutdated"), true);
   } else {
     updateSiteAction();
     renderDiagnostic(state);
     if (["denied", "failed"].includes(state.lastNotificationStatus)) {
       showNotice(
-        `Son bildirim gösterilemedi: ${state.lastNotificationError || "Chrome veya Windows bildirim ayarını kontrol edin."}`,
+        t("notificationFailed", state.lastNotificationError || t("notificationSettingsHint")),
         true
       );
     }
@@ -218,49 +218,49 @@ function renderDiagnostic(state) {
   elements.diagnosticCard.className = "diagnostic-card";
   elements.checkStatus.hidden = false;
   elements.checkStatus.disabled = checkingGlobalStatus;
-  elements.checkStatus.textContent = checkingGlobalStatus ? "Üç kıtadan kontrol ediliyor…" : "Genel durumu kontrol et";
+  elements.checkStatus.textContent = checkingGlobalStatus ? t("checkingContinents") : t("checkGlobalStatus");
   elements.diagnosticPrivacy.hidden = false;
 
   if (globalCheck) {
-    const locationText = `${globalCheck.reachable}/${globalCheck.total || 3} dış noktadan HTTP yanıtı alındı.`;
+    const locationText = t("locationsResponded", [String(globalCheck.reachable), String(globalCheck.total || 3)]);
     if (globalCheck.status === "online") {
       elements.diagnosticCard.classList.add("is-online");
-      elements.diagnosticTitle.textContent = "Site genel olarak açık";
-      elements.diagnosticText.textContent = `${locationText} Site dış noktalardan erişilebilir; sorun yerel ağ veya bölgesel erişim yolunda olabilir.`;
+      elements.diagnosticTitle.textContent = t("siteOnline");
+      elements.diagnosticText.textContent = t("siteOnlineDetail", locationText);
     } else if (globalCheck.status === "likely_down") {
       elements.diagnosticCard.classList.add("is-down");
-      elements.diagnosticTitle.textContent = "Genel kesinti olası";
-      elements.diagnosticText.textContent = "En az iki kıtadaki dış nokta da hedefe ulaşamadı; sorun büyük olasılıkla sizden kaynaklanmıyor.";
+      elements.diagnosticTitle.textContent = t("outageLikely");
+      elements.diagnosticText.textContent = t("outageLikelyDetail");
     } else if (globalCheck.status === "regional") {
       elements.diagnosticCard.classList.add("is-warning");
-      elements.diagnosticTitle.textContent = "Bölgesel sorun olabilir";
-      elements.diagnosticText.textContent = `${locationText} Site tamamen kapalı değil, ancak her bölgeden erişilemiyor.`;
+      elements.diagnosticTitle.textContent = t("regionalIssue");
+      elements.diagnosticText.textContent = t("regionalIssueDetail", locationText);
     } else {
       elements.diagnosticCard.classList.add("is-warning");
-      elements.diagnosticTitle.textContent = "Genel durum doğrulanamadı";
-      elements.diagnosticText.textContent = "Dış ölçümlerin sonucu kesin değil; biraz sonra yeniden deneyin.";
+      elements.diagnosticTitle.textContent = t("statusInconclusive");
+      elements.diagnosticText.textContent = t("statusInconclusiveDetail");
     }
     return;
   }
 
   elements.diagnosticCard.classList.add("is-warning");
   if (state.lastIssueType === "client_filter_blocked") {
-    elements.checkStatus.textContent = "Önbelleksiz yenile";
+    elements.checkStatus.textContent = t("reloadWithoutCache");
     elements.diagnosticPrivacy.hidden = true;
-    elements.diagnosticTitle.textContent = "Tarayıcı filtresi uygulamayı durdurdu";
-    elements.diagnosticText.textContent = "İlk taraf uygulama dosyası başka bir içerik filtresi tarafından engellendi. Site istisnasını kontrol ettikten sonra bozuk önbelleği kullanmadan yeniden yükleyin.";
+    elements.diagnosticTitle.textContent = t("clientFilterTitle");
+    elements.diagnosticText.textContent = t("clientFilterDetail");
   } else if (state.lastIssueType === "route_failed") {
-    elements.diagnosticTitle.textContent = "Geçit denemesinden sonra sorun sürüyor";
-    elements.diagnosticText.textContent = "Hedef zaten otomatik geçitte. Site genel olarak kapalı veya farklı bir bağlantı sorunu yaşıyor olabilir.";
+    elements.diagnosticTitle.textContent = t("routeFailedTitle");
+    elements.diagnosticText.textContent = t("routeFailedDetail");
   } else if (state.lastIssueType === "transient_reachable") {
-    elements.diagnosticTitle.textContent = "Geçici bağlantı hatası";
-    elements.diagnosticText.textContent = "Doğrudan kontrol hedeften yanıt aldı. Site yönlendirme listesine eklenmedi; sayfayı yeniden deneyebilirsiniz.";
+    elements.diagnosticTitle.textContent = t("transientTitle");
+    elements.diagnosticText.textContent = t("transientDetail");
   } else if (state.lastIssueType === "transient_unverified") {
-    elements.diagnosticTitle.textContent = "Engel doğrulanmadı";
-    elements.diagnosticText.textContent = "Bu hata tek başına erişim engeli kanıtı değildir. Hedef otomatik eklenmedi; yeniden deneyin veya genel durumu kontrol edin.";
+    elements.diagnosticTitle.textContent = t("unverifiedTitle");
+    elements.diagnosticText.textContent = t("unverifiedDetail");
   } else {
-    elements.diagnosticTitle.textContent = "Alternatif bağlantı deneniyor";
-    elements.diagnosticText.textContent = "Hedef öğrenildi ve yerel geçit üzerinden bir kez daha yükleniyor.";
+    elements.diagnosticTitle.textContent = t("alternativeTitle");
+    elements.diagnosticText.textContent = t("alternativeDetail");
   }
 }
 
@@ -268,13 +268,13 @@ function updateSiteAction() {
   if (!currentHost) return;
   const learned = isLearned(currentHost, learnedDomains);
   const ignored = isCovered(currentHost, ignoredDomains);
-  elements.siteAction.textContent = ignored ? "Yoksaymayı kaldır" : learned ? "Listeden çıkar" : "Şimdi geçide al";
+  elements.siteAction.textContent = ignored ? t("stopIgnoring") : learned ? t("removeFromList") : t("routeNow");
   elements.siteAction.dataset.mode = ignored ? "unignore" : learned ? "remove" : "add";
 }
 
 async function sendMessage(message) {
   const response = await chrome.runtime.sendMessage(message);
-  if (!response?.ok) throw new Error(response?.error || "İşlem tamamlanamadı.");
+  if (!response?.ok) throw new Error(response?.error || t("operationFailed"));
   return response;
 }
 
@@ -289,13 +289,13 @@ async function loadCurrentTab() {
     currentHost = null;
   }
 
-  elements.currentDomain.textContent = currentHost || "Bu sayfa için kullanılamaz";
+  elements.currentDomain.textContent = currentHost || t("pageUnavailable");
   elements.siteAction.disabled = !currentHost;
 }
 
 async function save(patch = {}) {
   if (!protocolReady) {
-    showNotice("Devam etmeden önce chrome://extensions sayfasından eklentiyi yenileyin.", true);
+    showNotice(t("refreshBeforeContinue"), true);
     return;
   }
   elements.save.disabled = true;
@@ -304,7 +304,7 @@ async function save(patch = {}) {
   try {
     const port = Number(elements.proxyPort.value);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error("Port 1 ile 65535 arasında olmalı.");
+      throw new Error(t("invalidPort"));
     }
 
     const nextDomains = patch.learnedDomains === undefined
@@ -330,7 +330,7 @@ async function save(patch = {}) {
     if (response.state.applyResult?.ok === false) {
       showNotice(response.state.applyResult.error, true);
     } else {
-      showNotice("Otomatik bağlantı ayarları Chrome'a uygulandı.");
+      showNotice(t("settingsApplied"));
     }
   } catch (error) {
     showNotice(error.message, true);
@@ -376,7 +376,7 @@ elements.retry.addEventListener("click", async () => {
     const response = await sendMessage({ type: "reapply" });
     render(response.state);
     showNotice(
-      response.result.ok ? "Otomatik proxy kuralı yeniden uygulandı." : response.result.error,
+      response.result.ok ? t("ruleReapplied") : response.result.error,
       !response.result.ok
     );
   } catch (error) {
@@ -387,9 +387,9 @@ elements.retry.addEventListener("click", async () => {
 elements.copyDebugLog.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(elements.debugLog.textContent);
-    showNotice("Hata ayıklama günlüğü panoya kopyalandı.");
+    showNotice(t("logCopied"));
   } catch (error) {
-    showNotice(`Günlük kopyalanamadı: ${error.message}`, true);
+    showNotice(t("logCopyFailed", error.message), true);
   }
 });
 
@@ -400,8 +400,8 @@ elements.debugEnabled.addEventListener("change", () => {
 elements.clearDebugLog.addEventListener("click", async () => {
   try {
     await sendMessage({ type: "clearDebugLog" });
-    elements.debugLog.textContent = "Henüz kayıt yok";
-    showNotice("Hata ayıklama günlüğü temizlendi.");
+    elements.debugLog.textContent = t("noLogs");
+    showNotice(t("logCleared"));
   } catch (error) {
     showNotice(error.message, true);
   }
@@ -414,7 +414,7 @@ elements.testNotification.addEventListener("click", async () => {
     const response = await sendMessage({ type: "testNotification" });
     showNotice(
       response.result.ok
-        ? response.result.warning || "Test bildirimi Chrome'a gönderildi. Görünmüyorsa Windows Bildirim Merkezi ve Rahatsız etmeyin ayarını kontrol edin."
+        ? response.result.warning || t("testNotificationSent")
         : response.result.error,
       !response.result.ok
     );
