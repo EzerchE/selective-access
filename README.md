@@ -8,6 +8,8 @@ Current version: **4.8.1**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
+<img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
+
 ## Core behavior
 
 - Connections that work normally remain direct.
