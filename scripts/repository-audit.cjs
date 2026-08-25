@@ -138,6 +138,9 @@ for (const [locale, messages] of [["en", englishMessages], ["tr", turkishMessage
     if (!entry || typeof entry.message !== "string" || !entry.message.trim()) {
       fail(`Gecersiz yerellestirme mesaji: ${locale}/${key}`);
     }
+    if (/\$\d+\$/.test(entry.message)) {
+      fail(`Chrome tarafindan adlandirilmis degisken sanilabilecek bitisik parametre: ${locale}/${key}`);
+    }
   }
 }
 for (const key of englishKeys) {

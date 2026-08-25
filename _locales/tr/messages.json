@@ -92,7 +92,6 @@
   "learnedOneTitle": { "message": "Engel algılandı" },
   "learnedManyTitle": { "message": "$1 hedef yönlendirmeye eklendi" },
   "learnedOneMessage": { "message": "$1 artık yerel geçit üzerinden denenecek." },
-  "learnedManyMessage": { "message": "$1$2." },
   "moreTargets": { "message": " ve $1 hedef daha" },
   "notificationTestTitle": { "message": "Otomatik Erişim bildirim testi" },
   "notificationTestMessage": { "message": "Bu bildirimi görüyorsanız yeni hedef bildirimleri çalışıyor." },
