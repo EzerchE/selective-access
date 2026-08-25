@@ -93,6 +93,8 @@
   "learnedManyTitle": { "message": "$1 targets added to routing" },
   "learnedOneMessage": { "message": "$1 will now be tried through the local gateway." },
   "moreTargets": { "message": " and $1 more targets" },
+  "routeRestoredTitle": { "message": "Direct access restored" },
+  "routeRestoredMessage": { "message": "$1 is reachable directly again and was removed from automatic routing." },
   "notificationTestTitle": { "message": "Automatic Access notification test" },
   "notificationTestMessage": { "message": "If you can see this notification, new-target notifications are working." },
   "notificationAcceptedWarning": { "message": "Chrome accepted the notification. It may not appear if Windows notifications are disabled." },

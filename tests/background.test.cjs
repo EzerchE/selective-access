@@ -690,6 +690,68 @@ async function waitForDebugFlush() {
   assert.deepEqual([...storage.learnedDomains], ["application-shell.example"]);
   await new Promise((resolve) => setTimeout(resolve, 2_100));
 
+  await send({
+    type: "saveSettings",
+    patch: {
+      learnedDomains: [
+        "dependency.example",
+        "restored.example",
+        "www.restored.example"
+      ]
+    }
+  });
+  directlyReachableHosts.add("restored.example");
+  const notificationsBeforeRecovery = notifications.length;
+  await listeners.requestCompleted({
+    tabId: 93,
+    type: "main_frame",
+    url: "https://restored.example/account?private=value#section",
+    statusCode: 200,
+    fromCache: false
+  });
+  await new Promise((resolve) => setTimeout(resolve, 3_600));
+  assert.deepEqual([...storage.learnedDomains], ["dependency.example"]);
+  assert.equal(notifications.length, notificationsBeforeRecovery + 1);
+  assert.match(notifications.at(-1).id, /^restored:\d+$/);
+  assert.equal(notifications.at(-1).options.title, "Doğrudan erişim geri geldi");
+  assert.match(notifications.at(-1).options.message, /restored\.example/);
+  assert.equal(directProbeUrls.slice(-2).every((url) => {
+    const checked = new URL(url);
+    return checked.hostname === "restored.example" &&
+      checked.pathname === "/" && checked.search === "" && checked.hash === "";
+  }), true);
+  const recoveredProxy = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(recoveredProxy("https://restored.example/", "restored.example"), "DIRECT");
+  assert.equal(
+    recoveredProxy("https://dependency.example/", "dependency.example"),
+    "SOCKS5 127.0.0.1:1080"
+  );
+  directlyReachableHosts.delete("restored.example");
+
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["dependency.example", "still-routed.example"] }
+  });
+  const notificationsBeforeFailedRecovery = notifications.length;
+  await listeners.requestCompleted({
+    tabId: 94,
+    type: "main_frame",
+    url: "https://still-routed.example/private/path?token=value",
+    statusCode: 200,
+    fromCache: false
+  });
+  await new Promise((resolve) => setTimeout(resolve, 3_200));
+  assert.deepEqual(
+    [...storage.learnedDomains],
+    ["dependency.example", "still-routed.example"]
+  );
+  assert.equal(notifications.length, notificationsBeforeFailedRecovery);
+  const retainedProxy = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(
+    retainedProxy("https://still-routed.example/", "still-routed.example"),
+    "SOCKS5 127.0.0.1:1080"
+  );
+
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   const parallelHosts = ["one.example", "two.example", "three.example", "four.example"];
   parallelHosts.forEach((host) => delayedProbeHosts.add(host));
