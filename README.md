@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.8.2**
+Current version: **4.9.0**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
@@ -109,3 +109,9 @@ The audit checks permission/documentation alignment, sensitive data, public targ
 ## License
 
 Original project code is licensed under the MIT License. Bundled third-party components remain subject to their own licenses.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/ezerche">
+    <img src="assets/support-button.svg" alt="Buy me a coffee" width="220">
+  </a>
+</p>

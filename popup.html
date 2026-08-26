@@ -9,10 +9,7 @@
   <body>
     <main>
       <header class="topbar">
-        <div class="brand-mark" aria-hidden="true">
-          <span></span>
-          <span></span>
-        </div>
+        <img class="brand-icon" src="assets/icon-128.png" alt="" aria-hidden="true">
         <div>
           <h1 data-i18n="extensionName">Automatic Access</h1>
           <p><span data-i18n="tagline">Detects errors, learns, and routes only the target</span> · <span id="appVersion">v…</span></p>
@@ -119,6 +116,15 @@
         <button id="save" class="button primary" type="button" data-i18n="saveApply">Save and apply</button>
         <button id="retry" class="button ghost" type="button" data-i18n="reapply">Reapply</button>
       </footer>
+
+      <aside class="support-card" aria-label="Support the project" data-i18n-aria-label="supportAria">
+        <span class="support-kicker" data-i18n="supportKicker">OPEN-SOURCE & INDEPENDENT</span>
+        <p data-i18n="supportText">If Automatic Access helps you, you can support its development.</p>
+        <a class="support-link" href="https://buymeacoffee.com/ezerche" target="_blank" rel="noopener noreferrer">
+          <span class="support-cup" aria-hidden="true">☕</span>
+          <span data-i18n="supportButton">Buy me a coffee</span>
+        </a>
+      </aside>
     </main>
     <script src="i18n.js"></script>
     <script src="popup-preview.js"></script>

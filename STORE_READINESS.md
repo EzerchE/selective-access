@@ -17,6 +17,7 @@
 - Yayıncı kimliği, destek URL'si, herkese açık gizlilik politikası URL'si, mağaza ikonu ve ekran görüntüleri tamamlanmalıdır.
 - Developer Dashboard veri kullanımı formu `PRIVACY.md` ve gerçek izinlerle birebir eşleşmelidir.
 - Paket, temiz Chrome profilinde inceleme ekibinin uygulayabileceği kurulum ve kaldırma adımlarıyla sınanmalıdır.
+- İsteğe bağlı Buy Me a Coffee bağlantısı mağaza açıklamasında belirtilmeli; bağlantının yalnız kullanıcı eylemiyle açıldığı ve eklentide uzak ödeme/destek betiği çalışmadığı doğrulanmalıdır.
 
 Bu maddeler tamamlanmadan Chrome Web Store gönderimi yapılmamalıdır.
 

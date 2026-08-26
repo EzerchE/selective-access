@@ -10,9 +10,11 @@ const excludedDirectories = new Set([".git", "node_modules", "ops"]);
 const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe"]);
 const publicHostAllowlist = new Set([
   "api.globalping.io",
+  "buymeacoffee.com",
   "developer.chrome.com",
   "github.com",
-  "globalping.io"
+  "globalping.io",
+  "www.w3.org"
 ]);
 const publicTlds = new Set([
   "app", "biz", "cc", "co", "com", "dev", "info", "io", "me", "net", "online", "org", "site", "tv", "xyz"
@@ -55,6 +57,16 @@ function unapprovedPublicHosts(content) {
 }
 
 const files = walk(root);
+
+const popupHtml = fs.readFileSync(path.join(root, "popup.html"), "utf8");
+if (/<script\b[^>]*\bsrc=["']https?:\/\//i.test(popupHtml)) {
+  fail("Popup uzak JavaScript yuklememelidir.");
+}
+if (!popupHtml.includes('href="https://buymeacoffee.com/ezerche"') ||
+    !popupHtml.includes('rel="noopener noreferrer"')) {
+  fail("Popup destek baglantisi guvenli harici baglanti nitelikleriyle bulunmalidir.");
+}
+
 for (const file of files) {
   const name = path.basename(file);
   const extension = path.extname(file).toLowerCase();
