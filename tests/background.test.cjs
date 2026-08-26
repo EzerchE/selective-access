@@ -7,6 +7,8 @@ const listeners = {};
 const storage = {};
 const reloads = [];
 const badgeTexts = [];
+const badgeColors = [];
+const actionTitles = [];
 const notifications = [];
 const scriptExecutions = [];
 const scriptExecutionResults = [0, 1];
@@ -18,6 +20,7 @@ let notificationCreateError = null;
 const directlyReachableHosts = new Set();
 const directProbeUrls = [];
 const delayedProbeHosts = new Set();
+const tabUrls = new Map();
 let activeDirectProbes = 0;
 let maxActiveDirectProbes = 0;
 const testMessages = JSON.parse(fs.readFileSync(
@@ -57,8 +60,8 @@ const chrome = {
   },
   action: {
     async setBadgeText(details) { badgeTexts.push(details); },
-    async setBadgeBackgroundColor() {},
-    async setTitle() {}
+    async setBadgeBackgroundColor(details) { badgeColors.push(details); },
+    async setTitle(details) { actionTitles.push(details); }
   },
   notifications: {
     async getPermissionLevel() { return notificationPermission; },
@@ -92,12 +95,20 @@ const chrome = {
     }
   },
   tabs: {
+    async get(tabId) {
+      return { id: tabId, url: tabUrls.get(tabId) || "chrome://newtab/" };
+    },
     async reload(tabId, options) {
       reloads.push({ tabId, options });
     },
     onActivated: {
       addListener(listener) {
         listeners.tabActivated = listener;
+      }
+    },
+    onUpdated: {
+      addListener(listener) {
+        listeners.tabUpdated = listener;
       }
     },
     onRemoved: {
@@ -234,6 +245,10 @@ function assertBadge(details, tabId, text) {
   assert.equal(details?.text, text);
 }
 
+function lastForTab(items, tabId) {
+  return [...items].reverse().find((details) => details?.tabId === tabId);
+}
+
 async function waitForDebugFlush() {
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
@@ -352,11 +367,16 @@ async function waitForDebugFlush() {
       error: "net::ERR_CONNECTION_RESET",
       url: "https://normal-available.example/"
     });
+    if (attempt === 0) {
+      assertBadge(lastForTab(badgeTexts, 55), 55, "?");
+      assert.equal(lastForTab(badgeColors, 55)?.color, "#d97706");
+    }
   }
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(storage.learnedDomains.includes("normal-available.example"), true);
   assert.equal(storage.learnedDomains.includes("www.normal-available.example"), true);
   assert.equal(storage.lastIssueType, "route_learned");
+  assertBadge(lastForTab(badgeTexts, 55), 55, "NEW");
   assert.equal(notifications.length, 2);
   await listeners.requestCompleted({
     tabId: 55,
@@ -365,6 +385,9 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
+  assertBadge(lastForTab(badgeTexts, 55), 55, "VIA");
+  assert.equal(lastForTab(badgeColors, 55)?.color, "#2563eb");
+  assert.match(lastForTab(actionTitles, 55)?.title, /yerel geçid/i);
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await listeners.requestError({
@@ -425,16 +448,28 @@ async function waitForDebugFlush() {
   assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
+  tabUrls.set(44, "https://direct.example/");
   listeners.tabActivated({ tabId: 44 });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 44, "AUTO");
+  assertBadge(badgeTexts.at(-1), 44, "DIR");
+  assert.equal(badgeColors.at(-1)?.color, "#15803d");
+  assert.match(actionTitles.at(-1)?.title, /doğrudan/i);
+  listeners.tabActivated({ tabId: 45 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertBadge(badgeTexts.at(-1), 45, "N/A");
+  assert.equal(badgeColors.at(-1)?.color, "#64748b");
+  assert.match(actionTitles.at(-1)?.title, /kullanılamaz/i);
   listeners.tabActivated({ tabId: 33 });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assertBadge(badgeTexts.at(-1), 33, "DOWN");
 
   listeners.beforeRequest({ tabId: 33, type: "main_frame", url: "https://other.example/" });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 33, "AUTO");
+  assertBadge(badgeTexts.at(-1), 33, "DIR");
+  tabUrls.set(33, "chrome://settings/");
+  listeners.tabUpdated(33, { url: "chrome://settings/" }, { url: "chrome://settings/" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertBadge(lastForTab(badgeTexts, 33), 33, "N/A");
 
   await listeners.requestCompleted({
     tabId: 55,
@@ -711,6 +746,8 @@ async function waitForDebugFlush() {
   });
   await new Promise((resolve) => setTimeout(resolve, 3_600));
   assert.deepEqual([...storage.learnedDomains], ["dependency.example"]);
+  assertBadge(lastForTab(badgeTexts, 93), 93, "DIR");
+  assert.equal(lastForTab(badgeColors, 93)?.color, "#15803d");
   assert.equal(notifications.length, notificationsBeforeRecovery + 1);
   assert.match(notifications.at(-1).id, /^restored:\d+$/);
   assert.equal(notifications.at(-1).options.title, "Doğrudan erişim geri geldi");
@@ -746,6 +783,7 @@ async function waitForDebugFlush() {
     ["dependency.example", "still-routed.example"]
   );
   assert.equal(notifications.length, notificationsBeforeFailedRecovery);
+  assertBadge(lastForTab(badgeTexts, 94), 94, "VIA");
   const retainedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(
     retainedProxy("https://still-routed.example/", "still-routed.example"),

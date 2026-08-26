@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
   <title id="title">Automatic Access</title>
-  <desc id="description">Two connected diagonal paths on a deep green rounded square</desc>
+  <desc id="description">A route bending around a blocked direct path on a deep green rounded square</desc>
   <defs>
     <linearGradient id="surface" x1="20" y1="14" x2="108" y2="116" gradientUnits="userSpaceOnUse">
       <stop stop-color="#176354"/>
@@ -11,7 +11,9 @@
     </filter>
   </defs>
   <rect x="8" y="8" width="112" height="112" rx="31" fill="url(#surface)" filter="url(#shadow)"/>
-  <path d="M34 72 68 42" fill="none" stroke="#7BE3C7" stroke-linecap="round" stroke-width="17"/>
-  <path d="m59 87 34-30" fill="none" stroke="#FFF1B5" stroke-linecap="round" stroke-width="17"/>
-  <path d="M29 95c19 15 49 18 70 4" fill="none" stroke="#87DCC6" stroke-linecap="round" stroke-opacity=".16" stroke-width="4"/>
+  <path d="M29 89 96 38" fill="none" stroke="#FFF1B5" stroke-dasharray="5 8" stroke-linecap="round" stroke-opacity=".22" stroke-width="6"/>
+  <path d="m53 56 14 14m0-14L53 70" fill="none" stroke="#FFF1B5" stroke-linecap="round" stroke-width="7"/>
+  <path d="M28 91h39c13 0 21-8 21-21V53c0-11 4-17 12-17" fill="none" stroke="#7BE3C7" stroke-linecap="round" stroke-linejoin="round" stroke-width="13"/>
+  <circle cx="28" cy="91" r="7" fill="#7BE3C7"/>
+  <circle cx="100" cy="36" r="7" fill="#7BE3C7"/>
 </svg>

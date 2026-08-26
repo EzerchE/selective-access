@@ -4,11 +4,13 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.9.0**
+Güncel sürüm: **4.10.0**
 
 Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün dillerde İngilizce gösterilir.
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
+
+Proje işareti, engellenmiş doğrudan yolun çevresinden geçen alternatif rotayı gösterir.
 
 ## Temel davranış
 
@@ -22,6 +24,7 @@ Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün di
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
 - Eklenti veya yardımcı DNS sağlayıcısını, sistem DNS ayarlarını ve modem yapılandırmasını değiştirmez.
+- Araç çubuğu rozeti açık sekmenin durumunu gösterir: doğrudan yol için yeşil `DIR`, yerel geçit için mavi `VIA`, yeni öğrenilen hedef için camgöbeği `NEW`, kontrol veya süren sorun için turuncu `?`, kesinti veya geçit hatası için kırmızı `DOWN` ya da `!`, kapalı durum için gri `OFF`, tarayıcının iç sayfalarında gri `N/A`.
 
 Bu araç VPN değildir; IP adresini veya ülkeyi değiştirmez. Yalnız kullanıcının erişim yetkisi bulunan hedeflerde ve yürürlükteki kurallara uygun kullanılmalıdır.
 
