@@ -376,7 +376,7 @@ async function waitForDebugFlush() {
   assert.equal(storage.learnedDomains.includes("normal-available.example"), true);
   assert.equal(storage.learnedDomains.includes("www.normal-available.example"), true);
   assert.equal(storage.lastIssueType, "route_learned");
-  assertBadge(lastForTab(badgeTexts, 55), 55, "NEW");
+  assertBadge(lastForTab(badgeTexts, 55), 55, "+");
   assert.equal(notifications.length, 2);
   await listeners.requestCompleted({
     tabId: 55,
@@ -385,7 +385,7 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
-  assertBadge(lastForTab(badgeTexts, 55), 55, "VIA");
+  assertBadge(lastForTab(badgeTexts, 55), 55, "↗");
   assert.equal(lastForTab(badgeColors, 55)?.color, "#2563eb");
   assert.match(lastForTab(actionTitles, 55)?.title, /yerel geçid/i);
 
@@ -414,6 +414,9 @@ async function waitForDebugFlush() {
     url: "https://resolution-error.example/"
   });
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assertBadge(lastForTab(badgeTexts, 7), 7, "!");
+  assert.equal(lastForTab(badgeColors, 7)?.color, "#dc2626");
+  assert.match(lastForTab(actionTitles, 7)?.title, /erişilemedi/i);
 
   const globalStatus = await send({
     type: "checkGlobalStatus",
@@ -431,7 +434,7 @@ async function waitForDebugFlush() {
   assert.equal(reloads.length, 0);
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), true);
-  assert.deepEqual([...listeners.completedFilter.types], ["main_frame"]);
+  assert.equal(listeners.completedFilter.types, undefined);
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
   measurementShouldBeDown = true;
@@ -441,7 +444,7 @@ async function waitForDebugFlush() {
     tabId: 33
   });
   assert.equal(downStatus.result.status, "likely_down");
-  assertBadge(badgeTexts.at(-1), 33, "DOWN");
+  assertBadge(badgeTexts.at(-1), 33, "!");
   assert.equal(notifications.length, 4);
   assert.equal(notifications[3].id, "outage:globally-down.example");
   assert.equal(notifications[3].options.title, "Genel kesinti olası");
@@ -449,27 +452,43 @@ async function waitForDebugFlush() {
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
 
   tabUrls.set(44, "https://direct.example/");
+  await listeners.requestCompleted({
+    tabId: 44,
+    type: "main_frame",
+    statusCode: 200,
+    url: "https://direct.example/"
+  });
   listeners.tabActivated({ tabId: 44 });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 44, "DIR");
+  assertBadge(badgeTexts.at(-1), 44, "");
   assert.equal(badgeColors.at(-1)?.color, "#15803d");
   assert.match(actionTitles.at(-1)?.title, /doğrudan/i);
+  await listeners.requestCompleted({
+    tabId: 44,
+    type: "image",
+    statusCode: 200,
+    url: "https://media-cdn.example/asset"
+  });
+  assertBadge(lastForTab(badgeTexts, 44), 44, "↗");
+  assert.equal(lastForTab(badgeColors, 44)?.color, "#2563eb");
+  assert.match(lastForTab(actionTitles, 44)?.title, /yerel geçid/i);
   listeners.tabActivated({ tabId: 45 });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 45, "N/A");
+  assertBadge(badgeTexts.at(-1), 45, "");
   assert.equal(badgeColors.at(-1)?.color, "#64748b");
   assert.match(actionTitles.at(-1)?.title, /kullanılamaz/i);
   listeners.tabActivated({ tabId: 33 });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 33, "DOWN");
+  assertBadge(badgeTexts.at(-1), 33, "!");
 
   listeners.beforeRequest({ tabId: 33, type: "main_frame", url: "https://other.example/" });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(badgeTexts.at(-1), 33, "DIR");
+  assertBadge(badgeTexts.at(-1), 33, "");
+  assert.match(actionTitles.at(-1)?.title, /bekleniyor/i);
   tabUrls.set(33, "chrome://settings/");
   listeners.tabUpdated(33, { url: "chrome://settings/" }, { url: "chrome://settings/" });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assertBadge(lastForTab(badgeTexts, 33), 33, "N/A");
+  assertBadge(lastForTab(badgeTexts, 33), 33, "");
 
   await listeners.requestCompleted({
     tabId: 55,
@@ -746,7 +765,7 @@ async function waitForDebugFlush() {
   });
   await new Promise((resolve) => setTimeout(resolve, 3_600));
   assert.deepEqual([...storage.learnedDomains], ["dependency.example"]);
-  assertBadge(lastForTab(badgeTexts, 93), 93, "DIR");
+  assertBadge(lastForTab(badgeTexts, 93), 93, "");
   assert.equal(lastForTab(badgeColors, 93)?.color, "#15803d");
   assert.equal(notifications.length, notificationsBeforeRecovery + 1);
   assert.match(notifications.at(-1).id, /^restored:\d+$/);
@@ -783,7 +802,7 @@ async function waitForDebugFlush() {
     ["dependency.example", "still-routed.example"]
   );
   assert.equal(notifications.length, notificationsBeforeFailedRecovery);
-  assertBadge(lastForTab(badgeTexts, 94), 94, "VIA");
+  assertBadge(lastForTab(badgeTexts, 94), 94, "↗");
   const retainedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(
     retainedProxy("https://still-routed.example/", "still-routed.example"),

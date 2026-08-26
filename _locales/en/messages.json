@@ -115,6 +115,8 @@
   "badgeDirect": { "message": "Automatic Access — this tab is connecting directly" },
   "badgeRouted": { "message": "Automatic Access — this tab is using the local gateway" },
   "badgeUnavailable": { "message": "Automatic Access — unavailable for this page" },
+  "badgeChecking": { "message": "Automatic Access — waiting for the connection result" },
+  "badgeUnreachable": { "message": "Automatic Access — this page could not be reached" },
   "badgeDisabled": { "message": "Automatic Access — disabled" },
   "badgeOutageLikely": { "message": "Automatic Access — widespread outage possible" },
   "badgeIssueContinues": { "message": "Automatic Access — connection issue continues" },

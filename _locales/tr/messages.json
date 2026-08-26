@@ -115,6 +115,8 @@
   "badgeDirect": { "message": "Otomatik Erişim — bu sekme doğrudan bağlanıyor" },
   "badgeRouted": { "message": "Otomatik Erişim — bu sekme yerel geçidi kullanıyor" },
   "badgeUnavailable": { "message": "Otomatik Erişim — bu sayfada kullanılamaz" },
+  "badgeChecking": { "message": "Otomatik Erişim — bağlantı sonucu bekleniyor" },
+  "badgeUnreachable": { "message": "Otomatik Erişim — bu sayfaya erişilemedi" },
   "badgeDisabled": { "message": "Otomatik Erişim — kapalı" },
   "badgeOutageLikely": { "message": "Otomatik Erişim — genel kesinti olası" },
   "badgeIssueContinues": { "message": "Otomatik Erişim — bağlantı sorunu sürüyor" },
