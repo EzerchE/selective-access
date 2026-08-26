@@ -49,6 +49,9 @@ const RETRYABLE_TYPES = new Set([
 
 const retryCooldowns = new Map();
 const tabIssues = new Map();
+const tabMainHosts = new Map();
+const tabConnectionResults = new Map();
+const tabRoutedHosts = new Map();
 const detectionCandidates = new Map();
 const reloadTimers = new Map();
 const tabRecoveryStates = new Map();
@@ -101,6 +104,8 @@ let debugBuffer = [];
 let debugFlushTimer = null;
 let debugWriteQueue = Promise.resolve();
 let settingsMutationQueue = Promise.resolve();
+let routingSnapshot = { enabled: false, learnedDomains: [] };
+let routingSnapshotReady = null;
 
 function queueSettingsMutation(task) {
   const current = settingsMutationQueue
@@ -226,7 +231,7 @@ async function getSettings() {
   const ignoredDomains = normalizeDomains(saved.ignoredDomains);
   const learnedDomains = normalizeDomains(saved.learnedDomains)
     .filter((domain) => !isCovered(domain, ignoredDomains));
-  return {
+  const settings = {
     ...DEFAULT_SETTINGS,
     ...saved,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
@@ -237,7 +242,16 @@ async function getSettings() {
     proxyHost: DEFAULT_SETTINGS.proxyHost,
     proxyPort: normalizePort(saved.proxyPort)
   };
+  routingSnapshot = {
+    enabled: settings.enabled,
+    learnedDomains: settings.learnedDomains
+  };
+  return settings;
 }
+
+routingSnapshotReady = getSettings().catch((error) => {
+  console.debug("Otomatik Erişim ayarları hazırlanamadı", error);
+});
 
 function buildPacScript(settings) {
   const learnedDomains = JSON.stringify(settings.learnedDomains);
@@ -284,52 +298,120 @@ function FindProxyForURL(url, host) {
 }`.trim();
 }
 
-async function setBadge(enabled, hasError = false, learned = false, tabId = null) {
-  await chrome.action.setBadgeText(actionTarget(tabId, {
-    text: hasError ? "!" : learned ? "NEW" : enabled ? "AUTO" : ""
+const BADGE_STATES = Object.freeze({
+  disabled: { text: "×", color: "#64748b", titleKey: "badgeDisabled" },
+  unavailable: { text: "", color: "#64748b", titleKey: "badgeUnavailable" },
+  loading: { text: "", color: "#d97706", titleKey: "badgeChecking" },
+  direct: { text: "", color: "#15803d", titleKey: "badgeDirect" },
+  routed: { text: "↗", color: "#2563eb", titleKey: "badgeRouted" },
+  learned: { text: "+", color: "#0891b2", titleKey: "badgeTargetLearned" },
+  issue: { text: "?", color: "#d97706", titleKey: "badgeIssueContinues" },
+  unreachable: { text: "!", color: "#dc2626", titleKey: "badgeUnreachable" },
+  down: { text: "!", color: "#dc2626", titleKey: "badgeOutageLikely" },
+  gatewayError: { text: "!", color: "#b91c1c", titleKey: "badgeGatewayError" }
+});
+
+async function setConnectionBadge(stateName, tabId = null) {
+  const state = BADGE_STATES[stateName] || BADGE_STATES.direct;
+  await chrome.action.setBadgeText(actionTarget(tabId, { text: state.text }));
+  await chrome.action.setBadgeBackgroundColor(actionTarget(tabId, { color: state.color }));
+  await chrome.action.setTitle(actionTarget(tabId, { title: t(state.titleKey) }));
+}
+
+function connectionStateForTab(settings, tabId) {
+  if (!settings.enabled) return "disabled";
+  if (settings.lastProxyError) return "gatewayError";
+  if (!Number.isInteger(tabId)) return "unavailable";
+  const host = tabMainHosts.get(tabId);
+  if (!host) return "unavailable";
+  if (tabConnectionResults.get(tabId) === "failed") return "unreachable";
+  const routedHosts = tabRoutedHosts.get(tabId);
+  const routedDependency = routedHosts && [...routedHosts]
+    .some((routedHost) => isLearned(routedHost, settings.learnedDomains));
+  if (isLearned(host, settings.learnedDomains) || routedDependency) return "routed";
+  if (tabConnectionResults.get(tabId) === "loading") return "loading";
+  if (tabConnectionResults.get(tabId) !== "success") return "unavailable";
+  return "direct";
+}
+
+function markTabLoading(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  tabConnectionResults.set(tabId, "loading");
+  tabRoutedHosts.delete(tabId);
+}
+
+async function trackCompletedRoute(details) {
+  await routingSnapshotReady;
+  if (!Number.isInteger(details.tabId) || details.tabId < 0 || !routingSnapshot.enabled) {
+    return false;
+  }
+  const host = getRequestHost(details);
+  if (!host || !isLearned(host, routingSnapshot.learnedDomains)) return false;
+  const routedHosts = tabRoutedHosts.get(details.tabId) || new Set();
+  const changed = !routedHosts.has(host);
+  routedHosts.add(host);
+  tabRoutedHosts.set(details.tabId, routedHosts);
+  return changed;
+}
+
+function updateTabMainHost(tabId, url) {
+  if (!Number.isInteger(tabId) || tabId < 0) return null;
+  let host = null;
+  try {
+    const parsed = new URL(url);
+    if (["http:", "https:"].includes(parsed.protocol)) host = normalizeDomain(parsed.hostname);
+  } catch {}
+  if (host) tabMainHosts.set(tabId, host);
+  else tabMainHosts.delete(tabId);
+  return host;
+}
+
+async function refreshTrackedBadges(settings) {
+  await setConnectionBadge(connectionStateForTab(settings, null));
+  const tabIds = [...tabMainHosts.keys()];
+  const results = await Promise.allSettled(tabIds.map((tabId) => {
+    const issueType = tabIssues.get(tabId);
+    if (issueType) return setIssueBadge(settings.enabled, issueType, tabId);
+    return setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
   }));
-  await chrome.action.setBadgeBackgroundColor(actionTarget(tabId, {
-    color: hasError ? "#dc2626" : learned ? "#2563eb" : "#0f766e"
-  }));
-  await chrome.action.setTitle(actionTarget(tabId, {
-    title: hasError
-      ? t("badgeGatewayError")
-      : learned
-        ? t("badgeTargetLearned")
-        : enabled
-          ? t("badgeDetectionActive")
-          : t("badgeDisabled")
-  }));
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") return;
+    tabMainHosts.delete(tabIds[index]);
+    tabIssues.delete(tabIds[index]);
+    tabConnectionResults.delete(tabIds[index]);
+    tabRoutedHosts.delete(tabIds[index]);
+  });
 }
 
 async function setIssueBadge(enabled, issueType, tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   tabIssues.set(tabId, issueType);
   const isDown = issueType === "globally_down";
-  await chrome.action.setBadgeText({ tabId, text: isDown ? "DOWN" : "?" });
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: isDown ? "#dc2626" : "#d97706" });
-  await chrome.action.setTitle({
-    tabId,
-    title: isDown
-      ? t("badgeOutageLikely")
-      : enabled
-        ? t("badgeIssueContinues")
-        : t("badgeDisabled")
-  });
+  const isUnreachable = issueType === "unreachable";
+  await setConnectionBadge(
+    enabled ? (isDown ? "down" : (isUnreachable ? "unreachable" : "issue")) : "disabled",
+    tabId
+  );
 }
 
 async function clearTabIssue(tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   tabIssues.delete(tabId);
   const settings = await getSettings();
-  await setBadge(settings.enabled, Boolean(settings.lastProxyError), false, tabId);
+  await setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
 }
 
 async function refreshTabBadge(tabId) {
+  if (typeof chrome.tabs?.get === "function") {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      updateTabMainHost(tabId, tab?.url || "");
+    } catch {}
+  }
   const issueType = tabIssues.get(tabId);
   const settings = await getSettings();
   if (issueType) await setIssueBadge(settings.enabled, issueType, tabId);
-  else await setBadge(settings.enabled, Boolean(settings.lastProxyError), false, tabId);
+  else await setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
 }
 
 async function applyProxy(learnedDomainsOverride = null) {
@@ -337,10 +419,11 @@ async function applyProxy(learnedDomainsOverride = null) {
   const effectiveSettings = Array.isArray(learnedDomainsOverride)
     ? { ...settings, learnedDomains: normalizeDomains(learnedDomainsOverride) }
     : settings;
+  const updateBadges = !Array.isArray(learnedDomainsOverride);
 
   if (!effectiveSettings.enabled || effectiveSettings.learnedDomains.length === 0) {
     await chrome.proxy.settings.clear({ scope: "regular" });
-    await setBadge(effectiveSettings.enabled);
+    if (updateBadges) await refreshTrackedBadges(effectiveSettings);
     return { ok: true, enabled: effectiveSettings.enabled };
   }
 
@@ -348,7 +431,7 @@ async function applyProxy(learnedDomainsOverride = null) {
   if (["not_controllable", "controlled_by_other_extensions"].includes(current.levelOfControl)) {
     const message = t("proxyControlled");
     await chrome.storage.local.set({ lastProxyError: message });
-    await setBadge(true, true);
+    await setConnectionBadge("gatewayError");
     return { ok: false, enabled: true, error: message };
   }
 
@@ -362,7 +445,7 @@ async function applyProxy(learnedDomainsOverride = null) {
 
   await chrome.proxy.settings.set({ value: config, scope: "regular" });
   await chrome.storage.local.set({ lastProxyError: null });
-  await setBadge(true);
+  if (updateBadges) await refreshTrackedBadges({ ...effectiveSettings, lastProxyError: null });
   return { ok: true, enabled: true };
 }
 
@@ -610,6 +693,7 @@ async function verifyLearnedRouteStillNeeded(details) {
     proxyApplied: true
   });
   await clearTabIssue(details.tabId);
+  await refreshTrackedBadges(await getSettings());
   await notifyRecoveredDomain(host).catch(console.error);
   return { checked: true, restored: true, learnedDomains };
 }
@@ -1114,7 +1198,12 @@ async function learnAndRetry(details) {
     }
     return;
   }
-  if (!candidate.ready) return;
+  if (!candidate.ready) {
+    if (details.type === "main_frame") {
+      await setIssueBadge(settings.enabled, "detecting", details.tabId);
+    }
+    return;
+  }
 
   const directlyReachable = await directRequestResponds(details.url);
   const repeatedMainReset = details.type === "main_frame" &&
@@ -1164,7 +1253,7 @@ async function learnAndRetry(details) {
     proxyError: applied.error || null
   });
   if (!applied.ok) return;
-  await setBadge(true, false, true, details.tabId);
+  await setConnectionBadge("learned", details.tabId);
   await notifyLearnedDomain(host).catch(console.error);
   retryLearnedIframe(details, host);
   scheduleInitiatorIframeRetry(details, learnedDomains);
@@ -1341,12 +1430,16 @@ chrome.proxy.onProxyError.addListener(async (details) => {
   await chrome.storage.local.set({ lastProxyError: message });
   await appendDebug("proxy-error", { error: message });
   const settings = await getSettings();
-  await setBadge(settings.enabled, true);
+  await refreshTrackedBadges({ ...settings, lastProxyError: message });
 });
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
     if (details.tabId < 0) return;
+    if (details.type === "main_frame" && !NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) {
+      updateTabMainHost(details.tabId, details.url);
+      tabConnectionResults.set(details.tabId, "failed");
+    }
     if (details.error === "net::ERR_BLOCKED_BY_CLIENT") {
       return enqueueHostTask(details, () => recordCriticalClientFilter(details));
     }
@@ -1361,13 +1454,26 @@ chrome.webRequest.onErrorOccurred.addListener(
       error: details.error || null,
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
-    return enqueueHostTask(details, () => learnAndRetry(details));
+    return enqueueHostTask(details, async () => {
+      if (details.type === "main_frame") {
+        const settings = await getSettings();
+        await setIssueBadge(settings.enabled, "unreachable", details.tabId);
+      }
+      return learnAndRetry(details);
+    });
   },
   { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
 
 chrome.webRequest.onCompleted.addListener(
-  (details) => {
+  async (details) => {
+    const routeChanged = await trackCompletedRoute(details);
+    if (details.type !== "main_frame") {
+      if (routeChanged) return refreshTabBadge(details.tabId).catch(console.error);
+      return;
+    }
+    updateTabMainHost(details.tabId, details.url);
+    tabConnectionResults.set(details.tabId, "success");
     const cancelledRootRetry = cancelTabReload(
       details.tabId,
       "main-completed",
@@ -1384,11 +1490,13 @@ chrome.webRequest.onCompleted.addListener(
     const recoveryCheck = scheduleLearnedRouteRecovery(details).catch(console.error);
     return Promise.all([debugWrite, clearIssue, recoveryCheck]);
   },
-  { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
+  { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
+    updateTabMainHost(details.tabId, details.url);
+    markTabLoading(details.tabId);
     cancelRouteRecoveryForTab(details.tabId);
     trackMainNavigation(details);
     return clearTabIssue(details.tabId).catch(console.error);
@@ -1400,9 +1508,20 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   refreshTabBadge(tabId).catch(console.error);
 });
 
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const url = changeInfo?.url || tab?.url;
+  if (url) updateTabMainHost(tabId, url);
+  if (changeInfo?.status === "loading") markTabLoading(tabId);
+  if (!url && !changeInfo?.status) return;
+  refreshTabBadge(tabId).catch(console.error);
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   cancelRouteRecoveryForTab(tabId);
   tabIssues.delete(tabId);
+  tabMainHosts.delete(tabId);
+  tabConnectionResults.delete(tabId);
+  tabRoutedHosts.delete(tabId);
   tabRecoveryStates.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {

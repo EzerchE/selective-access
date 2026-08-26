@@ -4,11 +4,13 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.9.0**
+Current version: **4.10.0**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
+
+The project mark depicts an alternate route bending around a blocked direct path.
 
 ## Core behavior
 
@@ -22,6 +24,7 @@ The extension UI follows Chrome's interface language: Turkish for Turkish browse
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
 - The extension and helper do not change DNS providers, system DNS settings, or router configuration.
+- The toolbar icon stays unobstructed after a successful direct connection. It shows a blue `↗` when the local gateway is used, cyan `+` for a newly learned route, amber `?` while an issue is being checked, red `!` for an access or gateway failure, and gray `×` when disabled. These compact marks reflect both the main-page result and routed dependencies used by the tab.
 
 This tool is not a VPN. It does not change your IP address or country. Use it only for targets you are authorized to access and in accordance with applicable rules.
 
