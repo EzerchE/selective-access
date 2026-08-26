@@ -25,6 +25,8 @@ Kullanıcı **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız k
 
 Bunun dışında geliştiriciye veya başka bir dış hizmete gezinme verisi gönderilmez. Yerel yardımcı yalnız kullanıcının bilgisayarında çalışır; yönlendirilen HTTPS içeriği şifreli kalır.
 
+Popup ve README içindeki isteğe bağlı destek bağlantısı yalnız kullanıcı tıkladığında Buy Me a Coffee sayfasını yeni sekmede açar. Eklenti üçüncü taraf destek betiği yüklemez ve bu platforma otomatik veri göndermez; açılan sayfanın kendi gizlilik koşulları geçerlidir.
+
 ## Saklama ve silme
 
 Yerel ayarlar kullanıcı silene, Chrome eklenti verilerini temizleyene veya eklentiyi kaldırana kadar cihazda kalabilir. Windows hizmeti ve program dosyaları ayrıca `helper/uninstall.cmd` ile kaldırılır. Kaldırıcı DNS veya başka ağ ayarlarını değiştirmez.

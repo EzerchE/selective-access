@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.8.2**
+Güncel sürüm: **4.9.0**
 
 Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün dillerde İngilizce gösterilir.
 
@@ -109,3 +109,9 @@ Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, DNS/PowerShe
 ## Lisans
 
 Projenin özgün kodu MIT lisanslıdır. Birlikte dağıtılan üçüncü taraf bileşenler kendi lisans koşullarına tabidir.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/ezerche">
+    <img src="assets/support-button.svg" alt="Bir kahve ısmarla" width="220">
+  </a>
+</p>

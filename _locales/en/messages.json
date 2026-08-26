@@ -115,5 +115,9 @@
   "badgeDisabled": { "message": "Automatic Access — disabled" },
   "badgeOutageLikely": { "message": "Automatic Access — widespread outage possible" },
   "badgeIssueContinues": { "message": "Automatic Access — connection issue continues" },
-  "previewUnsupported": { "message": "Unsupported request in preview mode." }
+  "previewUnsupported": { "message": "Unsupported request in preview mode." },
+  "supportAria": { "message": "Support the project" },
+  "supportKicker": { "message": "OPEN-SOURCE & INDEPENDENT" },
+  "supportText": { "message": "If Automatic Access helps you, you can support its development." },
+  "supportButton": { "message": "Buy me a coffee" }
 }

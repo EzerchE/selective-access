@@ -115,5 +115,9 @@
   "badgeDisabled": { "message": "Otomatik Erişim — kapalı" },
   "badgeOutageLikely": { "message": "Otomatik Erişim — genel kesinti olası" },
   "badgeIssueContinues": { "message": "Otomatik Erişim — bağlantı sorunu sürüyor" },
-  "previewUnsupported": { "message": "Önizlemede desteklenmeyen istek." }
+  "previewUnsupported": { "message": "Önizlemede desteklenmeyen istek." },
+  "supportAria": { "message": "Projeyi destekle" },
+  "supportKicker": { "message": "AÇIK KAYNAK & BAĞIMSIZ" },
+  "supportText": { "message": "Otomatik Erişim işinize yarıyorsa geliştirilmesini destekleyebilirsiniz." },
+  "supportButton": { "message": "Bir kahve ısmarla" }
 }
