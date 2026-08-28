@@ -107,7 +107,9 @@ for (const required of [
   "helper/bin/BYEDPI_LICENSE.txt",
   "helper/bin/ciadpi.exe",
   "helper/install.cmd",
+  "helper/migrate-legacy.cmd",
   "helper/uninstall.cmd",
+  "tests/helper-migration.test.cjs",
   "README_TR.md",
   "i18n.js",
   "_locales/en/messages.json",
@@ -208,6 +210,37 @@ for (const script of ["helper/install.cmd", "helper/uninstall.cmd"]) {
 }
 
 const installer = fs.readFileSync(path.join(root, "helper/install.cmd"), "utf8");
+const migration = fs.readFileSync(path.join(root, "helper/migrate-legacy.cmd"), "utf8");
+if (/powershell(?:\.exe)?|\bnetsh(?:\.exe)?\b|\breg(?:\.exe)?\s+add\b/i.test(migration) ||
+    /schtasks(?:\.exe)?\s+\/Create\b|sc(?:\.exe)?\s+create\b/i.test(migration)) {
+  fail("Eski surum gecisi PowerShell, ag ayari veya yeni sistem bileseni olusturmamalidir.");
+}
+if (/\b(?:del|rmdir)(?:\.exe)?\s[^\r\n]*[?*]/i.test(migration) ||
+    /reg(?:\.exe)?\s+delete\s+"(?:HKLM|HKEY_LOCAL_MACHINE)\\(?:SYSTEM|SOFTWARE)"/i.test(migration)) {
+  fail("Eski surum gecisi joker veya genis kapsamli silme kullanmamalidir.");
+}
+for (const required of [
+  "SelectiveAccessDns",
+  "SelectiveAccessDnsSync",
+  "com.ezerche.selective_access",
+  "SelectiveAccess managed encrypted DNS",
+  "SelectiveAccess managed fallback DNS",
+  "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters\\DnsPolicyConfig",
+  "HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient\\DnsPolicyConfig",
+  'reg.exe query "%~1" /s /f "%~2" /d /e',
+  'reg.exe query "!FOUND_KEY!" /v Comment',
+  'if "%LEGACY_NRPT_REMOVED%"=="1" ipconfig.exe /flushdns'
+]) {
+  if (!migration.includes(required)) fail(`Eski surum gecisi guvenlik kosulunu icermiyor: ${required}`);
+}
+for (const script of [installer, fs.readFileSync(path.join(root, "helper/uninstall.cmd"), "utf8")]) {
+  const migrationCall = script.indexOf('call "%~dp0migrate-legacy.cmd"');
+  const serviceMutation = script.search(/sc\.exe (?:stop|delete|create) "%SERVICE_NAME%"/i);
+  if (migrationCall < 0 || serviceMutation <= migrationCall) {
+    fail("Kurulum ve kaldirma eski surum gecisini hizmet degisikliginden once calistirmalidir.");
+  }
+}
+
 if (!/obj=\s*"NT AUTHORITY\\LocalService"/i.test(installer)) {
   fail("Yerel hizmet LocalService hesabi ile calismalidir.");
 }

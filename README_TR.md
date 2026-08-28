@@ -44,14 +44,14 @@ Yönetici izni yalnız Windows hizmetinin kurulması ve kaldırılması için ge
 
 1. Depo dosyalarını güncelleyin.
 2. `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
-3. `helper/` içeriği değişmişse `helper/install.cmd` dosyasını yeniden çalıştırın.
+3. `helper/` içeriği değişmişse `helper/install.cmd` dosyasını yeniden çalıştırın. Kurucu, güncel hizmeti yenilemeden önce yalnız projeye ait eski ağ bileşenlerini güvenle temizler.
 
 ## Kaldırma
 
 1. Eklentiyi Chrome'dan kaldırın.
 2. `helper/uninstall.cmd` dosyasını yönetici olarak çalıştırın.
 
-Kaldırıcı yalnız bu projeye ait yerel hizmeti ve kurulum klasörünü kaldırır; DNS veya başka sistem ağ ayarlarına dokunmaz. İşlem doğrulanamazsa başarı mesajı yerine hata döndürür.
+Kaldırıcı yalnız bu projeye ait yerel bileşenleri kaldırır; adaptör DNS ayarını veya başka sistem ağ ayarlarını değiştirmez. İşlem doğrulanamazsa başarı mesajı yerine hata döndürür.
 
 ## İzinler
 
@@ -70,7 +70,8 @@ Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtl
 
 - paketlenen ikilinin SHA-256 değerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
-- DNS, NRPT, kayıt defteri veya zamanlanmış görev oluşturmaz ve silmez.
+- DNS/NRPT kuralı, kayıt defteri girdisi veya zamanlanmış görev oluşturmaz;
+- yalnız eski DNS tabanlı sürümlerin kesin olarak tanımlanmış kalıntılarını kaldırır ve devam etmeden önce sonucu doğrular.
 
 Üçüncü taraf ikilinin kaynak, sürüm, hash ve lisans bilgileri `helper/bin/SOURCE.md` ile `THIRD_PARTY_NOTICES.md` dosyalarındadır.
 
@@ -96,11 +97,12 @@ Ayrıntılar: `PRIVACY.md`, `SECURITY.md` ve `RESPONSIBLE_USE.md`.
 node --check background.js
 node --check popup.js
 node tests/background.test.cjs
+node tests/helper-migration.test.cjs
 node scripts/repository-audit.cjs
 node scripts/repository-audit.cjs --history
 ```
 
-Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, DNS/PowerShell yasağını, ikili hash'ini, hizmet hesabını, dinamik kod kullanımını ve Git geçmişini kontrol eder.
+Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, yasaklı DNS/PowerShell davranışını, sınırlandırılmış eski sürüm geçişini, ikili hash'ini, hizmet hesabını, dinamik kod kullanımını ve Git geçmişini kontrol eder.
 
 ## Sınırlar
 
