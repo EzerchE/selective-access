@@ -14,6 +14,13 @@ if errorlevel 1 (
 set "SERVICE_NAME=SelectiveAccessByeDPI"
 set "INSTALL_DIR=%ProgramData%\SelectiveAccess"
 
+call "%~dp0migrate-legacy.cmd"
+if errorlevel 1 (
+  echo Eski surum kalintilari temizlenemedi. Kaldirma durduruldu.
+  pause
+  exit /b 1
+)
+
 sc.exe stop "%SERVICE_NAME%" >nul 2>&1
 sc.exe delete "%SERVICE_NAME%" >nul 2>&1
 call :WaitForServiceRemoval

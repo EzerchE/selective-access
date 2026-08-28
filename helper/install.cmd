@@ -17,6 +17,13 @@ set "SOURCE_EXE=%~dp0bin\ciadpi.exe"
 set "TARGET_EXE=%INSTALL_DIR%\ciadpi.exe"
 set "EXPECTED_HASH=EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B54EF4"
 
+call "%~dp0migrate-legacy.cmd"
+if errorlevel 1 (
+  echo Eski surum kalintilari temizlenemedi. Kurulum durduruldu.
+  pause
+  exit /b 1
+)
+
 if not exist "%SOURCE_EXE%" (
   echo Kurulum dosyasi bulunamadi.
   pause

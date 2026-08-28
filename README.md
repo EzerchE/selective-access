@@ -44,14 +44,14 @@ Administrator permission is required only to install or remove the Windows servi
 
 1. Update the repository files.
 2. Select the reload icon on the extension card at `chrome://extensions`.
-3. If the contents of `helper/` changed, run `helper/install.cmd` again as administrator.
+3. If the contents of `helper/` changed, run `helper/install.cmd` again as administrator. The installer safely removes obsolete project-owned network components before updating the current service.
 
 ## Uninstalling
 
 1. Remove the extension from Chrome.
 2. Run `helper/uninstall.cmd` as administrator.
 
-The uninstaller removes only this project's local service and installation directory. It does not alter DNS or other network settings, and it reports an error instead of success when removal cannot be verified.
+The uninstaller removes only this project's local components. It does not change adapter DNS or other network settings, and it reports an error instead of success when removal cannot be verified.
 
 ## Permissions
 
@@ -70,7 +70,8 @@ The local gateway listens only on `127.0.0.1:1080`. Its Windows service runs und
 
 - verifies the bundled binary's SHA-256 before and after copying it;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
-- does not create or modify DNS rules, NRPT rules, registry entries, or scheduled tasks.
+- never creates DNS/NRPT rules, registry entries, or scheduled tasks;
+- removes only precisely identified remnants created by obsolete DNS-based releases, then verifies their removal before continuing.
 
 Source, version, hash, and license information for the third-party binary is recorded in `helper/bin/SOURCE.md` and `THIRD_PARTY_NOTICES.md`.
 
@@ -96,11 +97,12 @@ Details: `PRIVACY.md`, `SECURITY.md`, and `RESPONSIBLE_USE.md`.
 node --check background.js
 node --check popup.js
 node tests/background.test.cjs
+node tests/helper-migration.test.cjs
 node scripts/repository-audit.cjs
 node scripts/repository-audit.cjs --history
 ```
 
-The audit checks permission/documentation alignment, sensitive data, public target names, prohibited DNS/PowerShell components, binary hashes, the service account, dynamic code use, localization completeness, and Git history.
+The audit checks permission/documentation alignment, sensitive data, public target names, prohibited DNS/PowerShell behavior, constrained legacy migration, binary hashes, the service account, dynamic code use, localization completeness, and Git history.
 
 ## Limitations
 
