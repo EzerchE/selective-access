@@ -35,6 +35,14 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_FAILED"
 ]);
 
+const NON_ROUTABLE_TARGET_ERRORS = Object.freeze([
+  "ERR_NAME_NOT_RESOLVED",
+  "ERR_NAME_RESOLUTION_FAILED",
+  "ERR_DNS_TIMED_OUT",
+  "ERR_DNS_SERVER_FAILED",
+  "ERR_DNS_MALFORMED_RESPONSE"
+]);
+
 const RETRYABLE_TYPES = new Set([
   "main_frame",
   "sub_frame",
@@ -387,7 +395,7 @@ async function setIssueBadge(enabled, issueType, tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   tabIssues.set(tabId, issueType);
   const isDown = issueType === "globally_down";
-  const isUnreachable = issueType === "unreachable";
+  const isUnreachable = issueType === "unreachable" || issueType === "dns_unresolved";
   await setConnectionBadge(
     enabled ? (isDown ? "down" : (isUnreachable ? "unreachable" : "issue")) : "disabled",
     tabId
@@ -512,6 +520,10 @@ function isRetryableError(details) {
 
 function matchingError(details, candidates) {
   return candidates.find((error) => String(details.error || "").includes(error)) || null;
+}
+
+function matchingNonRoutableTargetError(details) {
+  return matchingError(details, NON_ROUTABLE_TARGET_ERRORS);
 }
 
 function registerDetectionCandidate(host, details, error) {
@@ -1108,6 +1120,40 @@ async function recordCriticalClientFilter(details) {
   await setIssueBadge(true, "client_filter_blocked", details.tabId);
 }
 
+async function recordNonRoutableTarget(details) {
+  if (details.type !== "main_frame") return;
+  const host = getRequestHost(details);
+  const error = matchingNonRoutableTargetError(details);
+  if (!host || !error) return;
+
+  detectionCandidates.delete(`main:${host}`);
+  const aliases = new Set(mainHostAliases(host));
+  await queueSettingsMutation(async () => {
+    const latest = await getSettings();
+    const learnedDomains = latest.learnedDomains.filter((domain) => !aliases.has(domain));
+    const removedCount = latest.learnedDomains.length - learnedDomains.length;
+    const wasLastDetected = aliases.has(latest.lastDetectedDomain);
+    await chrome.storage.local.set({
+      learnedDomains,
+      lastDetectedDomain: wasLastDetected ? null : latest.lastDetectedDomain,
+      lastDetectedAt: wasLastDetected ? null : latest.lastDetectedAt,
+      lastIssueType: "dns_unresolved",
+      lastIssueDomain: host,
+      lastIssueError: error,
+      lastIssueAt: new Date().toISOString(),
+      lastGlobalCheck: null
+    });
+    if (removedCount > 0) await applyProxy();
+    await appendDebug("non-routable-target", {
+      tabId: details.tabId,
+      host,
+      error,
+      removedCount
+    });
+  });
+  await setIssueBadge(true, "dns_unresolved", details.tabId);
+}
+
 function commitLearnedRoute(host, details, error) {
   return queueSettingsMutation(async () => {
     const latest = await getSettings();
@@ -1351,12 +1397,36 @@ async function checkGlobalStatus(value, tabId = null) {
 
   const summary = summarizeGlobalMeasurement(domain, measurement);
   await chrome.storage.local.set({ lastGlobalCheck: summary });
-  const settings = await getSettings();
+  let settings = await getSettings();
   if (summary.status === "likely_down") {
+    const aliases = new Set(mainHostAliases(domain));
+    const learnedDomains = settings.learnedDomains.filter((host) => !aliases.has(host));
+    const removedCount = settings.learnedDomains.length - learnedDomains.length;
+    if (removedCount > 0) {
+      const wasLastDetected = aliases.has(settings.lastDetectedDomain);
+      settings = await saveSettings({ learnedDomains });
+      if (wasLastDetected) {
+        await chrome.storage.local.set({ lastDetectedDomain: null, lastDetectedAt: null });
+        settings = { ...settings, lastDetectedDomain: null, lastDetectedAt: null };
+      }
+      await appendDebug("globally-down-route-removed", {
+        tabId,
+        domain,
+        removedCount
+      });
+    }
     await setIssueBadge(settings.enabled, "globally_down", tabId);
     await notifyLikelyGlobalOutage(domain).catch(console.error);
-  } else if (Number.isInteger(tabId) && tabId >= 0) {
-    await clearTabIssue(tabId);
+  } else {
+    if (settings.lastIssueDomain === domain) {
+      await chrome.storage.local.set({
+        lastIssueType: null,
+        lastIssueDomain: null,
+        lastIssueError: null,
+        lastIssueAt: null
+      });
+    }
+    if (Number.isInteger(tabId) && tabId >= 0) await clearTabIssue(tabId);
   }
   return summary;
 }
@@ -1454,6 +1524,9 @@ chrome.webRequest.onErrorOccurred.addListener(
       error: details.error || null,
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
+    if (matchingNonRoutableTargetError(details)) {
+      return enqueueHostTask(details, () => recordNonRoutableTarget(details));
+    }
     return enqueueHostTask(details, async () => {
       if (details.type === "main_frame") {
         const settings = await getSettings();

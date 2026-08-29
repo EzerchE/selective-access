@@ -258,6 +258,9 @@ function renderDiagnostic(state) {
   } else if (state.lastIssueType === "transient_unverified") {
     elements.diagnosticTitle.textContent = t("unverifiedTitle");
     elements.diagnosticText.textContent = t("unverifiedDetail");
+  } else if (state.lastIssueType === "dns_unresolved") {
+    elements.diagnosticTitle.textContent = t("dnsUnresolvedTitle");
+    elements.diagnosticText.textContent = t("dnsUnresolvedDetail");
   } else {
     elements.diagnosticTitle.textContent = t("alternativeTitle");
     elements.diagnosticText.textContent = t("alternativeDetail");

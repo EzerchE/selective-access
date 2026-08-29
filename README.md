@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.10.1**
+Current version: **4.10.2**
 
 The extension UI follows Chrome's interface language: Turkish for Turkish browsers and English for every other language.
 
@@ -16,6 +16,7 @@ The project mark depicts an alternate route bending around a blocked direct path
 
 - Connections that work normally remain direct.
 - A single temporary error does not automatically route a target.
+- DNS resolution failures are never routed. If a matching route exists from an earlier ambiguous error, it is removed when Chrome reports that the domain cannot be resolved.
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
@@ -80,6 +81,7 @@ Source, version, hash, and license information for the third-party binary is rec
 Debug logging is disabled by default. When enabled, the most recent 150 limited events remain on the device and are written in batches. Records do not contain full URLs, queries, cookies, form data, or page content.
 
 **Check global status** runs only when the user selects the button. The checked domain is then sent to the [Globalping](https://globalping.io) API; no automatic external measurement is performed.
+When multiple external probes confirm that a target is unavailable, any matching learned route is removed instead of repeatedly sending an offline target through the local gateway.
 
 ## Privacy and security
 
