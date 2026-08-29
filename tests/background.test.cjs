@@ -407,6 +407,17 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastIssueType, null);
 
   const learnedBeforeResolutionError = [...storage.learnedDomains];
+  await send({
+    type: "saveSettings",
+    patch: {
+      learnedDomains: [
+        ...learnedBeforeResolutionError,
+        "resolution-error.example",
+        "www.resolution-error.example"
+      ]
+    }
+  });
+  assert.equal(storage.learnedDomains.includes("resolution-error.example"), true);
   await listeners.requestError({
     tabId: 7,
     type: "main_frame",
@@ -414,6 +425,8 @@ async function waitForDebugFlush() {
     url: "https://resolution-error.example/"
   });
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.lastIssueType, "dns_unresolved");
+  assert.equal(storage.lastIssueDomain, "resolution-error.example");
   assertBadge(lastForTab(badgeTexts, 7), 7, "!");
   assert.equal(lastForTab(badgeColors, 7)?.color, "#dc2626");
   assert.match(lastForTab(actionTitles, 7)?.title, /erişilemedi/i);
@@ -438,6 +451,20 @@ async function waitForDebugFlush() {
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
   measurementShouldBeDown = true;
+  const lastDetectedBeforeGlobalDown = storage.lastDetectedDomain;
+  const lastDetectedAtBeforeGlobalDown = storage.lastDetectedAt;
+  await send({
+    type: "saveSettings",
+    patch: {
+      learnedDomains: [
+        ...learnedBeforeResolutionError,
+        "globally-down.example",
+        "www.globally-down.example"
+      ]
+    }
+  });
+  storage.lastDetectedDomain = "globally-down.example";
+  storage.lastDetectedAt = new Date().toISOString();
   const downStatus = await send({
     type: "checkGlobalStatus",
     domain: "globally-down.example",
@@ -450,6 +477,12 @@ async function waitForDebugFlush() {
   assert.equal(notifications[3].options.title, "Genel kesinti olası");
   assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.lastDetectedDomain, null);
+  assert.equal(storage.lastDetectedAt, null);
+  assert.equal(storage.lastGlobalCheck.domain, "globally-down.example");
+  assert.equal(storage.lastGlobalCheck.status, "likely_down");
+  storage.lastDetectedDomain = lastDetectedBeforeGlobalDown;
+  storage.lastDetectedAt = lastDetectedAtBeforeGlobalDown;
 
   tabUrls.set(44, "https://direct.example/");
   await listeners.requestCompleted({

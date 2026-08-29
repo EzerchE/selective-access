@@ -74,6 +74,8 @@
   "transientDetail": { "message": "The direct check received a response. The site was not added to routing; you can retry the page." },
   "unverifiedTitle": { "message": "Block not confirmed" },
   "unverifiedDetail": { "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status." },
+  "dnsUnresolvedTitle": { "message": "The domain could not be resolved" },
+  "dnsUnresolvedDetail": { "message": "DNS did not return an address for this domain. It was not routed, and any matching learned route was removed. You can still check its global status." },
   "alternativeTitle": { "message": "Trying an alternative connection" },
   "alternativeDetail": { "message": "The target was learned and is loading once more through the local gateway." },
   "stopIgnoring": { "message": "Stop ignoring" },

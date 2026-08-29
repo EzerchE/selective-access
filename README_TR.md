@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.10.1**
+Güncel sürüm: **4.10.2**
 
 Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün dillerde İngilizce gösterilir.
 
@@ -16,6 +16,7 @@ Proje işareti, engellenmiş doğrudan yolun çevresinden geçen alternatif rota
 
 - Normal çalışan bağlantılar doğrudan kalır.
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
+- DNS çözümleme hataları hiçbir zaman yönlendirilmez. Chrome alan adının çözümlenemediğini bildirdiğinde, daha önce belirsiz bir hatayla oluşmuş eşleşen rota varsa kaldırılır.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken sonradan öğrenilen sayfa bağımlılıkları kısa bir sakinleşme penceresinde toplanır; gerekirse tek seferde yeniden denenir ve yenileme döngüsü sınırlandırılır.
@@ -80,6 +81,7 @@ Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtl
 Hata ayıklama günlüğü varsayılan olarak kapalıdır. Açıldığında son 150 sınırlı olayı cihazda tutar; kayıtlar toplu yazılır ve tam URL, sorgu, çerez, form verisi veya sayfa içeriği içermez.
 
 **Genel durumu kontrol et** işlemi yalnız kullanıcı düğmeye bastığında çalışır. Kontrol edilen alan adı [Globalping](https://globalping.io) API'sine gönderilir; otomatik dış sorgu yapılmaz.
+Birden fazla dış nokta hedefin erişilemediğini doğrularsa çevrimdışı hedefi yerel geçitte tekrar tekrar denemek yerine eşleşen öğrenilmiş rota kaldırılır.
 
 ## Gizlilik ve güvenlik
 
