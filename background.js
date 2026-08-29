@@ -43,6 +43,11 @@ const NON_ROUTABLE_TARGET_ERRORS = Object.freeze([
   "ERR_DNS_MALFORMED_RESPONSE"
 ]);
 
+const GATEWAY_CONNECTION_ERRORS = Object.freeze([
+  "ERR_PROXY_CONNECTION_FAILED",
+  "ERR_SOCKS_CONNECTION_FAILED"
+]);
+
 const RETRYABLE_TYPES = new Set([
   "main_frame",
   "sub_frame",
@@ -62,6 +67,7 @@ const tabConnectionResults = new Map();
 const tabRoutedHosts = new Map();
 const detectionCandidates = new Map();
 const reloadTimers = new Map();
+const gatewayRetryStates = new Map();
 const tabRecoveryStates = new Map();
 const iframeRetryTimers = new Map();
 const pendingLearnedNotifications = new Set();
@@ -107,6 +113,7 @@ const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
 const RECOVERY_WINDOW_MS = 30_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 2;
+const GATEWAY_RETRY_DELAYS_MS = Object.freeze([800, 2_000, 5_000, 10_000]);
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -328,14 +335,15 @@ async function setConnectionBadge(stateName, tabId = null) {
 
 function connectionStateForTab(settings, tabId) {
   if (!settings.enabled) return "disabled";
-  if (settings.lastProxyError) return "gatewayError";
-  if (!Number.isInteger(tabId)) return "unavailable";
+  if (!Number.isInteger(tabId)) return settings.lastProxyError ? "gatewayError" : "unavailable";
   const host = tabMainHosts.get(tabId);
   if (!host) return "unavailable";
-  if (tabConnectionResults.get(tabId) === "failed") return "unreachable";
   const routedHosts = tabRoutedHosts.get(tabId);
   const routedDependency = routedHosts && [...routedHosts]
     .some((routedHost) => isLearned(routedHost, settings.learnedDomains));
+  if (settings.lastProxyError &&
+      (isLearned(host, settings.learnedDomains) || routedDependency)) return "gatewayError";
+  if (tabConnectionResults.get(tabId) === "failed") return "unreachable";
   if (isLearned(host, settings.learnedDomains) || routedDependency) return "routed";
   if (tabConnectionResults.get(tabId) === "loading") return "loading";
   if (tabConnectionResults.get(tabId) !== "success") return "unavailable";
@@ -395,7 +403,7 @@ async function setIssueBadge(enabled, issueType, tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
   tabIssues.set(tabId, issueType);
   const isDown = issueType === "globally_down";
-  const isUnreachable = issueType === "unreachable" || issueType === "dns_unresolved";
+  const isUnreachable = ["unreachable", "dns_unresolved", "gateway_unavailable"].includes(issueType);
   await setConnectionBadge(
     enabled ? (isDown ? "down" : (isUnreachable ? "unreachable" : "issue")) : "disabled",
     tabId
@@ -524,6 +532,10 @@ function matchingError(details, candidates) {
 
 function matchingNonRoutableTargetError(details) {
   return matchingError(details, NON_ROUTABLE_TARGET_ERRORS);
+}
+
+function matchingGatewayConnectionError(details) {
+  return matchingError(details, GATEWAY_CONNECTION_ERRORS);
 }
 
 function registerDetectionCandidate(host, details, error) {
@@ -789,6 +801,86 @@ function cancelTabReload(tabId, reason = "completed", expectedScheduleReason = n
     reason,
     scheduleReason: scheduled.scheduleReason
   });
+  return true;
+}
+
+function cancelGatewayRetry(tabId, reason = "completed", expectedHost = null) {
+  const pending = gatewayRetryStates.get(tabId);
+  if (!pending || (expectedHost && pending.host !== expectedHost)) return false;
+  if (pending.timer) clearTimeout(pending.timer);
+  gatewayRetryStates.delete(tabId);
+  appendDebug("gateway-retry-cancelled", {
+    tabId,
+    host: pending.host,
+    attempt: pending.attempt,
+    reason
+  });
+  return true;
+}
+
+function scheduleGatewayRetry(details, host) {
+  const tabId = details.tabId;
+  if (!Number.isInteger(tabId) || tabId < 0 || !host) return false;
+
+  const previous = gatewayRetryStates.get(tabId);
+  if (previous && previous.host !== host) cancelGatewayRetry(tabId, "host-changed");
+  const current = gatewayRetryStates.get(tabId);
+  if (current?.timer) return true;
+  const attempt = current?.attempt || 0;
+  if (attempt >= GATEWAY_RETRY_DELAYS_MS.length) return false;
+
+  const delayMs = GATEWAY_RETRY_DELAYS_MS[attempt];
+  const retry = { host, attempt: attempt + 1, timer: null };
+  retry.timer = setTimeout(async () => {
+    retry.timer = null;
+    try {
+      const [tab, settings] = await Promise.all([chrome.tabs.get(tabId), getSettings()]);
+      const activeHost = updateTabMainHost(tabId, tab?.url || "");
+      if (activeHost !== host || !settings.enabled || !isLearned(host, settings.learnedDomains)) {
+        cancelGatewayRetry(tabId, "route-changed", host);
+        return;
+      }
+      await appendDebug("gateway-retry-fired", { tabId, host, attempt: retry.attempt });
+      await chrome.tabs.reload(tabId, { bypassCache: true });
+    } catch (error) {
+      cancelGatewayRetry(tabId, "reload-failed", host);
+      await appendDebug("gateway-retry-failed", {
+        tabId,
+        host,
+        attempt: retry.attempt,
+        error: error.message
+      });
+    }
+  }, delayMs);
+  gatewayRetryStates.set(tabId, retry);
+  appendDebug("gateway-retry-scheduled", { tabId, host, attempt: retry.attempt, delayMs });
+  return true;
+}
+
+async function recoverTransientGatewayFailure(details) {
+  if (details.type !== "main_frame") return false;
+  const error = matchingGatewayConnectionError(details);
+  const host = getRequestHost(details);
+  if (!error || !host) return false;
+
+  const settings = await getSettings();
+  if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
+  const scheduled = scheduleGatewayRetry(details, host);
+  await chrome.storage.local.set({
+    lastProxyError: error,
+    lastIssueType: scheduled ? "gateway_recovering" : "gateway_unavailable",
+    lastIssueDomain: host,
+    lastIssueError: error,
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("gateway-connection-failed", {
+    tabId: details.tabId,
+    host,
+    error,
+    retryScheduled: scheduled
+  });
+  await setIssueBadge(true, scheduled ? "gateway_recovering" : "gateway_unavailable", details.tabId);
   return true;
 }
 
@@ -1434,7 +1526,11 @@ async function checkGlobalStatus(value, tabId = null) {
 async function clearIssueAfterSuccess(details) {
   if (details.tabId < 0 || details.type !== "main_frame") return;
   const host = getRequestHost(details);
-  const settings = await getSettings();
+  let settings = await getSettings();
+  if (host && isLearned(host, settings.learnedDomains) && settings.lastProxyError) {
+    await chrome.storage.local.set({ lastProxyError: null });
+    settings = { ...settings, lastProxyError: null };
+  }
   const issueTime = Date.parse(settings.lastIssueAt || "");
   const recentClientFilterIssue =
     host &&
@@ -1528,6 +1624,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       return enqueueHostTask(details, () => recordNonRoutableTarget(details));
     }
     return enqueueHostTask(details, async () => {
+      if (await recoverTransientGatewayFailure(details)) return;
       if (details.type === "main_frame") {
         const settings = await getSettings();
         await setIssueBadge(settings.enabled, "unreachable", details.tabId);
@@ -1547,6 +1644,7 @@ chrome.webRequest.onCompleted.addListener(
     }
     updateTabMainHost(details.tabId, details.url);
     tabConnectionResults.set(details.tabId, "success");
+    cancelGatewayRetry(details.tabId, "main-completed", getRequestHost(details));
     const cancelledRootRetry = cancelTabReload(
       details.tabId,
       "main-completed",
@@ -1568,6 +1666,9 @@ chrome.webRequest.onCompleted.addListener(
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
+    const retry = gatewayRetryStates.get(details.tabId);
+    const nextHost = getRequestHost(details);
+    if (retry && retry.host !== nextHost) cancelGatewayRetry(details.tabId, "navigation-changed");
     updateTabMainHost(details.tabId, details.url);
     markTabLoading(details.tabId);
     cancelRouteRecoveryForTab(details.tabId);
@@ -1591,6 +1692,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   cancelRouteRecoveryForTab(tabId);
+  cancelGatewayRetry(tabId, "tab-removed");
   tabIssues.delete(tabId);
   tabMainHosts.delete(tabId);
   tabConnectionResults.delete(tabId);

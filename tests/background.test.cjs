@@ -858,6 +858,58 @@ async function waitForDebugFlush() {
   assert.equal(parallelElapsedMs < 350, true);
   assert.deepEqual([...storage.learnedDomains], [...parallelHosts].sort());
 
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["gateway-startup.example"] }
+  });
+  tabUrls.set(120, "https://gateway-startup.example/");
+  const reloadCountBeforeGatewayRecovery = reloads.length;
+  await listeners.requestError({
+    tabId: 120,
+    type: "main_frame",
+    error: "net::ERR_PROXY_CONNECTION_FAILED",
+    url: "https://gateway-startup.example/"
+  });
+  assert.equal(storage.lastIssueType, "gateway_recovering");
+  assert.equal(storage.lastProxyError, "ERR_PROXY_CONNECTION_FAILED");
+  assertBadge(lastForTab(badgeTexts, 120), 120, "?");
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.equal(reloads.length, reloadCountBeforeGatewayRecovery + 1);
+  assert.equal(reloads.at(-1).tabId, 120);
+  assert.equal(reloads.at(-1).options.bypassCache, true);
+
+  await listeners.requestCompleted({
+    tabId: 120,
+    type: "main_frame",
+    url: "https://gateway-startup.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  assert.equal(storage.lastProxyError, null);
+  assert.equal(storage.lastIssueType, null);
+  assertBadge(lastForTab(badgeTexts, 120), 120, "↗");
+
+  tabUrls.set(121, "https://direct-page.example/");
+  await listeners.requestCompleted({
+    tabId: 121,
+    type: "main_frame",
+    url: "https://direct-page.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await listeners.proxyError({ error: "net::ERR_PROXY_CONNECTION_FAILED" });
+  assertBadge(lastForTab(badgeTexts, 120), 120, "!");
+  assertBadge(lastForTab(badgeTexts, 121), 121, "");
+  assert.equal(lastForTab(badgeColors, 121)?.color, "#15803d");
+  await listeners.requestCompleted({
+    tabId: 120,
+    type: "main_frame",
+    url: "https://gateway-startup.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  assert.equal(storage.lastProxyError, null);
+
   const clearedDebugLog = await send({ type: "clearDebugLog" });
   assert.equal(clearedDebugLog.ok, true);
   assert.deepEqual([...storage.debugLog], []);

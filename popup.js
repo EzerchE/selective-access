@@ -175,7 +175,9 @@ function render(state) {
 
   const hasControlError = ["not_controllable", "controlled_by_other_extensions"]
     .includes(state.levelOfControl);
-  const hasError = versionMismatch || Boolean(state.lastProxyError) || hasControlError;
+  const activeTargetUsesGateway = Boolean(currentHost && isLearned(currentHost, learnedDomains));
+  const hasActiveGatewayError = Boolean(state.lastProxyError && activeTargetUsesGateway);
+  const hasError = versionMismatch || hasActiveGatewayError || hasControlError;
 
   elements.statusCard.className = `status-card ${hasError ? "is-error" : state.enabled ? "is-on" : "is-off"}`;
   elements.statusTitle.textContent = hasError
@@ -188,7 +190,9 @@ function render(state) {
   elements.statusText.textContent = hasError
     ? versionMismatch
       ? t("reloadInstruction")
-      : state.lastProxyError || t("proxyControlled")
+      : hasActiveGatewayError
+        ? state.lastProxyError
+        : t("proxyControlled")
     : state.enabled
       ? state.lastDetectedDomain
         ? t("learnedSummary", [String(learnedDomains.length), state.lastDetectedDomain])
@@ -249,6 +253,14 @@ function renderDiagnostic(state) {
     elements.diagnosticPrivacy.hidden = true;
     elements.diagnosticTitle.textContent = t("clientFilterTitle");
     elements.diagnosticText.textContent = t("clientFilterDetail");
+  } else if (state.lastIssueType === "gateway_recovering") {
+    elements.checkStatus.hidden = true;
+    elements.diagnosticPrivacy.hidden = true;
+    elements.diagnosticTitle.textContent = t("gatewayRecoveringTitle");
+    elements.diagnosticText.textContent = t("gatewayRecoveringDetail");
+  } else if (state.lastIssueType === "gateway_unavailable") {
+    elements.diagnosticTitle.textContent = t("gatewayUnavailable");
+    elements.diagnosticText.textContent = t("gatewayUnavailableDetail");
   } else if (state.lastIssueType === "route_failed") {
     elements.diagnosticTitle.textContent = t("routeFailedTitle");
     elements.diagnosticText.textContent = t("routeFailedDetail");

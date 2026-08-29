@@ -75,7 +75,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-sc.exe create "%SERVICE_NAME%" binPath= "\"%TARGET_EXE%\" --ip 127.0.0.1 --port 1080 --no-udp --split 1 --oob 1 --auto r --auto t --fake -1 --tlsrec 1+s --auto s" start= delayed-auto obj= "NT AUTHORITY\LocalService" DisplayName= "Selective Access ByeDPI" >nul
+sc.exe create "%SERVICE_NAME%" binPath= "\"%TARGET_EXE%\" --ip 127.0.0.1 --port 1080 --no-udp --split 1 --oob 1 --auto r --auto t --fake -1 --tlsrec 1+s --auto s" start= auto obj= "NT AUTHORITY\LocalService" DisplayName= "Selective Access ByeDPI" >nul
 if errorlevel 1 (
   echo Windows hizmeti olusturulamadi.
   pause

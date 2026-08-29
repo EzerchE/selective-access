@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.10.2**
+Güncel sürüm: **4.10.3**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -63,7 +63,7 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtlı `LocalService` hesabıyla, gecikmeli otomatik başlangıç ve kontrollü yeniden başlatma politikasıyla çalışır. Kurulum:
+Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtlı `LocalService` hesabıyla, otomatik başlangıç ve kontrollü yeniden başlatma politikasıyla çalışır. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
 - paketlenen ikilinin SHA-256 değerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
