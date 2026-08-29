@@ -6,11 +6,7 @@ Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kulla
 
 Güncel sürüm: **4.10.2**
 
-Eklenti arayüzü Chrome'un arayüz dili Türkçeyse Türkçe, diğer bütün dillerde İngilizce gösterilir.
-
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
-
-Proje işareti, engellenmiş doğrudan yolun çevresinden geçen alternatif rotayı gösterir.
 
 ## Temel davranış
 
