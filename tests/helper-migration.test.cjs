@@ -31,6 +31,8 @@ assert.match(migration, /reg\.exe query "!FOUND_KEY!" \/v Comment/i);
 assert.match(migration, /if \/I "!CHILD_KEY!"=="!FOUND_KEY!" exit \/b 1/i);
 assert.match(migration, /if not errorlevel 1 exit \/b 1/i);
 assert.match(migration, /if "%LEGACY_NRPT_REMOVED%"=="1" ipconfig\.exe \/flushdns/i);
+assert.match(installer, /start= auto/i);
+assert.doesNotMatch(installer, /start= delayed-auto/i);
 
 for (const [name, script] of [["installer", installer], ["uninstaller", uninstaller]]) {
   const migrationCall = script.indexOf('call "%~dp0migrate-legacy.cmd"');

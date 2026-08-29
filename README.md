@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.10.2**
+Current version: **4.10.3**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -63,7 +63,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The local gateway listens only on `127.0.0.1:1080`. Its Windows service runs under the restricted `LocalService` account with delayed automatic startup and a controlled restart policy. The installer:
+The local gateway listens only on `127.0.0.1:1080`. Its Windows service runs under the restricted `LocalService` account with automatic startup and a controlled restart policy. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies the bundled binary's SHA-256 before and after copying it;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
