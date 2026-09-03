@@ -73,6 +73,7 @@ const detectionCandidates = new Map();
 const reloadTimers = new Map();
 const gatewayRetryStates = new Map();
 const tabRecoveryStates = new Map();
+const clientFilterCandidates = new Map();
 const iframeRetryTimers = new Map();
 const pendingLearnedNotifications = new Set();
 let learnedNotificationTimer = null;
@@ -109,6 +110,8 @@ const CRITICAL_CLIENT_FILTER_TYPES = new Set([
   "worker"
 ]);
 const CLIENT_FILTER_WARNING_HOLD_MS = 15_000;
+const CLIENT_FILTER_CANDIDATE_WINDOW_MS = 10_000;
+const CLIENT_FILTER_WARNING_THRESHOLD = 2;
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 const DEBUG_FLUSH_DELAY_MS = 150;
@@ -1207,6 +1210,20 @@ async function recordCriticalClientFilter(details) {
 
   const settings = await getSettings();
   if (!settings.enabled) return;
+  const now = Date.now();
+  const previous = clientFilterCandidates.get(details.tabId);
+  const candidate = previous && previous.host === host && now - previous.at <= CLIENT_FILTER_CANDIDATE_WINDOW_MS
+    ? { host, at: now, count: previous.count + 1 }
+    : { host, at: now, count: 1 };
+  clientFilterCandidates.set(details.tabId, candidate);
+  await appendDebug("client-filter-candidate", {
+    tabId: details.tabId,
+    requestType: details.type,
+    count: candidate.count,
+    required: CLIENT_FILTER_WARNING_THRESHOLD
+  });
+  if (candidate.count < CLIENT_FILTER_WARNING_THRESHOLD) return;
+  clientFilterCandidates.delete(details.tabId);
   await chrome.storage.local.set({
     lastIssueType: "client_filter_blocked",
     lastIssueDomain: initiatorHost,
@@ -1629,6 +1646,7 @@ chrome.webRequest.onCompleted.addListener(
     }
     updateTabMainHost(details.tabId, details.url);
     tabConnectionResults.set(details.tabId, "success");
+    clientFilterCandidates.delete(details.tabId);
     cancelGatewayRetry(details.tabId, "main-completed", getRequestHost(details));
     cancelTabReload(
       details.tabId,
@@ -1654,6 +1672,7 @@ chrome.webRequest.onCompleted.addListener(
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
+    clientFilterCandidates.delete(details.tabId);
     const retry = gatewayRetryStates.get(details.tabId);
     const nextHost = getRequestHost(details);
     if (retry && retry.host !== nextHost) cancelGatewayRetry(details.tabId, "navigation-changed");
@@ -1686,6 +1705,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabConnectionResults.delete(tabId);
   tabRoutedHosts.delete(tabId);
   tabRecoveryStates.delete(tabId);
+  clientFilterCandidates.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {
     if (key.startsWith(`${tabId}:`)) {
