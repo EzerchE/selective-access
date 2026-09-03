@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.10.3**
+Current version: **4.11.0**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -12,7 +12,7 @@ Current version: **4.10.3**
 
 - Connections that work normally remain direct.
 - A single temporary error does not automatically route a target.
-- DNS resolution failures are never routed. If a matching route exists from an earlier ambiguous error, it is removed when Chrome reports that the domain cannot be resolved.
+- Main pages and external frames affected by DNS resolution errors can be learned. The local gateway resolves only routed hostnames and can use encrypted DNS when the system resolver fails.
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
@@ -20,7 +20,7 @@ Current version: **4.10.3**
 - After a routed main page loads, the extension occasionally verifies the origin root twice without the gateway. When both checks respond, the matching hostname aliases are removed from routing and the user is notified.
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
-- The extension and helper do not change DNS providers, system DNS settings, or router configuration.
+- The extension and helper do not change the browser, adapter, system, or router DNS configuration.
 - The toolbar icon stays unobstructed after a successful direct connection. It shows a blue `↗` when the local gateway is used, cyan `+` for a newly learned route, amber `?` while an issue is being checked, red `!` for an access or gateway failure, and gray `×` when disabled. These compact marks reflect both the main-page result and routed dependencies used by the tab.
 
 This tool is not a VPN. It does not change your IP address or country. Use it only for targets you are authorized to access and in accordance with applicable rules.
@@ -63,14 +63,14 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The local gateway listens only on `127.0.0.1:1080`. Its Windows service runs under the restricted `LocalService` account with automatic startup and a controlled restart policy. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The public local gateway listens only on `127.0.0.1:1080`. It first tries the existing system resolver and supplements the result through an authenticated encrypted-DNS connection when necessary. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS remains end-to-end between Chrome and the destination. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Only hostnames explicitly routed by the extension reach this resolver path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
-- verifies the bundled binary's SHA-256 before and after copying it;
+- verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
 - never creates DNS/NRPT rules, registry entries, or scheduled tasks;
 - removes only precisely identified remnants created by obsolete DNS-based releases, then verifies their removal before continuing.
 
-Source, version, hash, and license information for the third-party binary is recorded in `helper/bin/SOURCE.md` and `THIRD_PARTY_NOTICES.md`.
+Source, build, version, hash, and license information is recorded in `helper/bin/SOURCE.md`, `helper/bin/GATEWAY_SOURCE.md`, and `THIRD_PARTY_NOTICES.md`.
 
 ## Diagnostics and global status checks
 

@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.10.3**
+Güncel sürüm: **4.11.0**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -12,7 +12,7 @@ Güncel sürüm: **4.10.3**
 
 - Normal çalışan bağlantılar doğrudan kalır.
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
-- DNS çözümleme hataları hiçbir zaman yönlendirilmez. Chrome alan adının çözümlenemediğini bildirdiğinde, daha önce belirsiz bir hatayla oluşmuş eşleşen rota varsa kaldırılır.
+- DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Yerel geçit yalnız yönlendirilen alan adlarını çözer ve sistem çözümleyicisi başarısız olduğunda şifreli DNS kullanabilir.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken sonradan öğrenilen sayfa bağımlılıkları kısa bir sakinleşme penceresinde toplanır; gerekirse tek seferde yeniden denenir ve yenileme döngüsü sınırlandırılır.
@@ -20,7 +20,7 @@ Güncel sürüm: **4.10.3**
 - Yönlendirilmiş bir ana sayfa açıldıktan sonra origin kökü ara sıra geçit olmadan iki kez doğrulanır. İki kontrol de yanıt alırsa eşleşen alan adı takma adları yönlendirmeden çıkarılır ve kullanıcıya bildirilir.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
-- Eklenti veya yardımcı DNS sağlayıcısını, sistem DNS ayarlarını ve modem yapılandırmasını değiştirmez.
+- Eklenti ve yardımcı; tarayıcı, adaptör, sistem veya modem DNS yapılandırmasını değiştirmez.
 - Araç çubuğu ikonu doğrudan ve başarılı bağlantıda yazısız kalır. Yerel geçit kullanıldığında mavi `↗`, yeni rota öğrenildiğinde camgöbeği `+`, süren kontrolde turuncu `?`, erişim veya geçit hatasında kırmızı `!`, kapalı durumda gri `×` gösterilir. Kısa işaretler ikonu kapatmaz; durum hem ana sayfanın sonucunu hem de sekmedeki yönlendirilmiş bağımlılıkları izler.
 
 Bu araç VPN değildir; IP adresini veya ülkeyi değiştirmez. Yalnız kullanıcının erişim yetkisi bulunan hedeflerde ve yürürlükteki kurallara uygun kullanılmalıdır.
@@ -63,14 +63,14 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Windows hizmeti kısıtlı `LocalService` hesabıyla, otomatik başlangıç ve kontrollü yeniden başlatma politikasıyla çalışır. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
+Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Önce mevcut sistem çözümleyicisini dener, gerektiğinde sonucu kimliği doğrulanan şifreli DNS bağlantısıyla tamamlar. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS şifresi Chrome ile hedef arasında uçtan uca kalır. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Yalnız eklentinin açıkça yönlendirdiği alan adları bu çözümleme yoluna girer. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
-- paketlenen ikilinin SHA-256 değerini kopyalamadan önce ve sonra doğrular;
+- paketlenen iki ikilinin SHA-256 değerlerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
 - DNS/NRPT kuralı, kayıt defteri girdisi veya zamanlanmış görev oluşturmaz;
 - yalnız eski DNS tabanlı sürümlerin kesin olarak tanımlanmış kalıntılarını kaldırır ve devam etmeden önce sonucu doğrular.
 
-Üçüncü taraf ikilinin kaynak, sürüm, hash ve lisans bilgileri `helper/bin/SOURCE.md` ile `THIRD_PARTY_NOTICES.md` dosyalarındadır.
+Kaynak, derleme, sürüm, hash ve lisans bilgileri `helper/bin/SOURCE.md`, `helper/bin/GATEWAY_SOURCE.md` ve `THIRD_PARTY_NOTICES.md` dosyalarındadır.
 
 ## Teşhis ve genel durum kontrolü
 

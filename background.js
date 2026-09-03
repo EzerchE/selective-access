@@ -32,20 +32,24 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_TIMED_OUT",
   "ERR_EMPTY_RESPONSE",
   "ERR_SSL_PROTOCOL_ERROR",
-  "ERR_FAILED"
-]);
-
-const NON_ROUTABLE_TARGET_ERRORS = Object.freeze([
   "ERR_NAME_NOT_RESOLVED",
   "ERR_NAME_RESOLUTION_FAILED",
   "ERR_DNS_TIMED_OUT",
   "ERR_DNS_SERVER_FAILED",
-  "ERR_DNS_MALFORMED_RESPONSE"
+  "ERR_DNS_MALFORMED_RESPONSE",
+  "ERR_FAILED"
 ]);
 
 const GATEWAY_CONNECTION_ERRORS = Object.freeze([
   "ERR_PROXY_CONNECTION_FAILED",
   "ERR_SOCKS_CONNECTION_FAILED"
+]);
+const DNS_RESOLUTION_ERRORS = new Set([
+  "ERR_NAME_NOT_RESOLVED",
+  "ERR_NAME_RESOLUTION_FAILED",
+  "ERR_DNS_TIMED_OUT",
+  "ERR_DNS_SERVER_FAILED",
+  "ERR_DNS_MALFORMED_RESPONSE"
 ]);
 
 const RETRYABLE_TYPES = new Set([
@@ -84,6 +88,11 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_RESET: { main: 2, embedded: 1 },
   ERR_CONNECTION_CLOSED: { main: 2, embedded: 1 },
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 },
+  ERR_NAME_NOT_RESOLVED: { main: 1, embedded: 1 },
+  ERR_NAME_RESOLUTION_FAILED: { main: 1, embedded: 1 },
+  ERR_DNS_TIMED_OUT: { main: 1, embedded: 1 },
+  ERR_DNS_SERVER_FAILED: { main: 1, embedded: 1 },
+  ERR_DNS_MALFORMED_RESPONSE: { main: 1, embedded: 1 },
   ERR_FAILED: { main: Number.MAX_SAFE_INTEGER, embedded: 2 }
 });
 const NON_ACTIONABLE_REQUEST_ERRORS = new Set([
@@ -523,15 +532,12 @@ function isRetryableError(details) {
   if (details.tabId < 0 || !RETRYABLE_TYPES.has(details.type)) return false;
   const error = matchingError(details, RETRYABLE_ERRORS);
   if (!error) return false;
+  if (DNS_RESOLUTION_ERRORS.has(error) && !["main_frame", "sub_frame"].includes(details.type)) return false;
   return error !== "ERR_FAILED" || details.type === "websocket";
 }
 
 function matchingError(details, candidates) {
   return candidates.find((error) => String(details.error || "").includes(error)) || null;
-}
-
-function matchingNonRoutableTargetError(details) {
-  return matchingError(details, NON_ROUTABLE_TARGET_ERRORS);
 }
 
 function matchingGatewayConnectionError(details) {
@@ -1212,40 +1218,6 @@ async function recordCriticalClientFilter(details) {
   await setIssueBadge(true, "client_filter_blocked", details.tabId);
 }
 
-async function recordNonRoutableTarget(details) {
-  if (details.type !== "main_frame") return;
-  const host = getRequestHost(details);
-  const error = matchingNonRoutableTargetError(details);
-  if (!host || !error) return;
-
-  detectionCandidates.delete(`main:${host}`);
-  const aliases = new Set(mainHostAliases(host));
-  await queueSettingsMutation(async () => {
-    const latest = await getSettings();
-    const learnedDomains = latest.learnedDomains.filter((domain) => !aliases.has(domain));
-    const removedCount = latest.learnedDomains.length - learnedDomains.length;
-    const wasLastDetected = aliases.has(latest.lastDetectedDomain);
-    await chrome.storage.local.set({
-      learnedDomains,
-      lastDetectedDomain: wasLastDetected ? null : latest.lastDetectedDomain,
-      lastDetectedAt: wasLastDetected ? null : latest.lastDetectedAt,
-      lastIssueType: "dns_unresolved",
-      lastIssueDomain: host,
-      lastIssueError: error,
-      lastIssueAt: new Date().toISOString(),
-      lastGlobalCheck: null
-    });
-    if (removedCount > 0) await applyProxy();
-    await appendDebug("non-routable-target", {
-      tabId: details.tabId,
-      host,
-      error,
-      removedCount
-    });
-  });
-  await setIssueBadge(true, "dns_unresolved", details.tabId);
-}
-
 function commitLearnedRoute(host, details, error) {
   return queueSettingsMutation(async () => {
     const latest = await getSettings();
@@ -1620,9 +1592,6 @@ chrome.webRequest.onErrorOccurred.addListener(
       error: details.error || null,
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
-    if (matchingNonRoutableTargetError(details)) {
-      return enqueueHostTask(details, () => recordNonRoutableTarget(details));
-    }
     return enqueueHostTask(details, async () => {
       if (await recoverTransientGatewayFailure(details)) return;
       if (details.type === "main_frame") {

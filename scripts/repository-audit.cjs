@@ -11,9 +11,12 @@ const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe
 const publicHostAllowlist = new Set([
   "api.globalping.io",
   "buymeacoffee.com",
+  "cloudflare-dns.com",
   "developer.chrome.com",
+  "dns.google",
   "github.com",
   "globalping.io",
+  "microsoft.net",
   "www.w3.org"
 ]);
 const publicTlds = new Set([
@@ -47,6 +50,7 @@ function unapprovedPublicHosts(content) {
     const host = value.replace(/\.$/, "");
     const tld = host.split(".").at(-1);
     if (!publicTlds.has(tld)) continue;
+    if (host.startsWith("system.")) continue;
     if (host.endsWith(".example") ||
         ["example.com", "example.net", "example.org"].some((reserved) =>
           host === reserved || host.endsWith(`.${reserved}`)) ||
@@ -106,6 +110,10 @@ for (const required of [
   "THIRD_PARTY_NOTICES.md",
   "helper/bin/BYEDPI_LICENSE.txt",
   "helper/bin/ciadpi.exe",
+  "helper/bin/SelectiveAccessGateway.exe",
+  "helper/bin/GATEWAY_SOURCE.md",
+  "helper/source/SelectiveAccessGateway.cs",
+  "helper/source/build-gateway.cmd",
   "helper/install.cmd",
   "helper/migrate-legacy.cmd",
   "helper/uninstall.cmd",
@@ -124,6 +132,16 @@ const ciadpi = fs.readFileSync(path.join(root, "helper/bin/ciadpi.exe"));
 const ciadpiHash = crypto.createHash("sha256").update(ciadpi).digest("hex").toUpperCase();
 if (ciadpiHash !== "EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B54EF4") {
   fail("Yardimci ikili beklenen surumle eslesmiyor: helper/bin/ciadpi.exe");
+}
+const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
+const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();
+if (gatewayHash !== "F1BD2BCE77901B3FE5F2FB040EF864B8BE7EFB4FE93F466D709A6E4194E66C93") {
+  fail("Yardimci ikili beklenen surumle eslesmiyor: helper/bin/SelectiveAccessGateway.exe");
+}
+const gatewaySourceRecord = fs.readFileSync(path.join(root, "helper/bin/GATEWAY_SOURCE.md"), "utf8");
+if (!gatewaySourceRecord.includes(gatewayHash) ||
+    !gatewaySourceRecord.includes("helper/source/SelectiveAccessGateway.cs")) {
+  fail("On gecit kaynak, derleme veya hash kaydi eksik.");
 }
 const sourceRecord = fs.readFileSync(path.join(root, "helper/bin/SOURCE.md"), "utf8");
 if (!sourceRecord.includes("v0.17.3") ||
@@ -235,7 +253,7 @@ for (const required of [
 }
 for (const script of [installer, fs.readFileSync(path.join(root, "helper/uninstall.cmd"), "utf8")]) {
   const migrationCall = script.indexOf('call "%~dp0migrate-legacy.cmd"');
-  const serviceMutation = script.search(/sc\.exe (?:stop|delete|create) "%SERVICE_NAME%"/i);
+  const serviceMutation = script.search(/(?:call :RemoveService|sc\.exe create) "%(?:BACKEND|GATEWAY)_SERVICE%"/i);
   if (migrationCall < 0 || serviceMutation <= migrationCall) {
     fail("Kurulum ve kaldirma eski surum gecisini hizmet degisikliginden once calistirmalidir.");
   }
@@ -243,6 +261,11 @@ for (const script of [installer, fs.readFileSync(path.join(root, "helper/uninsta
 
 if (!/obj=\s*"NT AUTHORITY\\LocalService"/i.test(installer)) {
   fail("Yerel hizmet LocalService hesabi ile calismalidir.");
+}
+if (!/--port 1081/i.test(installer) ||
+    !/depend= "%BACKEND_SERVICE%"/i.test(installer) ||
+    !/127\.0\.0\.1:1080/i.test(installer)) {
+  fail("Cozumleyici destekli on gecit ve DPI arka gecit ayrimi eksik.");
 }
 if (!/sc\.exe failure\b/i.test(installer) ||
     !/icacls\.exe/i.test(installer) ||
@@ -299,7 +322,7 @@ if (!/permissions:\s*\r?\n\s+contents:\s*read/i.test(ciWorkflow) ||
 }
 
 const uninstaller = fs.readFileSync(path.join(root, "helper/uninstall.cmd"), "utf8");
-if (!/:WaitForServiceRemoval/i.test(uninstaller) ||
+if (!/:RemoveService/i.test(uninstaller) ||
     !/if exist "%INSTALL_DIR%"/i.test(uninstaller) ||
     !/netstat\.exe/i.test(uninstaller)) {
   fail("Kaldirici hizmet, dosya ve port durumunu dogrulamalidir.");
