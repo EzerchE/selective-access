@@ -748,6 +748,46 @@ async function waitForDebugFlush() {
     entry.scheduleReason === "dependency-settled"), true);
   assert.equal(storage.debugLog.some((entry) => entry.event === "main-completed"), true);
 
+  await send({ type: "saveSettings", patch: { learnedDomains: [] } });
+  const reloadCountBeforeEarlyCompletion = reloads.length;
+  await listeners.requestError({
+    tabId: 78,
+    type: "main_frame",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://early-completion.example/"
+  });
+  await listeners.requestCompleted({
+    tabId: 78,
+    type: "main_frame",
+    url: "https://early-completion.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await listeners.requestError({
+    tabId: 78,
+    frameId: 0,
+    type: "xmlhttprequest",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://api.early-completion.example/bootstrap",
+    initiator: "https://early-completion.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.deepEqual(
+    [...storage.learnedDomains],
+    [
+      "api.early-completion.example",
+      "early-completion.example",
+      "www.early-completion.example"
+    ]
+  );
+  assert.equal(reloads.length, reloadCountBeforeEarlyCompletion + 1);
+  assert.equal(reloads.at(-1).tabId, 78);
+  assert.equal(
+    storage.debugLog.some((entry) =>
+      entry.event === "reload-fired" && entry.scheduleReason === "dependency-settled"),
+    true
+  );
+
   await send({ type: "saveSettings", patch: { learnedDomains: ["frame.example"] } });
   const scriptCountBeforeDependency = scriptExecutions.length;
   await listeners.requestError({
