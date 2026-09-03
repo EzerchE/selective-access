@@ -23,7 +23,9 @@ Teşhis kayıtları tam URL, sorgu parametresi, çerez, form verisi, sayfa içer
 
 Kullanıcı **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu işlem otomatik değildir. Sağlayıcının kendi kayıt ve saklama koşulları geçerlidir.
 
-Bunun dışında geliştiriciye veya başka bir dış hizmete gezinme verisi gönderilmez. Yerel yardımcı yalnız kullanıcının bilgisayarında çalışır; yönlendirilen HTTPS içeriği şifreli kalır.
+Otomatik yönlendirmeye alınmış bir alan adı sistem DNS'iyle çözülemezse veya sistem yanıtını tamamlamak gerekirse yerel geçit yalnız bu alan adını şifreli DNS sağlayıcısına gönderebilir. Sağlayıcılar sırayla denenir; sorgu iki sağlayıcıya aynı anda yayılmaz. Yol, sorgu parametreleri, çerezler ve sayfa içeriği gönderilmez. Bu işlem normal ve yönlendirilmemiş bağlantıların DNS davranışını değiştirmez.
+
+Bunun dışında geliştiriciye veya başka bir dış hizmete gezinme verisi gönderilmez. Yerel yardımcı yalnız kullanıcının bilgisayarında çalışır; yönlendirilen HTTPS içeriği şifreli kalır ve yerel geçit tarafından çözülmez.
 
 Popup ve README içindeki isteğe bağlı destek bağlantısı yalnız kullanıcı tıkladığında Buy Me a Coffee sayfasını yeni sekmede açar. Eklenti üçüncü taraf destek betiği yüklemez ve bu platforma otomatik veri göndermez; açılan sayfanın kendi gizlilik koşulları geçerlidir.
 

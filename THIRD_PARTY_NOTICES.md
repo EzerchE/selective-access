@@ -11,4 +11,6 @@ Dağıtılan sürümün kaynak kodu ve lisans metni: <https://github.com/hufrea/
 
 Bu deponun MIT lisansı, üçüncü taraf bileşenin telif bildirimini ortadan kaldırmaz. İkilinin SHA-256 ve kaynak bilgisi `helper/bin/SOURCE.md` dosyasındadır.
 
+`helper/bin/SelectiveAccessGateway.exe` bu projenin `helper/source/SelectiveAccessGateway.cs` kaynağından Windows ile birlikte gelen .NET Framework derleyicisi kullanılarak üretilir. Kaynak ve ikili hash bilgisi `helper/bin/GATEWAY_SOURCE.md` dosyasındadır; üçüncü taraf kod içermez ve kök dizindeki MIT lisansı kapsamındadır.
+
 Üçüncü taraf programların kendi lisansları, garanti reddi ve kaynak sunma koşulları ilgili dosyalarda aynen geçerlidir. Kök dizindeki MIT lisansı yalnız bu projenin özgün kodunu kapsar; üçüncü taraf ikilileri yeniden lisanslamaz.

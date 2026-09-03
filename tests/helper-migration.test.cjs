@@ -36,10 +36,16 @@ assert.doesNotMatch(installer, /start= delayed-auto/i);
 
 for (const [name, script] of [["installer", installer], ["uninstaller", uninstaller]]) {
   const migrationCall = script.indexOf('call "%~dp0migrate-legacy.cmd"');
-  const serviceMutation = script.search(/sc\.exe (?:stop|delete|create) "%SERVICE_NAME%"/i);
+  const serviceMutation = script.search(/(?:call :RemoveService|sc\.exe create) "%(?:BACKEND|GATEWAY)_SERVICE%"/i);
   assert.ok(migrationCall >= 0, `${name} does not invoke legacy migration`);
   assert.ok(serviceMutation > migrationCall, `${name} mutates the current service before migration`);
   assert.match(script.slice(migrationCall), /if errorlevel 1[\s\S]*?exit \/b 1/i);
 }
+
+assert.match(installer, /--port 1081/i);
+assert.match(installer, /depend= "%BACKEND_SERVICE%"/i);
+assert.match(installer, /SelectiveAccessGateway\.exe/i);
+assert.match(installer, /127\.0\.0\.1:1080/i);
+assert.match(uninstaller, /127\.0\.0\.1:1081/i);
 
 process.stdout.write("Helper migration checks passed.\n");

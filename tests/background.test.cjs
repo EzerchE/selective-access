@@ -407,29 +407,19 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastIssueType, null);
 
   const learnedBeforeResolutionError = [...storage.learnedDomains];
-  await send({
-    type: "saveSettings",
-    patch: {
-      learnedDomains: [
-        ...learnedBeforeResolutionError,
-        "resolution-error.example",
-        "www.resolution-error.example"
-      ]
-    }
-  });
-  assert.equal(storage.learnedDomains.includes("resolution-error.example"), true);
   await listeners.requestError({
     tabId: 7,
     type: "main_frame",
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://resolution-error.example/"
   });
-  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
-  assert.equal(storage.lastIssueType, "dns_unresolved");
+  assert.equal(storage.learnedDomains.includes("resolution-error.example"), true);
+  assert.equal(storage.learnedDomains.includes("www.resolution-error.example"), true);
+  assert.equal(storage.lastIssueType, "route_learned");
   assert.equal(storage.lastIssueDomain, "resolution-error.example");
-  assertBadge(lastForTab(badgeTexts, 7), 7, "!");
-  assert.equal(lastForTab(badgeColors, 7)?.color, "#dc2626");
-  assert.match(lastForTab(actionTitles, 7)?.title, /erişilemedi/i);
+  assertBadge(lastForTab(badgeTexts, 7), 7, "+");
+  assert.equal(lastForTab(badgeColors, 7)?.color, "#0891b2");
+  assert.match(lastForTab(actionTitles, 7)?.title, /öğrenildi/i);
 
   const globalStatus = await send({
     type: "checkGlobalStatus",
@@ -439,12 +429,12 @@ async function waitForDebugFlush() {
   assert.equal(globalStatus.ok, true);
   assert.equal(globalStatus.result.status, "online");
   assert.equal(globalStatus.result.reachable, 2);
-  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.learnedDomains.includes("resolution-error.example"), true);
   assert.equal(storage.lastIssueType, null);
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:\d+$/);
-  assert.equal(reloads.length, 0);
+  assert.equal(reloads.length, 1);
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), true);
   assert.equal(listeners.completedFilter.types, undefined);
@@ -530,8 +520,8 @@ async function waitForDebugFlush() {
   });
   assert.equal(storage.lastIssueType, null);
   assert.equal(storage.lastGlobalCheck.status, "likely_down");
-  assert.equal(storage.lastDetectedDomain, "normal-available.example");
-  assert.equal(reloads.length, 0);
+  assert.equal(storage.lastDetectedDomain, "resolution-error.example");
+  assert.equal(reloads.length, 1);
   const learnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 127.0.0.1:1080");
   assert.equal(learnedProxy("https://portal.example/", "portal.example"), "DIRECT");
@@ -542,7 +532,13 @@ async function waitForDebugFlush() {
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://another-resolution-error.example/"
   });
-  assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
+  assert.equal(storage.learnedDomains.includes("another-resolution-error.example"), true);
+  await listeners.requestCompleted({
+    tabId: 88,
+    type: "main_frame",
+    url: "https://another-resolution-error.example/"
+  });
+  await send({ type: "saveSettings", patch: { learnedDomains: learnedBeforeResolutionError } });
 
   await new Promise((resolve) => setTimeout(resolve, 0));
   const requestErrorCountBeforeIgnored = storage.debugLog.filter((entry) =>

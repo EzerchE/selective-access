@@ -78,7 +78,7 @@
   "unverifiedTitle": { "message": "Engel doğrulanmadı" },
   "unverifiedDetail": { "message": "Bu hata tek başına erişim engeli kanıtı değildir. Hedef otomatik eklenmedi; yeniden deneyin veya genel durumu kontrol edin." },
   "dnsUnresolvedTitle": { "message": "Alan adı çözümlenemedi" },
-  "dnsUnresolvedDetail": { "message": "DNS bu alan adı için adres döndürmedi. Hedef yönlendirilmedi ve eşleşen öğrenilmiş rota kaldırıldı. İsterseniz genel durumunu yine kontrol edebilirsiniz." },
+  "dnsUnresolvedDetail": { "message": "DNS bu alan adı için adres döndürmedi. Çözümleyici destekli yerel geçit, tarayıcı veya sistem DNS ayarını değiştirmeden yönlendirilmiş ana sayfayı ya da harici çerçeveyi yeniden deneyecek." },
   "alternativeTitle": { "message": "Alternatif bağlantı deneniyor" },
   "alternativeDetail": { "message": "Hedef öğrenildi ve yerel geçit üzerinden bir kez daha yükleniyor." },
   "stopIgnoring": { "message": "Yoksaymayı kaldır" },

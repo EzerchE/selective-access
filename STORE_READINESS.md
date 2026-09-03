@@ -7,6 +7,7 @@
 - Varsayılan durum kapalıdır.
 - `activeTab`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest` ve HTTP/HTTPS/WS/WSS erişimleri README ile gizlilik bildiriminde açıklanır.
 - Tam URL depolanmaz veya dış hizmete gönderilmez; otomatik probe yalnız temizlenmiş origin kökünü sınar.
+- Yalnız otomatik yönlendirilmiş bir hedefin alan adı, sistem çözümünü doğrulamak veya tamamlamak için yerel geçit tarafından sırayla denenen şifreli DNS sağlayıcılarından birine gönderilebilir. Yol, sorgu, çerez ve içerik aktarılmaz; sistem DNS yapılandırması değiştirilmez.
 - İsteğe bağlı dış durum kontrolü yalnız kullanıcı eylemiyle alan adı gönderir.
 
 ## Gönderimden önce zorunlu işler

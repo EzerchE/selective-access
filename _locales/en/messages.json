@@ -78,7 +78,7 @@
   "unverifiedTitle": { "message": "Block not confirmed" },
   "unverifiedDetail": { "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status." },
   "dnsUnresolvedTitle": { "message": "The domain could not be resolved" },
-  "dnsUnresolvedDetail": { "message": "DNS did not return an address for this domain. It was not routed, and any matching learned route was removed. You can still check its global status." },
+  "dnsUnresolvedDetail": { "message": "DNS did not return an address. The resolver-aware local gateway will retry routed main pages and external frames without changing browser or system DNS settings." },
   "alternativeTitle": { "message": "Trying an alternative connection" },
   "alternativeDetail": { "message": "The target was learned and is loading once more through the local gateway." },
   "stopIgnoring": { "message": "Stop ignoring" },
