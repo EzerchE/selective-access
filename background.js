@@ -119,7 +119,7 @@ const ROUTE_RECOVERY_SETTLE_MS = 3_000;
 const ROUTE_RECOVERY_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
 const ROUTE_RECOVERY_CONFIRM_DELAY_MS = 400;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
-const RECOVERY_WINDOW_MS = 30_000;
+const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 2;
 const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
@@ -801,6 +801,10 @@ function cancelTabReload(tabId, reason = "completed", expectedScheduleReason = n
   }
   clearTimeout(scheduled.timer);
   reloadTimers.delete(tabId);
+  if (scheduled.scheduleReason === "main-route") {
+    const recovery = tabRecoveryStates.get(tabId);
+    if (recovery) recovery.rootReloadPending = false;
+  }
   appendDebug("reload-cancelled", {
     tabId,
     reason,
@@ -1620,12 +1624,14 @@ chrome.webRequest.onCompleted.addListener(
     updateTabMainHost(details.tabId, details.url);
     tabConnectionResults.set(details.tabId, "success");
     cancelGatewayRetry(details.tabId, "main-completed", getRequestHost(details));
-    const cancelledRootRetry = cancelTabReload(
+    cancelTabReload(
       details.tabId,
       "main-completed",
       "main-route"
     );
-    if (cancelledRootRetry) tabRecoveryStates.delete(details.tabId);
+    // The main document can complete before its scheduled route reload while
+    // late dependencies are still being discovered. Keep the bounded recovery
+    // window alive so a learned dependency can trigger one settled reload.
     const debugWrite = appendDebug("main-completed", {
       tabId: details.tabId,
       host: getRequestHost(details),

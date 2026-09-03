@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.11.3**
+Current version: **4.11.4**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -16,7 +16,7 @@ Current version: **4.11.3**
 - Once a page is routed, DNS-failing dependencies initiated by that page can also be learned; unrelated pages cannot cause this broader dependency handling.
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
-- During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
+- During main-target recovery, late page dependencies are collected in a bounded settling window even if the main document has already completed. A limited additional reload may be attempted without creating a reload loop.
 - Local gateway setup attempts are time-bounded, and successful pages keep a stable proxy configuration while their remaining resources load.
 - Learned rules apply only to the exact hostname that produced the error.
 - A successful routed page keeps its learned route until the user removes or ignores it, avoiding disruptive browser-wide proxy changes during page loading.
