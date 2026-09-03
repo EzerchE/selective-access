@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.11.0**
+Current version: **4.11.1**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -16,8 +16,9 @@ Current version: **4.11.0**
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, newly learned page dependencies are collected in a short settling window. A limited additional reload may be attempted without creating a reload loop.
+- Local gateway setup attempts are time-bounded, and successful pages keep a stable proxy configuration while their remaining resources load.
 - Learned rules apply only to the exact hostname that produced the error.
-- After a routed main page loads, the extension occasionally verifies the origin root twice without the gateway. When both checks respond, the matching hostname aliases are removed from routing and the user is notified.
+- A successful routed page keeps its learned route until the user removes or ignores it, avoiding disruptive browser-wide proxy changes during page loading.
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
 - The extension and helper do not change the browser, adapter, system, or router DNS configuration.
@@ -56,7 +57,7 @@ The uninstaller removes only this project's local components. It does not change
 - `proxy`: apply local PAC/SOCKS5 routing only to learned domains.
 - `storage`: keep settings, learned and ignored domains, and optional diagnostic records on the device.
 - `activeTab`: show the active tab's domain and associate user actions with that tab.
-- `notifications`: report newly learned targets, restored direct access, and user-requested status-check results.
+- `notifications`: report newly learned targets and user-requested status-check results.
 - `scripting`: retry only an automatically learned external iframe without reloading the top-level page.
 
 The extension does not execute remote JavaScript, collect page content, decrypt HTTPS, or install a private certificate.

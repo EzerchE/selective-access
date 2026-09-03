@@ -785,6 +785,7 @@ async function waitForDebugFlush() {
   });
   directlyReachableHosts.add("restored.example");
   const notificationsBeforeRecovery = notifications.length;
+  const probesBeforeCompletedRoute = directProbeUrls.length;
   await listeners.requestCompleted({
     tabId: 93,
     type: "main_frame",
@@ -792,21 +793,20 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
-  await new Promise((resolve) => setTimeout(resolve, 3_600));
-  assert.deepEqual([...storage.learnedDomains], ["dependency.example"]);
-  assertBadge(lastForTab(badgeTexts, 93), 93, "");
-  assert.equal(lastForTab(badgeColors, 93)?.color, "#15803d");
-  assert.equal(notifications.length, notificationsBeforeRecovery + 1);
-  assert.match(notifications.at(-1).id, /^restored:\d+$/);
-  assert.equal(notifications.at(-1).options.title, "Doğrudan erişim geri geldi");
-  assert.match(notifications.at(-1).options.message, /restored\.example/);
-  assert.equal(directProbeUrls.slice(-2).every((url) => {
-    const checked = new URL(url);
-    return checked.hostname === "restored.example" &&
-      checked.pathname === "/" && checked.search === "" && checked.hash === "";
-  }), true);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    [...storage.learnedDomains],
+    ["dependency.example", "restored.example", "www.restored.example"]
+  );
+  assertBadge(lastForTab(badgeTexts, 93), 93, "↗");
+  assert.equal(lastForTab(badgeColors, 93)?.color, "#2563eb");
+  assert.equal(notifications.length, notificationsBeforeRecovery);
+  assert.equal(directProbeUrls.length, probesBeforeCompletedRoute);
   const recoveredProxy = evaluatePac(proxyConfig.pacScript.data);
-  assert.equal(recoveredProxy("https://restored.example/", "restored.example"), "DIRECT");
+  assert.equal(
+    recoveredProxy("https://restored.example/", "restored.example"),
+    "SOCKS5 127.0.0.1:1080"
+  );
   assert.equal(
     recoveredProxy("https://dependency.example/", "dependency.example"),
     "SOCKS5 127.0.0.1:1080"
@@ -825,7 +825,7 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
-  await new Promise((resolve) => setTimeout(resolve, 3_200));
+  await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
     [...storage.learnedDomains],
     ["dependency.example", "still-routed.example"]
