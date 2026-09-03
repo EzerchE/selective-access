@@ -121,7 +121,7 @@ const ROUTE_RECOVERY_CONFIRM_DELAY_MS = 400;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
 const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
-const MAX_SETTLED_RECOVERY_RELOADS = 2;
+const MAX_SETTLED_RECOVERY_RELOADS = 3;
 const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
 let debugEnabledCache = null;
 let debugBuffer = [];
@@ -1325,7 +1325,6 @@ async function learnAndRetry(details) {
     return;
   }
 
-  const directlyReachable = await directRequestResponds(details.url);
   const repeatedMainReset = details.type === "main_frame" &&
     ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
     candidate.count >= candidate.required;
@@ -1336,11 +1335,18 @@ async function learnAndRetry(details) {
     error === "ERR_FAILED" &&
     candidate.count >= candidate.required;
   const repeatedReset = repeatedMainReset || repeatedEmbeddedReset || repeatedWebSocketFailure;
+  // An HTTP origin probe cannot validate a failed WebSocket handshake. Once
+  // the bounded repeated-failure threshold is met, waiting for that unrelated
+  // probe only delays applying the route.
+  const directlyReachable = repeatedWebSocketFailure
+    ? false
+    : await directRequestResponds(details.url);
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,
     requestType: details.type,
     reachable: directlyReachable,
+    skippedForRepeatedWebSocket: repeatedWebSocketFailure,
     overriddenByRepeatedReset: directlyReachable && repeatedReset
   });
   if (directlyReachable && !repeatedReset) {

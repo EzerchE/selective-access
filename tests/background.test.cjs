@@ -645,6 +645,11 @@ async function waitForDebugFlush() {
     initiator: "https://portal.example/"
   });
   assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
+  await waitForDebugFlush();
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "direct-check" &&
+    entry.host === "socket-api.example" &&
+    entry.skippedForRepeatedWebSocket === true), true);
   directlyReachableHosts.delete("socket-api.example");
 
   await listeners.requestError({
@@ -787,6 +792,39 @@ async function waitForDebugFlush() {
       entry.event === "reload-fired" && entry.scheduleReason === "dependency-settled"),
     true
   );
+
+  const reloadCountBeforeThirdDependency = reloads.length;
+  await listeners.requestError({
+    tabId: 78,
+    frameId: 0,
+    type: "image",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://media.early-completion.example/preview",
+    initiator: "https://early-completion.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.equal(reloads.length, reloadCountBeforeThirdDependency + 1);
+  assert.equal(reloads.at(-1).tabId, 78);
+  await listeners.requestError({
+    tabId: 78,
+    frameId: 0,
+    type: "xmlhttprequest",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://final.early-completion.example/data",
+    initiator: "https://early-completion.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.equal(reloads.length, reloadCountBeforeThirdDependency + 2);
+  await listeners.requestError({
+    tabId: 78,
+    frameId: 0,
+    type: "image",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://beyond-limit.early-completion.example/image",
+    initiator: "https://early-completion.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.equal(reloads.length, reloadCountBeforeThirdDependency + 2);
 
   await send({ type: "saveSettings", patch: { learnedDomains: ["frame.example"] } });
   const scriptCountBeforeDependency = scriptExecutions.length;
