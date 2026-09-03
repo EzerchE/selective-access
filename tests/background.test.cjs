@@ -585,13 +585,21 @@ async function waitForDebugFlush() {
     url: "https://app-shell.example/assets/app.js",
     initiator: "https://app-shell.example/"
   });
+  assert.notEqual(storage.lastIssueType, "client_filter_blocked");
+  await listeners.requestError({
+    tabId: 42,
+    type: "stylesheet",
+    error: "net::ERR_BLOCKED_BY_CLIENT",
+    url: "https://app-shell.example/assets/app.css",
+    initiator: "https://app-shell.example/"
+  });
   assert.equal(storage.lastIssueType, "client_filter_blocked");
   assert.equal(storage.lastIssueDomain, "app-shell.example");
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
   await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "client-filter-blocked-critical" &&
-    entry.tabId === 42 && entry.requestType === "script"), true);
+    entry.tabId === 42 && entry.requestType === "stylesheet"), true);
   assertBadge(badgeTexts.at(-1), 42, "?");
 
   await listeners.requestCompleted({
