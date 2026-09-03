@@ -532,7 +532,6 @@ function isRetryableError(details) {
   if (details.tabId < 0 || !RETRYABLE_TYPES.has(details.type)) return false;
   const error = matchingError(details, RETRYABLE_ERRORS);
   if (!error) return false;
-  if (DNS_RESOLUTION_ERRORS.has(error) && !["main_frame", "sub_frame"].includes(details.type)) return false;
   return error !== "ERR_FAILED" || details.type === "websocket";
 }
 
@@ -1256,13 +1255,21 @@ async function learnAndRetry(details) {
   if (!settings.enabled) return;
 
   const host = getRequestHost(details);
+  const error = matchingError(details, RETRYABLE_ERRORS);
+  const initiatorHost = details.initiator
+    ? getRequestHost({ url: details.initiator })
+    : null;
+  const mainHost = tabMainHosts.get(details.tabId) || null;
+  const hasLearnedContext = [initiatorHost, mainHost]
+    .some((contextHost) => contextHost && isLearned(contextHost, settings.learnedDomains));
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  if (DNS_RESOLUTION_ERRORS.has(error) &&
+      !["main_frame", "sub_frame"].includes(details.type) &&
+      !hasLearnedContext) return;
   if (SAME_ORIGIN_ONLY_TYPES.has(details.type)) {
-    const initiatorHost = details.initiator
-      ? getRequestHost({ url: details.initiator })
-      : null;
-    if (!initiatorHost || initiatorHost !== host) return;
+    const routedDependencyDnsFailure = DNS_RESOLUTION_ERRORS.has(error) && hasLearnedContext;
+    if ((!initiatorHost || initiatorHost !== host) && !routedDependencyDnsFailure) return;
   }
 
   if (isLearned(host, settings.learnedDomains)) {
@@ -1284,7 +1291,6 @@ async function learnAndRetry(details) {
     return;
   }
 
-  const error = matchingError(details, RETRYABLE_ERRORS);
   const candidate = registerDetectionCandidate(host, details, error);
   await appendDebug("candidate", {
     tabId: details.tabId,

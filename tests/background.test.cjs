@@ -655,6 +655,40 @@ async function waitForDebugFlush() {
   });
   assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
 
+  tabUrls.set(42, "https://routed-app.example/");
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["routed-app.example", "www.routed-app.example"] }
+  });
+  listeners.beforeRequest({
+    tabId: 42,
+    type: "main_frame",
+    url: "https://routed-app.example/"
+  });
+  await listeners.requestError({
+    tabId: 42,
+    type: "xmlhttprequest",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://api.routed-app.example/bootstrap",
+    initiator: "https://routed-app.example/"
+  });
+  await listeners.requestError({
+    tabId: 42,
+    type: "script",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://static.routed-app.example/application.js",
+    initiator: "https://routed-app.example/"
+  });
+  assert.deepEqual(
+    [...storage.learnedDomains],
+    [
+      "api.routed-app.example",
+      "routed-app.example",
+      "static.routed-app.example",
+      "www.routed-app.example"
+    ]
+  );
+
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   const reloadCountBeforeApp = reloads.length;
   for (let attempt = 0; attempt < 2; attempt += 1) {
