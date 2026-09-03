@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -47,5 +48,10 @@ assert.match(installer, /depend= "%BACKEND_SERVICE%"/i);
 assert.match(installer, /SelectiveAccessGateway\.exe/i);
 assert.match(installer, /127\.0\.0\.1:1080/i);
 assert.match(uninstaller, /127\.0\.0\.1:1081/i);
+
+const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
+const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();
+const installerGatewayHash = installer.match(/set "GATEWAY_HASH=([A-F0-9]{64})"/i)?.[1]?.toUpperCase();
+assert.equal(installerGatewayHash, gatewayHash, "Installer gateway hash does not match bundled binary");
 
 process.stdout.write("Helper migration checks passed.\n");
