@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.11.0**
+Güncel sürüm: **4.11.1**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -16,8 +16,9 @@ Güncel sürüm: **4.11.0**
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken sonradan öğrenilen sayfa bağımlılıkları kısa bir sakinleşme penceresinde toplanır; gerekirse tek seferde yeniden denenir ve yenileme döngüsü sınırlandırılır.
+- Yerel geçit bağlantı hazırlığı süreyle sınırlıdır; başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
-- Yönlendirilmiş bir ana sayfa açıldıktan sonra origin kökü ara sıra geçit olmadan iki kez doğrulanır. İki kontrol de yanıt alırsa eşleşen alan adı takma adları yönlendirmeden çıkarılır ve kullanıcıya bildirilir.
+- Başarıyla açılan yönlendirilmiş sayfanın öğrenilen rotası kullanıcı kaldırana veya yoksayana kadar korunur; sayfa yüklenirken tarayıcı genelindeki proxy ayarı değiştirilmez.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
 - Eklenti ve yardımcı; tarayıcı, adaptör, sistem veya modem DNS yapılandırmasını değiştirmez.
@@ -56,7 +57,7 @@ Kaldırıcı yalnız bu projeye ait yerel bileşenleri kaldırır; adaptör DNS 
 - `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
 - `storage`: ayarlar ile öğrenilen, yoksayılan ve isteğe bağlı teşhis kayıtlarını cihazda saklamak.
 - `activeTab`: popup açıldığında etkin sekmenin alan adını göstermek ve kullanıcı işlemini o sekmeyle ilişkilendirmek.
-- `notifications`: yeni öğrenilen hedefi, geri gelen doğrudan erişimi ve kullanıcı tarafından başlatılan durum kontrolü sonucunu bildirmek.
+- `notifications`: yeni öğrenilen hedefi ve kullanıcı tarafından başlatılan durum kontrolü sonucunu bildirmek.
 - `scripting`: otomatik öğrenilen harici iframe'i üst sayfayı yenilemeden tekrar yüklemek.
 
 Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şifresini çözmez ve özel sertifika kurmaz.

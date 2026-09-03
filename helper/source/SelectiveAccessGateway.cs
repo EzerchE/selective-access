@@ -18,6 +18,8 @@ internal static class SelectiveAccessGateway
     private static readonly IPAddress ListenAddress = IPAddress.Loopback;
     private static int ListenPort = 1080;
     private static int BackendPort = 1081;
+    private const int SystemDnsTimeoutMs = 1200;
+    private const int ConnectionSetupTimeoutMs = 5000;
     private static bool ConsoleMode;
     private static readonly CancellationTokenSource StopSource = new CancellationTokenSource();
     private static ServiceStatusHandle statusHandle;
@@ -120,15 +122,19 @@ internal static class SelectiveAccessGateway
 
             TcpClient backend = null;
             try {
-                IPAddress parsed;
-                if (IPAddress.TryParse(host, out parsed)) {
-                    backend = await TryBackendAddressesAsync(new[] { parsed }, port, token).ConfigureAwait(false);
-                } else {
-                    IPAddress[] systemAddresses = await ResolveSystemAsync(host).ConfigureAwait(false);
-                    backend = await TryBackendAddressesAsync(systemAddresses, port, token).ConfigureAwait(false);
-                    if (backend == null) {
-                        IPAddress[] encryptedAddresses = await ResolveEncryptedAsync(host, token).ConfigureAwait(false);
-                        backend = await TryBackendAddressesAsync(encryptedAddresses, port, token).ConfigureAwait(false);
+                using (CancellationTokenSource setupSource = CancellationTokenSource.CreateLinkedTokenSource(token)) {
+                    setupSource.CancelAfter(ConnectionSetupTimeoutMs);
+                    CancellationToken setupToken = setupSource.Token;
+                    IPAddress parsed;
+                    if (IPAddress.TryParse(host, out parsed)) {
+                        backend = await TryBackendAddressesAsync(new[] { parsed }, port, setupToken).ConfigureAwait(false);
+                    } else {
+                        IPAddress[] systemAddresses = await ResolveSystemAsync(host).ConfigureAwait(false);
+                        backend = await TryBackendAddressesAsync(systemAddresses, port, setupToken).ConfigureAwait(false);
+                        if (backend == null) {
+                            IPAddress[] encryptedAddresses = await ResolveEncryptedAsync(host, setupToken).ConfigureAwait(false);
+                            backend = await TryBackendAddressesAsync(encryptedAddresses, port, setupToken).ConfigureAwait(false);
+                        }
                     }
                 }
                 if (backend == null) { await ReplyAsync(input, 4, token); return; }
@@ -150,7 +156,12 @@ internal static class SelectiveAccessGateway
     {
         List<IPAddress> addresses = new List<IPAddress>();
         try {
-            IPAddress[] system = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            Task<IPAddress[]> lookup = Dns.GetHostAddressesAsync(host);
+            if (await Task.WhenAny(lookup, Task.Delay(SystemDnsTimeoutMs)).ConfigureAwait(false) != lookup) {
+                Log("system dns: timed out");
+                return addresses.ToArray();
+            }
+            IPAddress[] system = await lookup.ConfigureAwait(false);
             foreach (IPAddress address in system)
                 if (address.AddressFamily == AddressFamily.InterNetwork && !addresses.Contains(address)) addresses.Add(address);
         } catch (SocketException error) { Log("system dns: " + error.Message); }
@@ -207,24 +218,29 @@ internal static class SelectiveAccessGateway
     private static async Task<TcpClient> ConnectBackendAsync(IPAddress address, int port, CancellationToken token)
     {
         TcpClient backend = new TcpClient(AddressFamily.InterNetwork);
-        await backend.ConnectAsync(IPAddress.Loopback, BackendPort).ConfigureAwait(false);
-        NetworkStream stream = backend.GetStream();
-        await stream.WriteAsync(new byte[] { 5, 1, 0 }, 0, 3, token).ConfigureAwait(false);
-        byte[] greeting = await ReadExactAsync(stream, 2, token).ConfigureAwait(false);
-        if (greeting[0] != 5 || greeting[1] != 0) throw new IOException("Backend authentication failed.");
-        byte[] raw = address.GetAddressBytes();
-        byte atyp = address.AddressFamily == AddressFamily.InterNetwork ? (byte)1 : (byte)4;
-        byte[] connect = new byte[4 + raw.Length + 2];
-        connect[0] = 5; connect[1] = 1; connect[2] = 0; connect[3] = atyp;
-        Buffer.BlockCopy(raw, 0, connect, 4, raw.Length);
-        connect[connect.Length - 2] = (byte)(port >> 8);
-        connect[connect.Length - 1] = (byte)port;
-        await stream.WriteAsync(connect, 0, connect.Length, token).ConfigureAwait(false);
-        byte[] reply = await ReadExactAsync(stream, 4, token).ConfigureAwait(false);
-        if (reply[1] != 0) throw new IOException("Backend connection failed.");
-        int tail = reply[3] == 1 ? 4 : reply[3] == 4 ? 16 : (await ReadExactAsync(stream, 1, token))[0];
-        await ReadExactAsync(stream, tail + 2, token).ConfigureAwait(false);
-        return backend;
+        try {
+            await backend.ConnectAsync(IPAddress.Loopback, BackendPort).ConfigureAwait(false);
+            NetworkStream stream = backend.GetStream();
+            await stream.WriteAsync(new byte[] { 5, 1, 0 }, 0, 3, token).ConfigureAwait(false);
+            byte[] greeting = await ReadExactAsync(stream, 2, token).ConfigureAwait(false);
+            if (greeting[0] != 5 || greeting[1] != 0) throw new IOException("Backend authentication failed.");
+            byte[] raw = address.GetAddressBytes();
+            byte atyp = address.AddressFamily == AddressFamily.InterNetwork ? (byte)1 : (byte)4;
+            byte[] connect = new byte[4 + raw.Length + 2];
+            connect[0] = 5; connect[1] = 1; connect[2] = 0; connect[3] = atyp;
+            Buffer.BlockCopy(raw, 0, connect, 4, raw.Length);
+            connect[connect.Length - 2] = (byte)(port >> 8);
+            connect[connect.Length - 1] = (byte)port;
+            await stream.WriteAsync(connect, 0, connect.Length, token).ConfigureAwait(false);
+            byte[] reply = await ReadExactAsync(stream, 4, token).ConfigureAwait(false);
+            if (reply[1] != 0) throw new IOException("Backend connection failed.");
+            int tail = reply[3] == 1 ? 4 : reply[3] == 4 ? 16 : (await ReadExactAsync(stream, 1, token))[0];
+            await ReadExactAsync(stream, tail + 2, token).ConfigureAwait(false);
+            return backend;
+        } catch {
+            backend.Dispose();
+            throw;
+        }
     }
 
     private static async Task<byte[]> ReadExactAsync(Stream stream, int count, CancellationToken token)

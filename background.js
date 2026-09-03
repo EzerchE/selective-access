@@ -122,7 +122,7 @@ const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
 const RECOVERY_WINDOW_MS = 30_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 2;
-const GATEWAY_RETRY_DELAYS_MS = Object.freeze([800, 2_000, 5_000, 10_000]);
+const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -1627,8 +1627,9 @@ chrome.webRequest.onCompleted.addListener(
       fromCache: Boolean(details.fromCache)
     });
     const clearIssue = clearIssueAfterSuccess(details).catch(console.error);
-    const recoveryCheck = scheduleLearnedRouteRecovery(details).catch(console.error);
-    return Promise.all([debugWrite, clearIssue, recoveryCheck]);
+    // A live recovery probe must not temporarily alter the browser-wide proxy
+    // configuration while the completed page is still loading subresources.
+    return Promise.all([debugWrite, clearIssue]);
   },
   { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
