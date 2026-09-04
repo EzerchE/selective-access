@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.11.7**
+Current version: **4.11.8**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -66,7 +66,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The public local gateway listens only on `127.0.0.1:1080`. It first tries the existing system resolver and supplements the result through an authenticated encrypted-DNS connection when necessary. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS remains end-to-end between Chrome and the destination. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Only hostnames explicitly routed by the extension reach this resolver path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The public local gateway listens only on `127.0.0.1:1080`. That port is fixed by the installed Windows service, so the popup reports it instead of offering an edit that would silently break every learned route. It first tries the existing system resolver and supplements the result through an authenticated encrypted-DNS connection when necessary. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS remains end-to-end between Chrome and the destination. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Only hostnames explicitly routed by the extension reach this resolver path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
@@ -79,7 +79,7 @@ Source, build, version, hash, and license information is recorded in `helper/bin
 
 Debug logging is disabled by default. When enabled, the most recent 150 limited events remain on the device and are written in batches. Records do not contain full URLs, queries, cookies, form data, or page content.
 
-**Check global status** runs only when the user selects the button. The checked domain is then sent to the [Globalping](https://globalping.io) API; no automatic external measurement is performed.
+**Check global status** is bounded: each request is limited to what is left of the overall budget, including reading its response body, so a provider that stops responding ends the check instead of leaving it pending. It runs only when the user selects the button. The checked domain is then sent to the [Globalping](https://globalping.io) API; no automatic external measurement is performed.
 When multiple external probes confirm that a target is unavailable, any matching learned route is removed instead of repeatedly sending an offline target through the local gateway.
 
 ## Privacy and security
@@ -96,12 +96,18 @@ Details: `PRIVACY.md`, `SECURITY.md`, and `RESPONSIBLE_USE.md`.
 
 ```text
 node --check background.js
+node --check i18n.js
+node --check popup-preview.js
 node --check popup.js
 node tests/background.test.cjs
+node tests/popup.test.cjs
 node tests/helper-migration.test.cjs
 node scripts/repository-audit.cjs
 node scripts/repository-audit.cjs --history
+node scripts/build-store-zip.cjs
 ```
+
+`scripts/build-store-zip.cjs` writes the Chrome Web Store archive to `dist/`, containing only the runtime files and distribution documents. It removes the development-only preview script from the packaged popup and refuses to write an archive that reaches a helper binary, test, development script, or repository document.
 
 The audit checks permission/documentation alignment, sensitive data, public target names, prohibited DNS/PowerShell behavior, constrained legacy migration, binary hashes, the service account, dynamic code use, localization completeness, and Git history.
 

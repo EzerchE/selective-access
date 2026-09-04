@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.11.7**
+Güncel sürüm: **4.11.8**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -66,7 +66,7 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Önce mevcut sistem çözümleyicisini dener, gerektiğinde sonucu kimliği doğrulanan şifreli DNS bağlantısıyla tamamlar. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS şifresi Chrome ile hedef arasında uçtan uca kalır. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Yalnız eklentinin açıkça yönlendirdiği alan adları bu çözümleme yoluna girer. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
+Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Bu portu kurulan Windows hizmeti belirler; bu yüzden açılır pencere portu değiştirilebilir bir alan olarak sunmaz, yalnızca gösterir. Aksi hâlde öğrenilmiş tüm rotalar sessizce bozulurdu. Önce mevcut sistem çözümleyicisini dener, gerektiğinde sonucu kimliği doğrulanan şifreli DNS bağlantısıyla tamamlar. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS şifresi Chrome ile hedef arasında uçtan uca kalır. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Yalnız eklentinin açıkça yönlendirdiği alan adları bu çözümleme yoluna girer. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
 - paketlenen iki ikilinin SHA-256 değerlerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
@@ -78,6 +78,8 @@ Kaynak, derleme, sürüm, hash ve lisans bilgileri `helper/bin/SOURCE.md`, `help
 ## Teşhis ve genel durum kontrolü
 
 Hata ayıklama günlüğü varsayılan olarak kapalıdır. Açıldığında son 150 sınırlı olayı cihazda tutar; kayıtlar toplu yazılır ve tam URL, sorgu, çerez, form verisi veya sayfa içeriği içermez.
+
+Genel durum sorgusu sınırlıdır: her istek, yanıt gövdesinin okunması dâhil, toplam bütçeden kalan süreyle sınırlanır; yanıt vermeyen bir sağlayıcı sorguyu askıda bırakmak yerine sonlandırır.
 
 **Genel durumu kontrol et** işlemi yalnız kullanıcı düğmeye bastığında çalışır. Kontrol edilen alan adı [Globalping](https://globalping.io) API'sine gönderilir; otomatik dış sorgu yapılmaz.
 Birden fazla dış nokta hedefin erişilemediğini doğrularsa çevrimdışı hedefi yerel geçitte tekrar tekrar denemek yerine eşleşen öğrenilmiş rota kaldırılır.
@@ -96,12 +98,18 @@ Ayrıntılar: `PRIVACY.md`, `SECURITY.md` ve `RESPONSIBLE_USE.md`.
 
 ```text
 node --check background.js
+node --check i18n.js
+node --check popup-preview.js
 node --check popup.js
 node tests/background.test.cjs
+node tests/popup.test.cjs
 node tests/helper-migration.test.cjs
 node scripts/repository-audit.cjs
 node scripts/repository-audit.cjs --history
+node scripts/build-store-zip.cjs
 ```
+
+`scripts/build-store-zip.cjs`, Chrome Web Store arşivini yalnız çalışma zamanı dosyaları ve dağıtım belgeleriyle `dist/` altına yazar. Paketlenen açılır pencereden geliştirmeye özgü önizleme betiğini çıkarır; yardımcı ikili, test, geliştirme betiği veya depo belgesi arşive girerse yazmayı reddeder.
 
 Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, yasaklı DNS/PowerShell davranışını, sınırlandırılmış eski sürüm geçişini, ikili hash'ini, hizmet hesabını, dinamik kod kullanımını ve Git geçmişini kontrol eder.
 

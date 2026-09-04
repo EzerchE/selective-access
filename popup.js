@@ -314,11 +314,6 @@ async function save(patch = {}) {
   showNotice("");
 
   try {
-    const port = Number(elements.proxyPort.value);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error(t("invalidPort"));
-    }
-
     const nextDomains = patch.learnedDomains === undefined
       ? learnedDomains
       : [...new Set(patch.learnedDomains.map(normalizeDomain).filter(Boolean))]
@@ -332,8 +327,7 @@ async function save(patch = {}) {
       patch: {
         ...patch,
         learnedDomains: nextDomains,
-        ignoredDomains: nextIgnoredDomains,
-        proxyPort: port
+        ignoredDomains: nextIgnoredDomains
       }
     });
     const stateResponse = await sendMessage({ type: "getState" });
@@ -347,7 +341,7 @@ async function save(patch = {}) {
   } catch (error) {
     showNotice(error.message, true);
   } finally {
-    elements.save.disabled = false;
+    elements.save.disabled = !protocolReady;
   }
 }
 
@@ -467,36 +461,43 @@ elements.checkStatus.addEventListener("click", async () => {
 });
 
 const previewMode = new URLSearchParams(location.search).get("preview");
-if (previewMode) {
-  currentHost = "portal.example";
-  elements.currentDomain.textContent = currentHost;
-  elements.siteAction.disabled = false;
-  render(previewMode === "legacy"
-    ? {
-        enabled: false,
-        domains: ["legacy-target.example"],
-        proxyPort: 1080,
-        lastProxyError: null,
-        levelOfControl: "controlled_by_this_extension"
-      }
-    : {
-        schemaVersion: 7,
-        enabled: true,
-        learnedDomains: ["media-cdn.example"],
-        ignoredDomains: ["ignored.example"],
-        lastDetectedDomain: "media-cdn.example",
-        proxyPort: 1080,
-        lastProxyError: null,
-        levelOfControl: "controlled_by_this_extension"
-      });
-} else {
-  (async () => {
-    try {
-      await loadCurrentTab();
-      const response = await sendMessage({ type: "getState" });
-      render(response.state);
-    } catch (error) {
-      showNotice(error.message, true);
-    }
-  })();
-}
+(async () => {
+  // In the extension i18nReady is already resolved, so this changes nothing
+  // there. The development preview loads its message catalogue over fetch and
+  // must not render a single label before that catalogue is in place.
+  await i18nReady;
+
+  if (previewMode) {
+    currentHost = "portal.example";
+    elements.currentDomain.textContent = currentHost;
+    elements.siteAction.disabled = false;
+    render(previewMode === "legacy"
+      ? {
+          schemaVersion: EXPECTED_SCHEMA_VERSION - 1,
+          enabled: false,
+          domains: ["legacy-target.example"],
+          proxyPort: 1080,
+          lastProxyError: null,
+          levelOfControl: "controlled_by_this_extension"
+        }
+      : {
+          schemaVersion: EXPECTED_SCHEMA_VERSION,
+          enabled: true,
+          learnedDomains: ["media-cdn.example"],
+          ignoredDomains: ["ignored.example"],
+          lastDetectedDomain: "media-cdn.example",
+          proxyPort: 1080,
+          lastProxyError: null,
+          levelOfControl: "controlled_by_this_extension"
+        });
+    return;
+  }
+
+  try {
+    await loadCurrentTab();
+    const response = await sendMessage({ type: "getState" });
+    render(response.state);
+  } catch (error) {
+    showNotice(error.message, true);
+  }
+})();
