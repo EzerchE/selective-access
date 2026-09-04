@@ -8,6 +8,43 @@ Güncel sürüm: **4.11.9**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
+## Bu proje neden önemli?
+
+Erişim hataları çoğu zaman yerel veya ağa özgüdür; buna karşılık yaygın çözümler bütün bağlantıları VPN'e yönlendirmek, cihazın DNS yapılandırmasını değiştirmek ya da tek bir DPI uyumluluk profilini geniş kapsamda uygulamaktır. Bu yaklaşımlar, çözümden etkilenmesi gerekmeyen trafiği de kapsayarak ilgisiz gecikme, gizlilik veya uyumluluk sorunları oluşturabilir.
+
+Otomatik Erişim daha dar bir yol izler: Chrome'daki desteklenen bağlantı hatalarını gözlemler, tam sayfa adresini göndermeden origin'i doğrular, yalnız hatayı veren tam alan adını öğrenir ve sadece o alan adının rotasını değiştirir. Çalışan bağlantılar normal yolunda kalır. Projenin temel önemi bu sınırlı etki alanıdır: çözüm bütün tarayıcının veya sistemin varsayılan yolu olmak yerine doğrulanmış hatayı takip eder.
+
+## Nasıl çalışır?
+
+```mermaid
+flowchart LR
+    A[Chrome isteği] --> B{Alan adı daha önce öğrenildi mi?}
+    B -->|Evet| F[PAC yalnız bu tam alan adını yönlendirir]
+    B -->|Hayır| C{Doğrudan bağlantı çalışıyor mu?}
+    C -->|Evet| D[Bağlantı doğrudan kalır]
+    C -->|Desteklenen hata| E[Temizlenmiş origin doğrulanır]
+    E -->|Erişilebilir| D
+    E -->|Hâlâ erişilemiyor| G[Tam alan adı öğrenilir]
+    G --> F
+    F --> H[Yerel SOCKS5 geçidi]
+    H --> I[Gerekirse güvenli çözümleme]
+    I --> J[Yerel ByeDPI arka geçidi]
+    J --> K[Hedef]
+```
+
+Eklenti karar katmanıdır; yerel yardımcı ise taşıma katmanıdır. Eklenti normal trafiği yardımcıya göndermez ve yardımcı HTTPS içeriğinin şifresi çözülmüş hâlini göremez.
+
+## Diğer yöntemlerden farkı
+
+| Yaklaşım | Tipik kapsam | Neyi değiştirir? | Hataya göre otomatik seçim |
+| --- | --- | --- | --- |
+| **Otomatik Erişim** | Chrome'da öğrenilen tam alan adları | Alan adı bazında PAC ile yerel uyumluluk yoluna yönlendirme | Evet; hata eşikleri ve temizlenmiş doğrudan origin kontrolüyle |
+| **Klasik VPN** | Genellikle cihazın veya seçilen uygulamanın tüm trafiği | Ağ rotası ve çoğunlukla görünen çıkış IP'si/konumu | Hayır; hedefin ihtiyacı olmasa da trafik VPN politikasını izler |
+| **Özel DNS / şifreli DNS** | Birçok veya bütün alan adının çözümlemesi | DNS sorgularını hangi çözümleyicinin yanıtladığı | Hayır; DNS tek başına taşıma katmanındaki DPI müdahalesini düzeltemez |
+| **Tek başına ByeDPI** | Yerel proxy'ye elle gönderilen veya harici yapılandırmanın kapsadığı trafik | Paket düzeyindeki bağlantı davranışı | Tek başına hayır; hedef seçimi ve tarayıcı kurtarması ayrıca yapılandırılmalıdır |
+
+Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çıkış ağı gerektiğinde VPN, çözümleyici gizliliği veya DNS arızalarında özel DNS, düşük seviyeli elle kontrol için bağımsız ByeDPI daha uygun olabilir. Bu proje; normal gezinmenin hiç değişmemesi, yalnız doğrulanmış biçimde başarısız olan Chrome hedeflerinin yerel uyumluluk yolunu kullanması gereken daha dar senaryoya odaklanır.
+
 ## Temel davranış
 
 - Normal çalışan bağlantılar doğrudan kalır.
