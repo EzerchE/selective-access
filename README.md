@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.11.8**
+Current version: **4.11.9**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
@@ -13,7 +13,8 @@ Current version: **4.11.8**
 - Connections that work normally remain direct.
 - A single temporary error does not automatically route a target.
 - Main pages and external frames affected by DNS resolution errors can be learned. The local gateway resolves only routed hostnames and can use encrypted DNS when the system resolver fails.
-- Once a page is routed, DNS-failing dependencies initiated by that page can also be learned; unrelated pages cannot cause this broader dependency handling.
+- A timed-out main page is learned and retried only when a sanitized direct-origin probe also fails; a slow but reachable page remains direct.
+- Once a page is routed, dependencies initiated by that page that fail DNS resolution or time out can also be learned after a failed direct-origin probe; unrelated pages cannot cause this broader dependency handling.
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, late page dependencies are collected in a bounded settling window even if the main document has already completed. A limited additional reload may be attempted without creating a reload loop.

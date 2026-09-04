@@ -137,7 +137,7 @@ if (ciadpiHash !== "EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B5
 }
 const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
 const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();
-if (gatewayHash !== "8E11072874BCC97EB023B1A521412B414959FFF2E0189FCD995893716F580F5D") {
+if (gatewayHash !== "DE485D0B7A437EC61AA56C57C94F333BFD55EEE3FC8443FFF28351A3ED7D17D0") {
   fail("Yardimci ikili beklenen surumle eslesmiyor: helper/bin/SelectiveAccessGateway.exe");
 }
 const gatewaySourceRecord = fs.readFileSync(path.join(root, "helper/bin/GATEWAY_SOURCE.md"), "utf8");

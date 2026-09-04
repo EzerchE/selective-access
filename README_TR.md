@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.11.8**
+Güncel sürüm: **4.11.9**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -13,7 +13,8 @@ Güncel sürüm: **4.11.8**
 - Normal çalışan bağlantılar doğrudan kalır.
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
 - DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Yerel geçit yalnız yönlendirilen alan adlarını çözer ve sistem çözümleyicisi başarısız olduğunda şifreli DNS kullanabilir.
-- Bir sayfa yönlendirildikten sonra o sayfanın başlattığı ve DNS hatası yaşayan bağımlılıklar da öğrenilebilir; ilgisiz sayfalar bu genişletilmiş bağımlılık işlemini tetikleyemez.
+- Zaman aşımına uğrayan bir ana sayfa yalnız temizlenmiş doğrudan origin probu da başarısızsa öğrenilip yeniden denenir; yavaş fakat erişilebilir sayfa doğrudan kalır.
+- Bir sayfa yönlendirildikten sonra o sayfanın başlattığı ve DNS hatası ya da zaman aşımı yaşayan bağımlılıklar doğrudan origin probu da başarısızsa öğrenilebilir; ilgisiz sayfalar bu genişletilmiş bağımlılık işlemini tetikleyemez.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken geç başlayan sayfa bağımlılıkları, ana belge tamamlanmış olsa bile sınırlı bir sakinleşme penceresinde toplanır; gerekirse kontrollü olarak yeniden denenir ve yenileme döngüsü sınırlandırılır.
