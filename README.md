@@ -8,6 +8,43 @@ Current version: **4.11.9**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
 
+## Why this project matters
+
+Access failures are often local or network-specific, but the usual response is to redirect every connection through a VPN, replace the device's DNS configuration, or apply one DPI compatibility profile broadly. That increases the amount of traffic affected by a workaround and can introduce unrelated latency, privacy, or compatibility problems.
+
+Automatic Access takes a narrower approach: it observes supported Chrome connection failures, verifies the origin without sending the full page address, learns the exact hostname, and changes routing only for that hostname. Working connections remain on their normal path. This small blast radius is the project's main value: the workaround follows the confirmed failure instead of becoming the default route for the whole browser or system.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Chrome request] --> B{Hostname already learned?}
+    B -->|Yes| F[PAC routes this exact hostname]
+    B -->|No| C{Direct connection works?}
+    C -->|Yes| D[Keep the connection direct]
+    C -->|Supported failure| E[Verify the sanitized origin]
+    E -->|Reachable| D
+    E -->|Still unavailable| G[Learn the exact hostname]
+    G --> F
+    F --> H[Local SOCKS5 gateway]
+    H --> I[Resolve securely when needed]
+    I --> J[Local ByeDPI backend]
+    J --> K[Destination]
+```
+
+The extension is the decision layer; the local helper is the transport layer. The extension never sends normal traffic to the helper and the helper cannot see decrypted HTTPS content.
+
+## How it differs
+
+| Approach | Typical scope | What it changes | Automatic failure-based selection |
+| --- | --- | --- | --- |
+| **Automatic Access** | Exact learned hostnames in Chrome | Per-host PAC routing to a local compatibility path | Yes, with thresholds and a sanitized direct-origin check |
+| **Traditional VPN** | Usually all device or selected-app traffic | Network route and often the visible exit IP/location | No; traffic follows the VPN policy whether the target needs it or not |
+| **Custom DNS / encrypted DNS** | Name resolution for many or all domains | Which resolver answers DNS queries | No; DNS alone cannot repair transport-level DPI interference |
+| **Standalone ByeDPI** | Traffic manually sent to its local proxy or covered by external configuration | Packet-level connection behavior | Not by itself; target selection and browser recovery must be configured separately |
+
+Automatic Access does not replace these tools in every scenario. A VPN is appropriate when a different exit network is required; custom DNS is useful for resolver privacy or resolver failures; and standalone ByeDPI offers lower-level manual control. This project is aimed at the narrower case where normal browsing should remain untouched and only confirmed failing Chrome destinations need a local compatibility route.
+
 ## Core behavior
 
 - Connections that work normally remain direct.
