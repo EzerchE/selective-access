@@ -1,6 +1,6 @@
 # Gizlilik bildirimi
 
-Son güncelleme: 25 Ağustos 2026
+Son güncelleme: 4 Eylül 2026
 
 Otomatik Erişim, bağlantı hatası yaşayan alan adlarını kullanıcının kendi bilgisayarındaki yerel SOCKS5 geçidine seçici yönlendirir. Geliştiriciye ait telemetri, analiz, reklam veya uzaktan günlük sunucusu yoktur.
 
@@ -8,7 +8,7 @@ Otomatik Erişim, bağlantı hatası yaşayan alan adlarını kullanıcının ke
 
 Eklenti HTTP/HTTPS/WS/WSS isteklerinde Chrome'un bildirdiği bağlantı hata türünü, istek türünü ve alan adını geçici olarak işler. Chrome tam istek adresini olay içinde sağlayabilir; eklenti bundan yalnız alan adını türetir ve tam adresi depolamaz.
 
-Otomatik doğrulama ve yönlendirmenin artık gerekip gerekmediğini denetleme sırasında kullanıcı bilgisi, yol, sorgu ve fragment kaldırılır. Yalnız hedef origin'in kökü; çerezsiz, kimlik bilgisi olmadan ve sınırlı içerik isteğiyle doğrudan sınanır. Art arda iki doğrudan yanıt alınırsa ilgili kural cihazdaki listeden kaldırılır.
+Otomatik doğrulama sırasında kullanıcı bilgisi, yol, sorgu ve fragment kaldırılır. Yalnız hedef origin'in kökü; çerezsiz, kimlik bilgisi olmadan ve sınırlı içerik isteğiyle doğrudan sınanır. Öğrenilen yönlendirme kuralları kullanıcı listeden kaldırana veya yoksayana kadar cihazda kalır; başarılı sayfa yüklemeleri sırasında tarayıcı genelindeki proxy yapılandırması değiştirilmez. Kullanıcı **Genel durumu kontrol et** ile genel kesinti doğrularsa eşleşen öğrenilmiş rota kaldırılabilir.
 
 Şunlar `chrome.storage.local` içinde yalnız cihazda tutulabilir:
 
