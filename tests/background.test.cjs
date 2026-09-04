@@ -5,6 +5,65 @@ const vm = require("node:vm");
 
 const listeners = {};
 const storage = {};
+const storageWrites = [];
+const scheduledDelays = [];
+const globalPing = { create: "ok", result: "ok", resultDelayMs: 0 };
+
+let clockScale = 1;
+let clockAnchorReal = Date.now();
+let clockAnchorLogical = clockAnchorReal;
+
+function logicalNow() {
+  return clockAnchorLogical + (Date.now() - clockAnchorReal) * clockScale;
+}
+
+// Only timers scheduled after the change are affected, so switching scale never
+// disturbs work already in flight.
+function setClockScale(scale) {
+  clockAnchorLogical = logicalNow();
+  clockAnchorReal = Date.now();
+  clockScale = scale;
+}
+
+const ScaledDate = new Proxy(Date, {
+  get(target, property, receiver) {
+    if (property === "now") return () => Math.round(logicalNow());
+    return Reflect.get(target, property, receiver);
+  }
+});
+
+function realSetTimeout(handler, logicalDelay) {
+  return setTimeout(handler, Math.max(0, Math.round(logicalDelay / clockScale)));
+}
+
+function scaledSetTimeout(handler, delay, ...args) {
+  const logicalDelay = Number(delay) || 0;
+  scheduledDelays.push({ at: Math.round(logicalNow()), delay: logicalDelay });
+  return setTimeout(handler, Math.max(0, Math.round(logicalDelay / clockScale)), ...args);
+}
+
+function logicalSleep(logicalDelay, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = realSetTimeout(resolve, logicalDelay);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      const error = new Error("The operation was aborted.");
+      error.name = "AbortError";
+      reject(error);
+    });
+  });
+}
+
+// Never settles; the caller's AbortSignal is the only way out.
+function hangUntilAborted(signal) {
+  return new Promise((_resolve, reject) => {
+    signal?.addEventListener("abort", () => {
+      const error = new Error("The operation was aborted.");
+      error.name = "AbortError";
+      reject(error);
+    });
+  });
+}
 const reloads = [];
 const badgeTexts = [];
 const badgeColors = [];
@@ -48,9 +107,14 @@ const chrome = {
             .filter((key) => Object.hasOwn(storage, key))
             .map((key) => [key, storage[key]]));
         }
-        return { ...keysOrDefaults, ...storage };
+        // The real API returns only the requested keys, falling back to the
+        // supplied defaults. Returning the whole store would hide which keys
+        // the background reads and writes.
+        return Object.fromEntries(Object.entries(keysOrDefaults).map(([key, fallback]) =>
+          [key, Object.hasOwn(storage, key) ? storage[key] : fallback]));
       },
       async set(values) {
+        storageWrites.push(Object.keys(values));
         Object.assign(storage, values);
       },
       async remove(keys) {
@@ -182,12 +246,29 @@ const fetch = async (url, options = {}) => {
     }
   }
   if (options.method === "POST") {
+    if (globalPing.create === "hang") return hangUntilAborted(options.signal);
+    if (globalPing.create === "hangBody") {
+      return { ok: true, status: 202, json: () => hangUntilAborted(options.signal) };
+    }
     const request = JSON.parse(options.body);
     assert.equal(request.type, "http");
     assert.deepEqual(request.locations.map((location) => location.continent), ["EU", "NA", "AS"]);
     return { ok: true, status: 202, async json() { return { id: "test-measurement" }; } };
   }
   assert.match(String(url), /test-measurement$/);
+  if (globalPing.result === "hang") return hangUntilAborted(options.signal);
+  if (globalPing.result === "inProgress") {
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        if (globalPing.resultDelayMs > 0) {
+          await logicalSleep(globalPing.resultDelayMs, options.signal);
+        }
+        return { status: "in-progress", results: [] };
+      }
+    };
+  }
   return {
     ok: true,
     status: 200,
@@ -216,8 +297,10 @@ const fetch = async (url, options = {}) => {
 
 const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
 vm.runInNewContext(source, {
-  chrome, console, URL, Date, Map, Set, Promise, JSON, fetch,
-  AbortController, setTimeout, clearTimeout
+  chrome, console, URL, Map, Set, Promise, JSON, fetch,
+  AbortController, clearTimeout,
+  Date: ScaledDate,
+  setTimeout: scaledSetTimeout
 });
 
 function send(message) {
@@ -1059,6 +1142,63 @@ async function waitForDebugFlush() {
   assert.equal(clearedDebugLog.ok, true);
   assert.deepEqual([...storage.debugLog], []);
 
+  // A settings save must not carry the debug log. That log is owned by the
+  // batching queue, and rewriting a snapshot of it from the settings path
+  // drops or resurrects entries the queue wrote in between.
+  storageWrites.length = 0;
+  await send({ type: "saveSettings", patch: { enabled: true } });
+  assert.equal(
+    storageWrites.some((keys) => keys.includes("debugLog")),
+    false,
+    "saveSettings must not write debugLog"
+  );
+
+  // The settings write must cover exactly the persisted fields: no key the
+  // caller supplied, and no persisted field silently dropped.
+  const expectedPersistedKeys = [
+    "schemaVersion", "enabled", "learnedDomains", "ignoredDomains",
+    "proxyHost", "proxyPort", "lastDetectedDomain", "lastDetectedAt",
+    "lastProxyError", "lastIssueType", "lastIssueDomain", "lastIssueError",
+    "lastIssueAt", "lastGlobalCheck", "lastNotificationStatus",
+    "lastNotificationDomain", "lastNotificationAt", "lastNotificationError",
+    "debugEnabled"
+  ].sort();
+  storageWrites.length = 0;
+  const injected = await send({
+    type: "saveSettings",
+    patch: {
+      enabled: true,
+      debugLog: [{ event: "injected-by-caller" }],
+      schemaVersion: 99,
+      proxyHost: "gateway.example",
+      unexpectedField: "injected-by-caller"
+    }
+  });
+  assert.equal(injected.ok, true);
+  const settingsWrite = storageWrites.find((keys) => keys.includes("learnedDomains"));
+  assert.deepEqual([...settingsWrite].sort(), expectedPersistedKeys);
+  assert.equal(storage.schemaVersion, 8);
+  assert.equal(storage.proxyHost, "127.0.0.1");
+  assert.equal(Object.hasOwn(storage, "unexpectedField"), false);
+  assert.deepEqual([...storage.debugLog], []);
+
+  // The popup still reads the log through getState.
+  storage.debugLog = [{ at: "2026-01-01T00:00:00.000Z", event: "flush-owned" }];
+  const stateWithLog = await send({ type: "getState" });
+  assert.deepEqual(
+    [...stateWithLog.state.debugLog],
+    [{ at: "2026-01-01T00:00:00.000Z", event: "flush-owned" }]
+  );
+  storage.debugLog = [];
+
+  // The gateway port is fixed by the local service and cannot be overridden.
+  const portAttempt = await send({ type: "saveSettings", patch: { proxyPort: 9050 } });
+  assert.equal(portAttempt.state.proxyPort, 1080);
+  assert.equal(storage.proxyPort, 1080);
+  storage.proxyPort = 9050;
+  const portAfterStaleValue = await send({ type: "getState" });
+  assert.equal(portAfterStaleValue.state.proxyPort, 1080);
+
   const disabled = await send({ type: "saveSettings", patch: { enabled: false } });
   assert.equal(disabled.ok, true);
   assert.equal(disabled.state.enabled, false);
@@ -1080,6 +1220,94 @@ async function waitForDebugFlush() {
   const deniedNotificationTest = await send({ type: "testNotification" });
   assert.equal(deniedNotificationTest.result.ok, false);
   assert.match(deniedNotificationTest.result.error, /bildirim izni kapalı/i);
+
+  // Globalping checks are bounded per request and overall. The logical clock
+  // runs the 25 second budget in a few real milliseconds.
+  setClockScale(20);
+  try {
+    // A create request that never answers is abandoned, not left hanging.
+    globalPing.create = "hang";
+    scheduledDelays.length = 0;
+    const createTimedOut = await send({
+      type: "checkGlobalStatus",
+      domain: "slow-start.example",
+      tabId: 200
+    });
+    assert.equal(createTimedOut.ok, false);
+    assert.equal(createTimedOut.error, getMessage("globalTimedOut"));
+    assert.equal(scheduledDelays.some((timer) => timer.delay === 10_000), true);
+
+    // Headers that arrive without a body must not escape the timeout either.
+    // The request timer used to be cleared as soon as the response resolved,
+    // which left the body read unbounded; without the fix this never returns.
+    globalPing.create = "hangBody";
+    const bodyTimedOut = await Promise.race([
+      send({ type: "checkGlobalStatus", domain: "slow-body.example", tabId: 200 }),
+      logicalSleep(40_000).then(() => ({ timedOutInTest: true }))
+    ]);
+    assert.equal(
+      bodyTimedOut.timedOutInTest,
+      undefined,
+      "the body read was not bounded by the request timeout"
+    );
+    assert.equal(bodyTimedOut.ok, false);
+    assert.equal(bodyTimedOut.error, getMessage("globalTimedOut"));
+
+    // So is a result request that never answers.
+    globalPing.create = "ok";
+    globalPing.result = "hang";
+    const resultTimedOut = await send({
+      type: "checkGlobalStatus",
+      domain: "slow-result.example",
+      tabId: 200
+    });
+    assert.equal(resultTimedOut.ok, false);
+    assert.equal(resultTimedOut.error, getMessage("globalTimedOut"));
+
+    // A measurement that stays in progress with slow responses must stop at the
+    // overall deadline. A request started near the deadline gets only what is
+    // left of the budget, never a fresh full request timeout.
+    globalPing.result = "inProgress";
+    globalPing.resultDelayMs = 2_000;
+    scheduledDelays.length = 0;
+    const startedAt = ScaledDate.now();
+    const neverFinished = await send({
+      type: "checkGlobalStatus",
+      domain: "stuck.example",
+      tabId: 200
+    });
+    assert.equal(neverFinished.ok, false);
+    assert.equal(neverFinished.error, getMessage("globalTimedOut"));
+
+    // Anything longer than the poll interval is a request timeout. The poll
+    // waits are shorter, and the stand-in's own sleeps are not recorded.
+    const requestTimeouts = scheduledDelays.filter((timer) => timer.delay > 600);
+    assert.equal(requestTimeouts.length > 2, true, "the check should have polled repeatedly");
+    assert.equal(requestTimeouts.every((timer) => timer.delay <= 10_000), true);
+
+    // No request may be granted more than the budget had left when it started.
+    // Before this was clamped, a request beginning just under the deadline got a
+    // fresh full timeout and carried the whole check well past it.
+    const budgetEnd = startedAt + 25_000;
+    const overruns = requestTimeouts.filter((timer) => timer.at + timer.delay > budgetEnd + 50);
+    assert.deepEqual(overruns, [], "a request was allowed to run past the overall deadline");
+    assert.equal(
+      requestTimeouts.some((timer) => timer.delay < 10_000),
+      true,
+      "a request near the deadline must be clamped by the remaining budget"
+    );
+
+    // The poll wait is clamped the same way. With the twenty attempt cap a poll
+    // cannot currently start close enough to the deadline for the clamp to bite,
+    // so this asserts the invariant rather than a reachable overrun.
+    const pollWaits = scheduledDelays.filter((timer) => timer.delay > 0 && timer.delay <= 600);
+    assert.equal(pollWaits.every((timer) => timer.at + timer.delay <= budgetEnd + 200), true);
+  } finally {
+    globalPing.create = "ok";
+    globalPing.result = "ok";
+    globalPing.resultDelayMs = 0;
+    setClockScale(1);
+  }
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {

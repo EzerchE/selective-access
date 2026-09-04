@@ -6,7 +6,7 @@ const crypto = require("node:crypto");
 const { execFileSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
-const excludedDirectories = new Set([".git", "node_modules", "ops"]);
+const excludedDirectories = new Set([".git", "node_modules", "ops", "dist"]);
 const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe"]);
 const publicHostAllowlist = new Set([
   "api.globalping.io",
@@ -118,6 +118,8 @@ for (const required of [
   "helper/migrate-legacy.cmd",
   "helper/uninstall.cmd",
   "tests/helper-migration.test.cjs",
+  "tests/popup.test.cjs",
+  "scripts/build-store-zip.cjs",
   "README_TR.md",
   "i18n.js",
   "_locales/en/messages.json",
@@ -328,11 +330,69 @@ if (!/:RemoveService/i.test(uninstaller) ||
   fail("Kaldirici hizmet, dosya ve port durumunu dogrulamalidir.");
 }
 
+const preview = fs.readFileSync(path.join(root, "popup-preview.js"), "utf8");
 const popup = fs.readFileSync(path.join(root, "popup.js"), "utf8");
+
+// The bundled Windows service listens on a port the extension cannot change,
+// so nothing may reintroduce an editable field or trust a stored value.
+if (!/id="proxyPort"[^>]*\bdisabled\b/.test(popupHtml)) {
+  fail("Yerel gecit portu kullanici tarafindan degistirilebilir olmamalidir.");
+}
+if (/normalizePort/.test(background) ||
+    /proxyPort:\s*(?:port|patch\.proxyPort|saved\.proxyPort|existing\.proxyPort)\b/
+      .test(background)) {
+  fail("Arka plan kodu kaydedilmis veya gonderilen bir gecit portuna guvenmemelidir.");
+}
+if (/proxyPort:\s*port\b/.test(popup)) {
+  fail("Popup gecit portunu arka plana gondermemelidir.");
+}
+
+// The stored settings object is built field by field. Spreading the caller's
+// patch would let it write keys it does not own, the debug log above all.
+if (/\.\.\.patch\b/.test(background)) {
+  fail("Ayar yazimi cagiranin gonderdigi alanlari oldugu gibi yaymamalidir.");
+}
+// Every outbound request in the global status check is bounded, and bounded by
+// what is left of the overall budget rather than a fresh full timeout.
+if (!/Math\.min\(GLOBAL_CHECK_REQUEST_TIMEOUT_MS, remaining\)/.test(background) ||
+    !/GLOBAL_CHECK_TOTAL_TIMEOUT_MS/.test(background)) {
+  fail("Genel durum sorgusu istek ve toplam zaman asimini uygulamalidir.");
+}
+
+// popup-preview.js installs the preview chrome shim, including its message
+// catalogue, so it has to run before i18n.js reads chrome.i18n.
+const previewTagIndex = popupHtml.indexOf('src="popup-preview.js"');
+const i18nTagIndex = popupHtml.indexOf('src="i18n.js"');
+if (previewTagIndex < 0 || i18nTagIndex < 0 || previewTagIndex > i18nTagIndex) {
+  fail("Onizleme betigi yerellestirmeden once yuklenmelidir.");
+}
+if (!/getMessage\s*\(/.test(preview) || !/__i18nReady/.test(preview)) {
+  fail("Onizleme betigi gercek bir chrome.i18n karsiligi saglamalidir.");
+}
+
 const backgroundSchema = background.match(/schemaVersion:\s*(\d+)/)?.[1];
 const popupSchema = popup.match(/EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/)?.[1];
 if (!backgroundSchema || backgroundSchema !== popupSchema) {
   fail("Popup ve arka plan veri semasi birbiriyle uyusmuyor.");
+}
+// A stale preview schema renders the reload-required error instead of the popup.
+const previewSchema = preview.match(/schemaVersion:\s*(\d+)/)?.[1];
+if (previewSchema !== backgroundSchema) {
+  fail("Onizleme verisi guncel veri semasini kullanmalidir.");
+}
+
+const storeBuilder = fs.readFileSync(path.join(root, "scripts/build-store-zip.cjs"), "utf8");
+for (const required of ["popup-preview.js", "FORBIDDEN_IN_PACKAGE", "PACKAGED_FILES"]) {
+  if (!storeBuilder.includes(required)) {
+    fail(`Magaza paketleyici gerekli korumayi icermiyor: ${required}`);
+  }
+}
+const storeBuilderCode = storeBuilder
+  .split("\n")
+  .filter((line) => !line.trim().startsWith("//"))
+  .join("\n");
+if (/helper\/bin|\.exe"/.test(storeBuilderCode)) {
+  fail("Magaza paketleyici yardimci ikili yolu icermemelidir.");
 }
 
 if (process.argv.includes("--history")) {

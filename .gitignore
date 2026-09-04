@@ -20,7 +20,9 @@ private/
 *.sqlite*
 
 # Tool output
+dist/
 coverage/
 node_modules/
 .DS_Store
 Thumbs.db
+.aider*

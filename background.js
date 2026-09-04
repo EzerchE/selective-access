@@ -8,6 +8,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   learnedDomains: [],
   ignoredDomains: [],
   proxyHost: "127.0.0.1",
+  // The bundled Windows service listens on a fixed loopback port. A different
+  // value would silently break every learned route, so it is not configurable.
   proxyPort: 1080,
   lastDetectedDomain: null,
   lastDetectedAt: null,
@@ -24,6 +26,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   debugEnabled: false,
   debugLog: []
 });
+
+// The debug log is large and is written by its own batching queue. Keeping it
+// out of the settings read/write path stops a settings save from resurrecting
+// or dropping entries that queue wrote concurrently.
+const PERSISTED_DEFAULTS = Object.freeze(Object.fromEntries(
+  Object.entries(DEFAULT_SETTINGS).filter(([key]) => key !== "debugLog")
+));
 
 const RETRYABLE_ERRORS = Object.freeze([
   "ERR_CONNECTION_RESET",
@@ -121,6 +130,9 @@ const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 3;
 const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
+const GLOBAL_CHECK_REQUEST_TIMEOUT_MS = 10_000;
+const GLOBAL_CHECK_TOTAL_TIMEOUT_MS = 25_000;
+const GLOBAL_CHECK_POLL_DELAY_MS = 600;
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -202,13 +214,6 @@ function normalizeDomains(values) {
     .filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
-function normalizePort(value) {
-  const port = Number(value);
-  return Number.isInteger(port) && port >= 1 && port <= 65535
-    ? port
-    : DEFAULT_SETTINGS.proxyPort;
-}
-
 function isCovered(host, domains) {
   return domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
@@ -249,12 +254,12 @@ function isLocalHost(host) {
 }
 
 async function getSettings() {
-  const saved = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const saved = await chrome.storage.local.get(PERSISTED_DEFAULTS);
   const ignoredDomains = normalizeDomains(saved.ignoredDomains);
   const learnedDomains = normalizeDomains(saved.learnedDomains)
     .filter((domain) => !isCovered(domain, ignoredDomains));
   const settings = {
-    ...DEFAULT_SETTINGS,
+    ...PERSISTED_DEFAULTS,
     ...saved,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: Boolean(saved.enabled),
@@ -262,7 +267,7 @@ async function getSettings() {
     learnedDomains,
     ignoredDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
-    proxyPort: normalizePort(saved.proxyPort)
+    proxyPort: DEFAULT_SETTINGS.proxyPort
   };
   routingSnapshot = {
     enabled: settings.enabled,
@@ -477,9 +482,12 @@ async function saveSettingsUnlocked(patch) {
     ? current.learnedDomains
     : normalizeDomains(patch.learnedDomains))
     .filter((domain) => !isCovered(domain, ignoredDomains));
+  // Only these four fields are settable from a patch. Every other stored value
+  // is carried over from the current settings or fixed, so a caller cannot write
+  // a key it does not own -- the debug log above all, which belongs to the
+  // batching queue. A new setting has to be added here deliberately; the tests
+  // assert this object's key set against PERSISTED_DEFAULTS.
   const next = {
-    ...current,
-    ...patch,
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: patch.enabled === undefined ? current.enabled : Boolean(patch.enabled),
     debugEnabled: patch.debugEnabled === undefined
@@ -488,11 +496,21 @@ async function saveSettingsUnlocked(patch) {
     learnedDomains,
     ignoredDomains,
     proxyHost: DEFAULT_SETTINGS.proxyHost,
-    proxyPort: patch.proxyPort === undefined ? current.proxyPort : normalizePort(patch.proxyPort),
-    lastProxyError: null,
+    proxyPort: DEFAULT_SETTINGS.proxyPort,
     lastDetectedDomain: current.lastDetectedDomain && isCovered(current.lastDetectedDomain, ignoredDomains)
       ? null
-      : current.lastDetectedDomain
+      : current.lastDetectedDomain,
+    lastDetectedAt: current.lastDetectedAt,
+    lastProxyError: null,
+    lastIssueType: current.lastIssueType,
+    lastIssueDomain: current.lastIssueDomain,
+    lastIssueError: current.lastIssueError,
+    lastIssueAt: current.lastIssueAt,
+    lastGlobalCheck: current.lastGlobalCheck,
+    lastNotificationStatus: current.lastNotificationStatus,
+    lastNotificationDomain: current.lastNotificationDomain,
+    lastNotificationAt: current.lastNotificationAt,
+    lastNotificationError: current.lastNotificationError
   };
 
   debugEnabledCache = next.debugEnabled;
@@ -515,8 +533,10 @@ function saveSettings(patch) {
 async function getPublicState() {
   const settings = await getSettings();
   const proxyState = await chrome.proxy.settings.get({ incognito: false });
+  const stored = await chrome.storage.local.get({ debugLog: [] });
   return {
     ...settings,
+    debugLog: Array.isArray(stored.debugLog) ? stored.debugLog : [],
     levelOfControl: proxyState.levelOfControl,
     effectiveMode: proxyState.value?.mode ?? "unknown"
   };
@@ -574,12 +594,18 @@ async function acquireProbeSlot() {
     return;
   }
   await new Promise((resolve) => probeWaiters.push(resolve));
-  activeProbeCount += 1;
 }
 
 function releaseProbeSlot() {
+  // The slot is handed straight to the next waiter. Decrementing first would
+  // let an unrelated caller claim the free slot before that waiter resumes,
+  // pushing the number of live probes past MAX_CONCURRENT_PROBES.
+  const next = probeWaiters.shift();
+  if (next) {
+    next();
+    return;
+  }
   activeProbeCount = Math.max(0, activeProbeCount - 1);
-  probeWaiters.shift()?.();
 }
 
 async function runDirectProbe(probeUrl) {
@@ -1314,11 +1340,38 @@ function summarizeGlobalMeasurement(domain, measurement) {
   };
 }
 
+function remainingBudget(deadline) {
+  return deadline - Date.now();
+}
+
+async function globalCheckJson(url, deadline, options = {}) {
+  const remaining = remainingBudget(deadline);
+  if (remaining <= 0) throw new Error(t("globalTimedOut"));
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    Math.min(GLOBAL_CHECK_REQUEST_TIMEOUT_MS, remaining)
+  );
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    // The body is read while the same timeout is still armed, so a response
+    // that streams slowly cannot outlive the budget either.
+    const data = response.ok ? await response.json() : null;
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(t("globalTimedOut"));
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function checkGlobalStatus(value, tabId = null) {
   const domain = normalizeDomain(value);
   if (!domain || isLocalHost(domain)) throw new Error(t("invalidPublicDomain"));
 
-  const createdResponse = await fetch("https://api.globalping.io/v1/measurements", {
+  const deadline = Date.now() + GLOBAL_CHECK_TOTAL_TIMEOUT_MS;
+  const created = await globalCheckJson("https://api.globalping.io/v1/measurements", deadline, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept": "application/json" },
     body: JSON.stringify({
@@ -1336,24 +1389,26 @@ async function checkGlobalStatus(value, tabId = null) {
     })
   });
 
-  if (!createdResponse.ok) {
-    throw new Error(createdResponse.status === 429
+  if (!created.ok) {
+    throw new Error(created.status === 429
       ? t("globalRateLimited")
       : t("globalStartFailed"));
   }
 
-  const created = await createdResponse.json();
-  if (!created?.id) throw new Error(t("globalNoId"));
+  if (!created.data?.id) throw new Error(t("globalNoId"));
 
   let measurement = null;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const resultResponse = await fetch(`https://api.globalping.io/v1/measurements/${created.id}`, {
-      headers: { "Accept": "application/json" }
-    });
+  for (let attempt = 0; attempt < 20 && Date.now() < deadline; attempt += 1) {
+    const resultResponse = await globalCheckJson(
+      `https://api.globalping.io/v1/measurements/${created.data.id}`,
+      deadline,
+      { headers: { "Accept": "application/json" } }
+    );
     if (!resultResponse.ok) throw new Error(t("globalReadFailed"));
-    measurement = await resultResponse.json();
-    if (measurement.status !== "in-progress") break;
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    measurement = resultResponse.data;
+    if (measurement?.status !== "in-progress") break;
+    const pollDelay = Math.min(GLOBAL_CHECK_POLL_DELAY_MS, Math.max(0, remainingBudget(deadline)));
+    await new Promise((resolve) => setTimeout(resolve, pollDelay));
   }
 
   if (!measurement || measurement.status === "in-progress") {
@@ -1440,7 +1495,7 @@ async function initialize() {
       enabled: Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
       proxyHost: DEFAULT_SETTINGS.proxyHost,
-      proxyPort: normalizePort(existing.proxyPort),
+      proxyPort: DEFAULT_SETTINGS.proxyPort,
       lastDetectedDomain: existing.lastDetectedDomain || null,
       lastDetectedAt: existing.lastDetectedAt || null,
       lastProxyError: null,

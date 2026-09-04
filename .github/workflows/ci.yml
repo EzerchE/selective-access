@@ -24,6 +24,9 @@ jobs:
           node --check popup-preview.js
           node --check popup.js
           node tests/background.test.cjs
+          node tests/popup.test.cjs
           node tests/helper-migration.test.cjs
       - name: Sensitive data audit
         run: node scripts/repository-audit.cjs --history
+      - name: Store package
+        run: node scripts/build-store-zip.cjs
