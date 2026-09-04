@@ -466,11 +466,40 @@ async function waitForDebugFlush() {
   assert.equal(notifications[3].id, "outage:globally-down.example");
   assert.equal(notifications[3].options.title, "Genel kesinti olası");
   assert.match(notifications[3].options.message, /birden fazla dış noktadan/);
+  assert.equal(storage.lastNotificationStatus, "created");
+  assert.equal(storage.lastNotificationDomain, "globally-down.example");
+  assert.equal(storage.lastNotificationError, null);
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
   assert.equal(storage.lastDetectedDomain, null);
   assert.equal(storage.lastDetectedAt, null);
   assert.equal(storage.lastGlobalCheck.domain, "globally-down.example");
   assert.equal(storage.lastGlobalCheck.status, "likely_down");
+
+  notificationPermission = "denied";
+  const deniedOutageStatus = await send({
+    type: "checkGlobalStatus",
+    domain: "denied-outage.example",
+    tabId: 34
+  });
+  assert.equal(deniedOutageStatus.result.status, "likely_down");
+  assert.equal(notifications.length, 4);
+  assert.equal(storage.lastNotificationStatus, "denied");
+  assert.equal(storage.lastNotificationDomain, "denied-outage.example");
+  assert.match(storage.lastNotificationError, /bildirim izni kapalı/i);
+
+  notificationPermission = "granted";
+  notificationCreateError = "outage notification backend failed";
+  const failedOutageStatus = await send({
+    type: "checkGlobalStatus",
+    domain: "failed-outage.example",
+    tabId: 35
+  });
+  assert.equal(failedOutageStatus.result.status, "likely_down");
+  assert.equal(notifications.length, 4);
+  assert.equal(storage.lastNotificationStatus, "failed");
+  assert.equal(storage.lastNotificationDomain, "failed-outage.example");
+  assert.match(storage.lastNotificationError, /backend failed/);
+  notificationCreateError = null;
   storage.lastDetectedDomain = lastDetectedBeforeGlobalDown;
   storage.lastDetectedAt = lastDetectedAtBeforeGlobalDown;
 
