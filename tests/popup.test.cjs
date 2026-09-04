@@ -105,7 +105,7 @@ function createContext(options = {}) {
       getUILanguage: () => "en-US"
     },
     runtime: {
-      getManifest: () => ({ version: "4.11.8" }),
+      getManifest: () => ({ version: "4.11.9" }),
       async sendMessage(message) {
         sent.push(message);
         if (message.type === "saveSettings") {

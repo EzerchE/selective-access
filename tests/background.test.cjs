@@ -472,22 +472,67 @@ async function waitForDebugFlush() {
   assert.equal(lastForTab(badgeColors, 55)?.color, "#2563eb");
   assert.match(lastForTab(actionTitles, 55)?.title, /yerel geçid/i);
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await listeners.requestError({
-      tabId: 56,
-      type: "main_frame",
-      error: "net::ERR_TIMED_OUT",
-      url: "https://slow-but-valid.example/"
-    });
-  }
+  directlyReachableHosts.add("slow-but-valid.example");
+  await listeners.requestError({
+    tabId: 56,
+    type: "main_frame",
+    error: "net::ERR_TIMED_OUT",
+    url: "https://slow-but-valid.example/"
+  });
   assert.equal(storage.learnedDomains.includes("slow-but-valid.example"), false);
-  assert.equal(storage.lastIssueType, "transient_unverified");
+  assert.equal(storage.lastIssueType, "transient_reachable");
   await listeners.requestCompleted({
     tabId: 56,
     type: "main_frame",
     url: "https://slow-but-valid.example/"
   });
   assert.equal(storage.lastIssueType, null);
+
+  await listeners.requestError({
+    tabId: 59,
+    type: "main_frame",
+    error: "net::ERR_TIMED_OUT",
+    url: "https://unreachable-timeout.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("unreachable-timeout.example"), true);
+  assert.equal(storage.learnedDomains.includes("www.unreachable-timeout.example"), true);
+  assert.equal(storage.lastIssueType, "route_learned");
+  await new Promise((resolve) => setTimeout(resolve, 1_600));
+  assert.equal(reloads.some((entry) => entry.tabId === 59), true);
+
+  const learnedBeforeDependencyTimeout = [...storage.learnedDomains];
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: [...learnedBeforeDependencyTimeout, "routed-page.example"] }
+  });
+  listeners.beforeRequest({
+    tabId: 57,
+    type: "main_frame",
+    url: "https://routed-page.example/"
+  });
+  await listeners.requestError({
+    tabId: 57,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_TIMED_OUT",
+    url: "https://slow-dependency.example/app.js",
+    initiator: "https://routed-page.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("slow-dependency.example"), true);
+  assert.equal(new URL(directProbeUrls.at(-1)).hostname, "slow-dependency.example");
+
+  await listeners.requestError({
+    tabId: 58,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_TIMED_OUT",
+    url: "https://unrelated-slow-dependency.example/app.js",
+    initiator: "https://ordinary-page.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("unrelated-slow-dependency.example"), false);
+  await send({ type: "saveSettings", patch: { learnedDomains: learnedBeforeDependencyTimeout } });
 
   const learnedBeforeResolutionError = [...storage.learnedDomains];
   await listeners.requestError({
@@ -517,7 +562,7 @@ async function waitForDebugFlush() {
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(notifications.length, 3);
   assert.match(notifications[2].id, /^learned:\d+$/);
-  assert.equal(reloads.length, 1);
+  assert.equal(reloads.length, 2);
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), true);
   assert.equal(listeners.completedFilter.types, undefined);
@@ -633,7 +678,7 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastIssueType, null);
   assert.equal(storage.lastGlobalCheck.status, "likely_down");
   assert.equal(storage.lastDetectedDomain, "resolution-error.example");
-  assert.equal(reloads.length, 1);
+  assert.equal(reloads.length, 2);
   const learnedProxy = evaluatePac(proxyConfig.pacScript.data);
   assert.equal(learnedProxy("https://media-cdn.example/embed/video", "media-cdn.example"), "SOCKS5 127.0.0.1:1080");
   assert.equal(learnedProxy("https://portal.example/", "portal.example"), "DIRECT");

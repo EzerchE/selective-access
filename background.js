@@ -95,6 +95,8 @@ let activeProbeCount = 0;
 const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_RESET: { main: 2, embedded: 1 },
   ERR_CONNECTION_CLOSED: { main: 2, embedded: 1 },
+  ERR_CONNECTION_TIMED_OUT: { main: 1, embedded: 1 },
+  ERR_TIMED_OUT: { main: 1, embedded: 1 },
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 },
   ERR_NAME_NOT_RESOLVED: { main: 1, embedded: 1 },
   ERR_NAME_RESOLUTION_FAILED: { main: 1, embedded: 1 },
@@ -1177,14 +1179,21 @@ async function learnAndRetry(details) {
   const mainHost = tabMainHosts.get(details.tabId) || null;
   const hasLearnedContext = [initiatorHost, mainHost]
     .some((contextHost) => contextHost && isLearned(contextHost, settings.learnedDomains));
+  const isTimeoutError = ["ERR_CONNECTION_TIMED_OUT", "ERR_TIMED_OUT"].includes(error);
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  // Cross-origin dependency timeouts are eligible only when they belong to an
+  // already routed page. A top-level timeout is independently verified. Both
+  // paths still have to fail the sanitized direct-origin probe below before a
+  // route is committed.
+  if (isTimeoutError && details.type !== "main_frame" && !hasLearnedContext) return;
   if (DNS_RESOLUTION_ERRORS.has(error) &&
       !["main_frame", "sub_frame"].includes(details.type) &&
       !hasLearnedContext) return;
   if (SAME_ORIGIN_ONLY_TYPES.has(details.type)) {
-    const routedDependencyDnsFailure = DNS_RESOLUTION_ERRORS.has(error) && hasLearnedContext;
-    if ((!initiatorHost || initiatorHost !== host) && !routedDependencyDnsFailure) return;
+    const routedDependencyFailure = hasLearnedContext &&
+      (DNS_RESOLUTION_ERRORS.has(error) || isTimeoutError);
+    if ((!initiatorHost || initiatorHost !== host) && !routedDependencyFailure) return;
   }
 
   if (isLearned(host, settings.learnedDomains)) {

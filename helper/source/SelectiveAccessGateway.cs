@@ -34,7 +34,8 @@ internal static class SelectiveAccessGateway
     }
 
     // Fixed bootstrap addresses avoid depending on the system resolver. TLS still
-    // authenticates the provider hostname, and queries travel through ByeDPI.
+    // authenticates the provider hostname. DNS transport stays separate from the
+    // target DPI path so a backend strategy failure cannot deadlock resolution.
     private static readonly DohProvider[] DohProviders = {
         new DohProvider("cloudflare-dns.com", "1.1.1.1"),
         new DohProvider("dns.google", "8.8.8.8")
@@ -190,18 +191,20 @@ internal static class SelectiveAccessGateway
 
     private static async Task<IPAddress[]> ResolveDohAsync(DohProvider provider, string host, CancellationToken token)
     {
-        using (TcpClient tunnel = await ConnectBackendAsync(IPAddress.Parse(provider.Address), 443, token).ConfigureAwait(false))
+        using (TcpClient tunnel = await ConnectDirectAsync(IPAddress.Parse(provider.Address), 443, token).ConfigureAwait(false))
         using (SslStream tls = new SslStream(tunnel.GetStream(), false)) {
             tls.ReadTimeout = 10000;
             tls.WriteTimeout = 10000;
-            await tls.AuthenticateAsClientAsync(provider.Host, null, SslProtocols.Tls12, true).ConfigureAwait(false);
+            await WithCancellation(
+                tls.AuthenticateAsClientAsync(provider.Host, null, SslProtocols.Tls12, true),
+                token).ConfigureAwait(false);
             string path = "/dns-query?name=" + Uri.EscapeDataString(host) + "&type=A";
             string request = "GET " + path + " HTTP/1.1\r\nHost: " + provider.Host +
                 "\r\nAccept: application/dns-json\r\nConnection: close\r\nUser-Agent: SelectiveAccessGateway/1\r\n\r\n";
             byte[] bytes = Encoding.ASCII.GetBytes(request);
             await tls.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
             using (StreamReader reader = new StreamReader(tls, Encoding.UTF8)) {
-                string response = await reader.ReadToEndAsync().ConfigureAwait(false);
+                string response = await WithCancellation(reader.ReadToEndAsync(), token).ConfigureAwait(false);
                 int bodyIndex = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
                 if (!response.StartsWith("HTTP/1.1 200", StringComparison.Ordinal) || bodyIndex < 0) return new IPAddress[0];
                 List<IPAddress> addresses = new List<IPAddress>();
@@ -215,11 +218,39 @@ internal static class SelectiveAccessGateway
         }
     }
 
+    private static async Task<TcpClient> ConnectDirectAsync(IPAddress address, int port, CancellationToken token)
+    {
+        TcpClient client = new TcpClient(address.AddressFamily);
+        try {
+            await WithCancellation(client.ConnectAsync(address, port), token).ConfigureAwait(false);
+            return client;
+        } catch {
+            client.Dispose();
+            throw;
+        }
+    }
+
+    private static async Task WithCancellation(Task operation, CancellationToken token)
+    {
+        Task cancelled = Task.Delay(Timeout.Infinite, token);
+        if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
+            throw new OperationCanceledException(token);
+        await operation.ConfigureAwait(false);
+    }
+
+    private static async Task<T> WithCancellation<T>(Task<T> operation, CancellationToken token)
+    {
+        Task cancelled = Task.Delay(Timeout.Infinite, token);
+        if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
+            throw new OperationCanceledException(token);
+        return await operation.ConfigureAwait(false);
+    }
+
     private static async Task<TcpClient> ConnectBackendAsync(IPAddress address, int port, CancellationToken token)
     {
         TcpClient backend = new TcpClient(AddressFamily.InterNetwork);
         try {
-            await backend.ConnectAsync(IPAddress.Loopback, BackendPort).ConfigureAwait(false);
+            await WithCancellation(backend.ConnectAsync(IPAddress.Loopback, BackendPort), token).ConfigureAwait(false);
             NetworkStream stream = backend.GetStream();
             await stream.WriteAsync(new byte[] { 5, 1, 0 }, 0, 3, token).ConfigureAwait(false);
             byte[] greeting = await ReadExactAsync(stream, 2, token).ConfigureAwait(false);
