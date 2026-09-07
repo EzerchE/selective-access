@@ -80,6 +80,7 @@ const directlyReachableHosts = new Set();
 const directProbeUrls = [];
 const delayedProbeHosts = new Set();
 const tabUrls = new Map();
+const tabPendingUrls = new Map();
 let activeDirectProbes = 0;
 let maxActiveDirectProbes = 0;
 const testMessages = JSON.parse(fs.readFileSync(
@@ -160,7 +161,11 @@ const chrome = {
   },
   tabs: {
     async get(tabId) {
-      return { id: tabId, url: tabUrls.get(tabId) || "chrome://newtab/" };
+      return {
+        id: tabId,
+        url: tabUrls.get(tabId) || "chrome://newtab/",
+        pendingUrl: tabPendingUrls.get(tabId)
+      };
     },
     async reload(tabId, options) {
       reloads.push({ tabId, options });
@@ -487,6 +492,52 @@ async function waitForDebugFlush() {
     url: "https://slow-but-valid.example/"
   });
   assert.equal(storage.lastIssueType, null);
+
+  // A page can return its main HTML successfully while a required resource
+  // keeps the browser tab loading. Surface that prolonged state without
+  // learning or rerouting the target, and keep the diagnosis after the main
+  // document eventually completes so the user can request a global check.
+  setClockScale(100);
+  try {
+    const slowLoadingUrl = "https://slow-loading.example/content";
+    tabUrls.set(60, "chrome://newtab/");
+    tabPendingUrls.set(60, slowLoadingUrl);
+    listeners.tabUpdated(
+      60,
+      { status: "loading" },
+      {
+        id: 60,
+        status: "loading",
+        url: "chrome://newtab/",
+        pendingUrl: slowLoadingUrl
+      }
+    );
+    await new Promise((resolve) => realSetTimeout(resolve, 13_000));
+    assert.equal(storage.learnedDomains.includes("slow-loading.example"), false);
+    assert.equal(storage.lastIssueType, "slow_loading");
+    assert.equal(storage.lastIssueDomain, "slow-loading.example");
+    assert.equal(storage.lastIssueError, "PAGE_LOAD_SLOW");
+    assertBadge(lastForTab(badgeTexts, 60), 60, "?");
+
+    await listeners.requestCompleted({
+      tabId: 60,
+      type: "main_frame",
+      url: slowLoadingUrl,
+      statusCode: 200,
+      fromCache: false
+    });
+    assert.equal(storage.lastIssueType, "slow_loading");
+    const tabContext = await send({ type: "getTabContext", tabId: 60 });
+    assert.equal(tabContext.host, "slow-loading.example");
+    listeners.tabUpdated(
+      60,
+      { status: "complete" },
+      { id: 60, status: "complete", url: slowLoadingUrl }
+    );
+    tabPendingUrls.delete(60);
+  } finally {
+    setClockScale(1);
+  }
 
   await listeners.requestError({
     tabId: 59,

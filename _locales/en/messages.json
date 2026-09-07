@@ -77,6 +77,8 @@
   "transientDetail": { "message": "The direct check received a response. The site was not added to routing; you can retry the page." },
   "unverifiedTitle": { "message": "Block not confirmed" },
   "unverifiedDetail": { "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status." },
+  "slowLoadingTitle": { "message": "Page loading is taking unusually long" },
+  "slowLoadingDetail": { "message": "The page or one of its required resources has not finished loading. The connection was not changed; retry or check global status." },
   "alternativeTitle": { "message": "Trying an alternative connection" },
   "alternativeDetail": { "message": "The target was learned and is loading once more through the local gateway." },
   "stopIgnoring": { "message": "Stop ignoring" },

@@ -87,6 +87,7 @@ function buildDocument() {
 function createContext(options = {}) {
   const search = options.search || "";
   const tabUrl = options.tabUrl === undefined ? "https://portal.example/page?q=1" : options.tabUrl;
+  const tabPendingUrl = options.tabPendingUrl || "";
   const document = buildDocument();
   const sent = [];
   let currentState = options.state;
@@ -105,9 +106,12 @@ function createContext(options = {}) {
       getUILanguage: () => "en-US"
     },
     runtime: {
-      getManifest: () => ({ version: "4.11.9" }),
+      getManifest: () => ({ version: "4.11.12" }),
       async sendMessage(message) {
         sent.push(message);
+        if (message.type === "getTabContext") {
+          return { ok: true, tabId: message.tabId, host: options.fallbackHost || null };
+        }
         if (message.type === "saveSettings") {
           currentState = { ...currentState, ...message.patch, applyResult: { ok: true } };
           if (options.staleAfterSave) currentState = { ...currentState, schemaVersion: 7 };
@@ -122,7 +126,7 @@ function createContext(options = {}) {
       }
     },
     tabs: {
-      async query() { return [{ id: 7, url: tabUrl }]; }
+      async query() { return [{ id: 7, url: tabUrl, pendingUrl: tabPendingUrl }]; }
     }
   };
 
@@ -363,6 +367,31 @@ function lastSavePatch(sent) {
     );
   }
 
+  // A navigation can briefly hide tab.url. pendingUrl and the background's
+  // tracked main host keep the popup useful instead of showing a false
+  // "unavailable" state while the page is still loading.
+  {
+    const { document } = createContext({
+      state: baseState(),
+      tabUrl: "chrome://newtab/",
+      tabPendingUrl: "https://pending.example/resource"
+    });
+    await settle();
+    assert.equal(document.querySelector("#currentDomain").textContent, "pending.example");
+    assert.equal(document.querySelector("#siteAction").disabled, false);
+  }
+  {
+    const { document, sent } = createContext({
+      state: baseState(),
+      tabUrl: "",
+      fallbackHost: "tracked.example"
+    });
+    await settle();
+    assert.equal(document.querySelector("#currentDomain").textContent, "tracked.example");
+    assert.equal(document.querySelector("#siteAction").disabled, false);
+    assert.equal(sent.some((message) => message.type === "getTabContext"), true);
+  }
+
   // A gateway error surfaces only when the open tab actually uses the gateway.
   {
     const { document } = createContext({
@@ -393,6 +422,18 @@ function lastSavePatch(sent) {
     });
     await settle();
     assert.equal(document.querySelector("#diagnosticCard").hidden, true);
+  }
+  {
+    const { document } = createContext({
+      state: baseState({ lastIssueType: "slow_loading", lastIssueDomain: "portal.example" })
+    });
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden, false);
+    assert.equal(
+      document.querySelector("#diagnosticTitle").textContent,
+      messages.slowLoadingTitle.message
+    );
+    assert.equal(document.querySelector("#checkStatus").hidden, false);
   }
   {
     const { document } = createContext({

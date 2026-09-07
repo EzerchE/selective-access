@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.11.9**
+Güncel sürüm: **4.11.12**
 
 <img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
@@ -51,12 +51,14 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
 - DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Yerel geçit yalnız yönlendirilen alan adlarını çözer ve sistem çözümleyicisi başarısız olduğunda şifreli DNS kullanabilir.
 - Zaman aşımına uğrayan bir ana sayfa yalnız temizlenmiş doğrudan origin probu da başarısızsa öğrenilip yeniden denenir; yavaş fakat erişilebilir sayfa doğrudan kalır.
+- Tarayıcı sekmesi ağ hatası üretmeden olağandan uzun süre yükleniyor kalırsa eklenti rotayı değiştirmeden yavaş sayfa teşhisi gösterir ve isteğe bağlı genel durum kontrolünü sunar.
 - Bir sayfa yönlendirildikten sonra o sayfanın başlattığı ve DNS hatası ya da zaman aşımı yaşayan bağımlılıklar doğrudan origin probu da başarısızsa öğrenilebilir; ilgisiz sayfalar bu genişletilmiş bağımlılık işlemini tetikleyemez.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken geç başlayan sayfa bağımlılıkları, ana belge tamamlanmış olsa bile sınırlı bir sakinleşme penceresinde toplanır; gerekirse kontrollü olarak yeniden denenir ve yenileme döngüsü sınırlandırılır.
 - Tekrarlanan gerçek-zaman bağlantı hataları, ilgisiz bir HTTP doğrulamasını beklemek yerine sınırlı hata eşiğini doğrudan kullanır.
 - Yerel geçit bağlantı hazırlığı süreyle sınırlıdır; başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
+- Yerel geçit uzun süre boşta kalan oturumlarda kararlı çalışmayı sürdürür.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
 - Başarıyla açılan yönlendirilmiş sayfanın öğrenilen rotası kullanıcı kaldırana veya yoksayana kadar korunur; sayfa yüklenirken tarayıcı genelindeki proxy ayarı değiştirilmez.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
