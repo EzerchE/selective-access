@@ -9,6 +9,10 @@ const root = path.resolve(__dirname, "..");
 const migration = fs.readFileSync(path.join(root, "helper/migrate-legacy.cmd"), "utf8");
 const installer = fs.readFileSync(path.join(root, "helper/install.cmd"), "utf8");
 const uninstaller = fs.readFileSync(path.join(root, "helper/uninstall.cmd"), "utf8");
+const gatewaySource = fs.readFileSync(
+  path.join(root, "helper/source/SelectiveAccessGateway.cs"),
+  "utf8"
+);
 
 assert.doesNotMatch(migration, /powershell(?:\.exe)?|\bnetsh(?:\.exe)?\b|\breg(?:\.exe)?\s+add\b/i);
 assert.doesNotMatch(migration, /schtasks(?:\.exe)?\s+\/Create\b|sc(?:\.exe)?\s+create\b/i);
@@ -48,6 +52,17 @@ assert.match(installer, /depend= "%BACKEND_SERVICE%"/i);
 assert.match(installer, /SelectiveAccessGateway\.exe/i);
 assert.match(installer, /127\.0\.0\.1:1080/i);
 assert.match(uninstaller, /127\.0\.0\.1:1081/i);
+
+assert.doesNotMatch(
+  gatewaySource,
+  /Task\.WhenAny\(accept,\s*Task\.Delay/i,
+  "Gateway must not abandon pending socket accept operations"
+);
+assert.match(
+  gatewaySource,
+  /token\.Register\(delegate\s*\{\s*listener\.Stop\(\);\s*\}\)/i,
+  "Gateway listener must be stopped when the service is cancelled"
+);
 
 const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
 const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();

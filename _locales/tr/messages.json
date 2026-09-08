@@ -77,6 +77,8 @@
   "transientDetail": { "message": "Doğrudan kontrol hedeften yanıt aldı. Site yönlendirme listesine eklenmedi; sayfayı yeniden deneyebilirsiniz." },
   "unverifiedTitle": { "message": "Engel doğrulanmadı" },
   "unverifiedDetail": { "message": "Bu hata tek başına erişim engeli kanıtı değildir. Hedef otomatik eklenmedi; yeniden deneyin veya genel durumu kontrol edin." },
+  "slowLoadingTitle": { "message": "Sayfanın yüklenmesi olağandan uzun sürüyor" },
+  "slowLoadingDetail": { "message": "Sayfa veya gerekli kaynaklarından biri yüklenmeyi tamamlamadı. Bağlantı değiştirilmedi; yeniden deneyin veya genel durumu kontrol edin." },
   "alternativeTitle": { "message": "Alternatif bağlantı deneniyor" },
   "alternativeDetail": { "message": "Hedef öğrenildi ve yerel geçit üzerinden bir kez daha yükleniyor." },
   "stopIgnoring": { "message": "Yoksaymayı kaldır" },

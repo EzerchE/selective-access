@@ -84,6 +84,7 @@ const gatewayRetryStates = new Map();
 const tabRecoveryStates = new Map();
 const clientFilterCandidates = new Map();
 const iframeRetryTimers = new Map();
+const slowLoadWatchdogs = new Map();
 const pendingLearnedNotifications = new Set();
 let learnedNotificationTimer = null;
 const learningQueues = new Map();
@@ -121,6 +122,8 @@ const CRITICAL_CLIENT_FILTER_TYPES = new Set([
 const CLIENT_FILTER_WARNING_HOLD_MS = 15_000;
 const CLIENT_FILTER_CANDIDATE_WINDOW_MS = 10_000;
 const CLIENT_FILTER_WARNING_THRESHOLD = 2;
+const SLOW_PAGE_THRESHOLD_MS = 12_000;
+const SLOW_PAGE_ISSUE_HOLD_MS = 5 * 60_000;
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 const DEBUG_FLUSH_DELAY_MS = 150;
@@ -370,6 +373,68 @@ function markTabLoading(tabId) {
   tabRoutedHosts.delete(tabId);
 }
 
+function cancelSlowLoadWatchdog(tabId) {
+  const watchdog = slowLoadWatchdogs.get(tabId);
+  if (!watchdog) return;
+  clearTimeout(watchdog.timer);
+  slowLoadWatchdogs.delete(tabId);
+}
+
+async function reportSlowPage(tabId, host, startedAt) {
+  const watchdog = slowLoadWatchdogs.get(tabId);
+  if (!watchdog || watchdog.host !== host || watchdog.startedAt !== startedAt) return;
+  slowLoadWatchdogs.delete(tabId);
+  if (tabMainHosts.get(tabId) !== host || tabConnectionResults.get(tabId) === "failed") return;
+
+  const settings = await getSettings();
+  if (!settings.enabled || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  const activeIssue = tabIssues.get(tabId);
+  if (activeIssue && activeIssue !== "detecting") return;
+
+  const now = Date.now();
+  await chrome.storage.local.set({
+    lastIssueType: "slow_loading",
+    lastIssueDomain: host,
+    lastIssueError: "PAGE_LOAD_SLOW",
+    lastIssueAt: new Date(now).toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("slow-page-detected", {
+    tabId,
+    host,
+    elapsedMs: Math.max(0, now - startedAt)
+  });
+  await setIssueBadge(true, "slow_loading", tabId);
+}
+
+function startSlowLoadWatchdog(tabId, url) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  const host = url
+    ? updateTabMainHost(tabId, url)
+    : tabMainHosts.get(tabId) || null;
+  cancelSlowLoadWatchdog(tabId);
+  if (!host || isLocalHost(host)) return;
+
+  const startedAt = Date.now();
+  const timer = setTimeout(() => {
+    reportSlowPage(tabId, host, startedAt).catch(console.error);
+  }, SLOW_PAGE_THRESHOLD_MS);
+  if (typeof timer?.unref === "function") timer.unref();
+  slowLoadWatchdogs.set(tabId, { host, startedAt, timer });
+}
+
+async function getTabContext(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return { tabId: null, host: null };
+  let host = tabMainHosts.get(tabId) || null;
+  if (!host && typeof chrome.tabs?.get === "function") {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      host = updateTabMainHost(tabId, firstHttpUrl(tab?.pendingUrl, tab?.url));
+    } catch {}
+  }
+  return { tabId, host };
+}
+
 async function trackCompletedRoute(details) {
   await routingSnapshotReady;
   if (!Number.isInteger(details.tabId) || details.tabId < 0 || !routingSnapshot.enabled) {
@@ -382,6 +447,17 @@ async function trackCompletedRoute(details) {
   routedHosts.add(host);
   tabRoutedHosts.set(details.tabId, routedHosts);
   return changed;
+}
+
+function firstHttpUrl(...candidates) {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      if (["http:", "https:"].includes(parsed.protocol)) return candidate;
+    } catch {}
+  }
+  return "";
 }
 
 function updateTabMainHost(tabId, url) {
@@ -435,7 +511,7 @@ async function refreshTabBadge(tabId) {
   if (typeof chrome.tabs?.get === "function") {
     try {
       const tab = await chrome.tabs.get(tabId);
-      updateTabMainHost(tabId, tab?.url || "");
+      updateTabMainHost(tabId, firstHttpUrl(tab?.pendingUrl, tab?.url));
     } catch {}
   }
   const issueType = tabIssues.get(tabId);
@@ -753,7 +829,7 @@ function scheduleGatewayRetry(details, host) {
     retry.timer = null;
     try {
       const [tab, settings] = await Promise.all([chrome.tabs.get(tabId), getSettings()]);
-      const activeHost = updateTabMainHost(tabId, tab?.url || "");
+      const activeHost = updateTabMainHost(tabId, firstHttpUrl(tab?.pendingUrl, tab?.url));
       if (activeHost !== host || !settings.enabled || !isLearned(host, settings.learnedDomains)) {
         cancelGatewayRetry(tabId, "route-changed", host);
         return;
@@ -1475,9 +1551,20 @@ async function clearIssueAfterSuccess(details) {
     settings.lastIssueDomain === host &&
     Number.isFinite(issueTime) &&
     Date.now() - issueTime < CLIENT_FILTER_WARNING_HOLD_MS;
+  const recentSlowPageIssue =
+    host &&
+    settings.lastIssueType === "slow_loading" &&
+    settings.lastIssueDomain === host &&
+    Number.isFinite(issueTime) &&
+    Date.now() - issueTime < SLOW_PAGE_ISSUE_HOLD_MS;
 
   if (recentClientFilterIssue) {
     await setIssueBadge(settings.enabled, "client_filter_blocked", details.tabId);
+    return;
+  }
+
+  if (recentSlowPageIssue) {
+    await setIssueBadge(settings.enabled, "slow_loading", details.tabId);
     return;
   }
 
@@ -1540,6 +1627,7 @@ chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
     if (details.tabId < 0) return;
     if (details.type === "main_frame" && !NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) {
+      cancelSlowLoadWatchdog(details.tabId);
       updateTabMainHost(details.tabId, details.url);
       tabConnectionResults.set(details.tabId, "failed");
     }
@@ -1619,15 +1707,24 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  const url = changeInfo?.url || tab?.url;
+  // During an uncommitted navigation Chrome keeps the previous page in
+  // tab.url and exposes the destination in pendingUrl. Prefer that destination
+  // so slow-load diagnosis starts before the first response commits.
+  const url = firstHttpUrl(changeInfo?.url, tab?.pendingUrl, tab?.url);
   if (url) updateTabMainHost(tabId, url);
-  if (changeInfo?.status === "loading") markTabLoading(tabId);
+  if (changeInfo?.status === "loading") {
+    markTabLoading(tabId);
+    startSlowLoadWatchdog(tabId, url);
+  } else if (changeInfo?.status === "complete") {
+    cancelSlowLoadWatchdog(tabId);
+  }
   if (!url && !changeInfo?.status) return;
   refreshTabBadge(tabId).catch(console.error);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   cancelGatewayRetry(tabId, "tab-removed");
+  cancelSlowLoadWatchdog(tabId);
   tabIssues.delete(tabId);
   tabMainHosts.delete(tabId);
   tabConnectionResults.delete(tabId);
@@ -1651,6 +1748,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message?.type) {
       case "getState":
         return { ok: true, state: await getPublicState() };
+      case "getTabContext":
+        return { ok: true, ...(await getTabContext(message.tabId)) };
       case "saveSettings":
         return { ok: true, state: await saveSettings(message.patch || {}) };
       case "reapply":

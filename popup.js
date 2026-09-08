@@ -270,6 +270,9 @@ function renderDiagnostic(state) {
   } else if (state.lastIssueType === "transient_unverified") {
     elements.diagnosticTitle.textContent = t("unverifiedTitle");
     elements.diagnosticText.textContent = t("unverifiedDetail");
+  } else if (state.lastIssueType === "slow_loading") {
+    elements.diagnosticTitle.textContent = t("slowLoadingTitle");
+    elements.diagnosticText.textContent = t("slowLoadingDetail");
   } else {
     elements.diagnosticTitle.textContent = t("alternativeTitle");
     elements.diagnosticText.textContent = t("alternativeDetail");
@@ -293,12 +296,22 @@ async function sendMessage(message) {
 async function loadCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = Number.isInteger(tab?.id) ? tab.id : null;
-  try {
-    const url = new URL(tab?.url || "");
-    if (!["http:", "https:"].includes(url.protocol)) throw new Error();
-    currentHost = normalizeDomain(url.hostname);
-  } catch {
-    currentHost = null;
+  currentHost = null;
+  for (const rawUrl of [tab?.pendingUrl, tab?.url]) {
+    if (!rawUrl) continue;
+    try {
+      const url = new URL(rawUrl);
+      if (!["http:", "https:"].includes(url.protocol)) continue;
+      currentHost = normalizeDomain(url.hostname);
+      if (currentHost) break;
+    } catch {}
+  }
+
+  if (!currentHost && Number.isInteger(currentTabId)) {
+    try {
+      const context = await sendMessage({ type: "getTabContext", tabId: currentTabId });
+      currentHost = normalizeDomain(context.host);
+    } catch {}
   }
 
   elements.currentDomain.textContent = currentHost || t("pageUnavailable");

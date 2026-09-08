@@ -87,16 +87,19 @@ internal static class SelectiveAccessGateway
     {
         TcpListener listener = new TcpListener(ListenAddress, ListenPort);
         listener.Start(128);
-        try {
-            while (!token.IsCancellationRequested) {
-                Task<TcpClient> accept = listener.AcceptTcpClientAsync();
-                Task completed = await Task.WhenAny(accept, Task.Delay(500, token)).ConfigureAwait(false);
-                if (completed != accept) continue;
-                TcpClient client = await accept.ConfigureAwait(false);
-                Task ignored = Task.Run(delegate { return HandleClientAsync(client, token); });
+        using (token.Register(delegate { listener.Stop(); })) {
+            try {
+                while (!token.IsCancellationRequested) {
+                    TcpClient client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    Task ignored = Task.Run(delegate { return HandleClientAsync(client, token); });
+                }
+            } catch (ObjectDisposedException) {
+                if (!token.IsCancellationRequested) throw;
+            } catch (SocketException) {
+                if (!token.IsCancellationRequested) throw;
             }
-        } catch (OperationCanceledException) { }
-        finally { listener.Stop(); }
+            finally { listener.Stop(); }
+        }
     }
 
     private static async Task HandleClientAsync(TcpClient client, CancellationToken token)
@@ -232,18 +235,24 @@ internal static class SelectiveAccessGateway
 
     private static async Task WithCancellation(Task operation, CancellationToken token)
     {
-        Task cancelled = Task.Delay(Timeout.Infinite, token);
-        if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
-            throw new OperationCanceledException(token);
-        await operation.ConfigureAwait(false);
+        using (CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(token)) {
+            Task cancelled = Task.Delay(Timeout.Infinite, cancellation.Token);
+            if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
+                throw new OperationCanceledException(token);
+            cancellation.Cancel();
+            await operation.ConfigureAwait(false);
+        }
     }
 
     private static async Task<T> WithCancellation<T>(Task<T> operation, CancellationToken token)
     {
-        Task cancelled = Task.Delay(Timeout.Infinite, token);
-        if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
-            throw new OperationCanceledException(token);
-        return await operation.ConfigureAwait(false);
+        using (CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(token)) {
+            Task cancelled = Task.Delay(Timeout.Infinite, cancellation.Token);
+            if (await Task.WhenAny(operation, cancelled).ConfigureAwait(false) != operation)
+                throw new OperationCanceledException(token);
+            cancellation.Cancel();
+            return await operation.ConfigureAwait(false);
+        }
     }
 
     private static async Task<TcpClient> ConnectBackendAsync(IPAddress address, int port, CancellationToken token)
