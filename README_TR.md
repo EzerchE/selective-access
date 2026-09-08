@@ -6,7 +6,7 @@ Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kulla
 
 Güncel sürüm: **4.11.12**
 
-<img src="assets/screenshots/popup-v4-8-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
+<img src="assets/screenshots/popup-v4-11-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
 
 ## Bu proje neden önemli?
 

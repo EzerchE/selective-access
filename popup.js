@@ -481,9 +481,9 @@ const previewMode = new URLSearchParams(location.search).get("preview");
   await i18nReady;
 
   if (previewMode) {
-    currentHost = "portal.example";
-    elements.currentDomain.textContent = currentHost;
-    elements.siteAction.disabled = false;
+    currentHost = null;
+    elements.currentDomain.textContent = t("pageUnavailable");
+    elements.siteAction.disabled = true;
     render(previewMode === "legacy"
       ? {
           schemaVersion: EXPECTED_SCHEMA_VERSION - 1,
@@ -496,9 +496,9 @@ const previewMode = new URLSearchParams(location.search).get("preview");
       : {
           schemaVersion: EXPECTED_SCHEMA_VERSION,
           enabled: true,
-          learnedDomains: ["media-cdn.example"],
-          ignoredDomains: ["ignored.example"],
-          lastDetectedDomain: "media-cdn.example",
+          learnedDomains: [],
+          ignoredDomains: [],
+          lastDetectedDomain: null,
           proxyPort: 1080,
           lastProxyError: null,
           levelOfControl: "controlled_by_this_extension"

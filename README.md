@@ -6,7 +6,7 @@ A Manifest V3 Chrome extension that learns targets experiencing connection error
 
 Current version: **4.11.12**
 
-<img src="assets/screenshots/popup-v4-8-en.png" alt="Automatic Access extension popup in English" width="307">
+<img src="assets/screenshots/popup-v4-11-en.png" alt="Automatic Access extension popup in English" width="307">
 
 ## Why this project matters
 
