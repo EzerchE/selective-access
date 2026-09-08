@@ -468,7 +468,8 @@ function lastSavePatch(sent) {
     await settle();
     assert.equal(document.querySelector("#statusCard").className, "status-card is-on");
     assert.equal(document.querySelector("#save").disabled, false);
-    assert.equal(document.querySelector("#currentDomain").textContent, "portal.example");
+    assert.equal(document.querySelector("#currentDomain").textContent, messages.pageUnavailable.message);
+    assert.equal(document.querySelector("#siteAction").disabled, true);
   }
 
   // The legacy preview deliberately exercises the stale-schema path.

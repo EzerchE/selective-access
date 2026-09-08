@@ -47,9 +47,9 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
   let previewState = {
     schemaVersion: 8,
     enabled: true,
-    learnedDomains: ["media-cdn.example", "blocked-service.example"],
-    ignoredDomains: ["ignored.example"],
-    lastDetectedDomain: "blocked-service.example",
+    learnedDomains: [],
+    ignoredDomains: [],
+    lastDetectedDomain: null,
     proxyPort: 1080,
     lastProxyError: null,
     lastIssueType: null,
@@ -74,7 +74,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
       }
     },
     runtime: {
-      getManifest: () => ({ version: "0.0.0-preview" }),
+      getManifest: () => ({ version: "4.11.12" }),
       async sendMessage(message) {
         if (message?.type === "saveSettings") {
           previewState = { ...previewState, ...(message.patch || {}) };
