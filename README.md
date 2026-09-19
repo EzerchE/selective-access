@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.12.2**
+Current version: **4.13.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -60,6 +60,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - Local gateway setup attempts are time-bounded, and successful pages keep a stable proxy configuration while their remaining resources load.
 - The local gateway remains stable during long-running idle sessions.
 - Learned rules apply only to the exact hostname that produced the error.
+- A newly learned route is provisional until a main page actually loads through the gateway; that confirms it, and a confirmed route is never removed automatically. A provisional route that never succeeded and failed three separate navigations is removed after a full day of observation, with a notification saying it was never verified, and it can be learned again on a later visit. Local gateway failures and the extension's own recovery reloads are excluded from that count, and `www` shares one health record with the apex domain. No external check is involved.
 - A successful routed page keeps its learned route until the user removes or ignores it, avoiding disruptive browser-wide proxy changes during page loading.
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
