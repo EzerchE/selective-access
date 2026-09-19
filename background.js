@@ -120,6 +120,13 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_CONNECTION_TIMED_OUT: { main: 1, embedded: 1 },
   ERR_TIMED_OUT: { main: 1, embedded: 1 },
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 },
+  // A handshake that fails at the TLS layer is one of the signatures this
+  // extension exists for, but it is also what a genuinely misconfigured server
+  // or an outdated cipher looks like, so it asks for two failures on both
+  // scopes rather than the single embedded failure a reset gets. Without an
+  // entry here the error was detected and then dropped: the popup showed the
+  // unverified diagnosis and the target could never be learned.
+  ERR_SSL_PROTOCOL_ERROR: { main: 2, embedded: 2 },
   ERR_NAME_NOT_RESOLVED: { main: 1, embedded: 1 },
   ERR_NAME_RESOLUTION_FAILED: { main: 1, embedded: 1 },
   ERR_DNS_TIMED_OUT: { main: 1, embedded: 1 },
