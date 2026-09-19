@@ -28,6 +28,13 @@ function setClockScale(scale) {
   clockScale = scale;
 }
 
+// Jumps the clock the worker reads without disturbing timers already armed,
+// which is how a twenty-four hour observation window is exercised in a test.
+function advanceClock(logicalMs) {
+  clockAnchorLogical = logicalNow() + logicalMs;
+  clockAnchorReal = Date.now();
+}
+
 const ScaledDate = new Proxy(Date, {
   get(target, property, receiver) {
     if (property === "now") return () => Math.round(logicalNow());
@@ -1587,6 +1594,181 @@ async function waitForDebugFlush() {
     storage.learnedDomains.includes("tls-blocked.example"),
     true,
     "a repeated TLS failure that also fails the direct probe must be learned"
+  );
+
+  // Provisional routes. A route is learned from a single DNS failure so a
+  // blocked site opens fast, which also means a typo is learned just as
+  // eagerly. These assertions cover the guarantees that let such a route be
+  // taken back out without endangering a working one.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  // Mirrors PROVISIONAL_FAILURE_THRESHOLD in background.js; the assertions
+  // below are about the rule, so they are written against the same number.
+  const PROVISIONAL_FAILURE_THRESHOLD_FOR_TEST = 3;
+  const mainFailure = (tabId, host, error = "net::ERR_NAME_NOT_RESOLVED") => ({
+    tabId,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error,
+    url: `https://${host}/`
+  });
+
+  // An earlier block left the permission denied; the removal notice is part of
+  // what is under test here.
+  notificationPermission = "granted";
+  notificationCreateError = null;
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({ routeHealth: {} });
+
+  // A newly learned route is provisional, and www shares the apex record.
+  await listeners.requestError(mainFailure(101, "typo-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(storage.learnedDomains.includes("typo-target.example"), true);
+  assert.equal(storage.learnedDomains.includes("www.typo-target.example"), true);
+  assert.deepEqual(
+    Object.keys(storage.routeHealth),
+    ["typo-target.example"],
+    "www and the apex must share one health record"
+  );
+  assert.equal(storage.routeHealth["typo-target.example"].confirmed, false);
+
+  // A local gateway failure says nothing about the target.
+  await chrome.storage.local.set({ lastProxyError: "net::ERR_PROXY_CONNECTION_FAILED" });
+  await listeners.requestError(mainFailure(102, "typo-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.routeHealth["typo-target.example"].failures,
+    0,
+    "a sick gateway must not count against the route"
+  );
+  await chrome.storage.local.set({ lastProxyError: null });
+
+  // Two failures on the same tab inside the grace window are the extension
+  // reloading that navigation, not two separate ones.
+  await listeners.requestError(mainFailure(103, "typo-target.example"));
+  await listeners.requestError(mainFailure(103, "typo-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.routeHealth["typo-target.example"].failures,
+    1,
+    "an automatic reload must count as the same failure"
+  );
+
+  // Three separate navigations reach the threshold, but the observation window
+  // has not elapsed, so the route stays.
+  await listeners.requestError(mainFailure(104, "typo-target.example"));
+  await listeners.requestError(mainFailure(105, "typo-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.routeHealth["typo-target.example"]?.failures,
+    3,
+    "three separate navigations must be counted, and none of them may prune yet"
+  );
+  assert.equal(
+    storage.learnedDomains.includes("typo-target.example"),
+    true,
+    "a bad afternoon must not delete a route on the same day"
+  );
+
+  // Past the window the next counted failure removes it, and says why.
+  const notificationsBefore = notifications.length;
+  advanceClock(DAY_MS + 60_000);
+  await listeners.requestError(mainFailure(106, "typo-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(storage.learnedDomains.includes("typo-target.example"), false);
+  assert.equal(storage.learnedDomains.includes("www.typo-target.example"), false);
+  assert.equal(
+    Object.hasOwn(storage.routeHealth, "typo-target.example"),
+    false,
+    "the record goes with the route so a later visit can learn it again"
+  );
+  assert.equal(notifications.length, notificationsBefore + 1);
+  assert.equal(notifications.at(-1).options.title, getMessage("unverifiedRemovedTitle"));
+  // Two stored entries went, but it is one site, so the notice names it.
+  assert.match(notifications.at(-1).options.message, /typo-target.example/);
+  assert.equal(notifications.at(-1).options.message, getMessage("unverifiedRemovedOne", "typo-target.example"));
+
+  // A route that once loaded through the gateway is confirmed and is never
+  // pruned, however long it misbehaves afterwards.
+  await listeners.requestError(mainFailure(110, "real-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(storage.learnedDomains.includes("real-target.example"), true);
+  await listeners.requestCompleted({
+    tabId: 110,
+    type: "main_frame",
+    url: "https://real-target.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(storage.routeHealth["real-target.example"].confirmed, true);
+
+  for (const tabId of [111, 112, 113]) {
+    await listeners.requestError(mainFailure(tabId, "real-target.example"));
+  }
+  advanceClock(DAY_MS + 60_000);
+  await listeners.requestError(mainFailure(114, "real-target.example"));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("real-target.example"),
+    true,
+    "a confirmed route must survive any number of later failures"
+  );
+  assert.equal(storage.routeHealth["real-target.example"].failures, 0);
+
+  // The counter refuses to increment a confirmed record, so the confirmed check
+  // inside the prune filter is never reached by the path above. A record forced
+  // past every other condition isolates it.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["veteran.example"], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({
+    routeHealth: {
+      "veteran.example": {
+        firstSeenAt: Math.round(logicalNow()) - 3 * DAY_MS,
+        confirmed: true,
+        failures: 9,
+        lastFailureAt: 0,
+        lastFailureTab: null
+      }
+    }
+  });
+  await listeners.startup();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("veteran.example"),
+    true,
+    "a confirmed route must never be pruned, whatever its counters say"
+  );
+  assert.equal(Object.hasOwn(storage.routeHealth, "veteran.example"), true);
+
+  // Below the threshold the window elapsing is not enough on its own: three
+  // separate navigations have to have failed, not one bad day.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["shy.example"], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({
+    routeHealth: {
+      "shy.example": {
+        firstSeenAt: Math.round(logicalNow()) - 3 * DAY_MS,
+        confirmed: false,
+        failures: PROVISIONAL_FAILURE_THRESHOLD_FOR_TEST - 1,
+        lastFailureAt: 0,
+        lastFailureTab: null
+      }
+    }
+  });
+  await listeners.startup();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("shy.example"),
+    true,
+    "two failures must not be enough however old the record is"
   );
 
   process.stdout.write("background tests passed\n");
