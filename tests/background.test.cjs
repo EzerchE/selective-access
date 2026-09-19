@@ -5,6 +5,9 @@ const vm = require("node:vm");
 
 const listeners = {};
 const storage = {};
+// Fires once, in the middle of a routeHealth read, so a test can drive a second
+// operation into the gap between another one's read and its write.
+let onRouteHealthRead = null;
 // chrome.storage.session survives a service worker restart but not a browser
 // restart, so the harness keeps it in its own object outside the vm context.
 const sessionStorage = {};
@@ -112,6 +115,13 @@ const chrome = {
   storage: {
     local: {
       async get(keysOrDefaults) {
+        if (onRouteHealthRead &&
+            keysOrDefaults && typeof keysOrDefaults === "object" &&
+            Object.hasOwn(keysOrDefaults, "routeHealth")) {
+          const hook = onRouteHealthRead;
+          onRouteHealthRead = null;
+          hook();
+        }
         if (keysOrDefaults === null) return { ...storage };
         if (Array.isArray(keysOrDefaults)) {
           return Object.fromEntries(keysOrDefaults
@@ -331,13 +341,19 @@ const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf
 // Evaluating the worker into a fresh context, against the same chrome stub, is
 // exactly what a service worker restart does: module memory is gone, storage is
 // not. The listener assignments in the stub overwrite the previous set.
+// Kept so a test can reach the worker's own functions directly. Driving a race
+// through onStartup does not work: it runs applyProxy first, which widens the
+// window so far that the operation under test has already finished.
+let workerGlobal = null;
+
 function startWorker() {
-  vm.runInNewContext(source, {
+  workerGlobal = {
     chrome, console, URL, Map, Set, Promise, JSON, fetch,
     AbortController, clearTimeout,
     Date: ScaledDate,
     setTimeout: scaledSetTimeout
-  });
+  };
+  vm.runInNewContext(source, workerGlobal);
 }
 
 startWorker();
@@ -1745,6 +1761,49 @@ async function waitForDebugFlush() {
     "a confirmed route must never be pruned, whatever its counters say"
   );
   assert.equal(Object.hasOwn(storage.routeHealth, "veteran.example"), true);
+
+  // A success in another tab and a prune can overlap. The prune used to read the
+  // records outside the queue, so it could take its decision while a
+  // confirmation was still between its own read and its write, and then delete
+  // the route that confirmation had just validated. Both run on the health
+  // queue now, so the one that started first is the one the other observes.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["contested.example"], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({
+    routeHealth: {
+      "contested.example": {
+        firstSeenAt: Math.round(logicalNow()) - 3 * DAY_MS,
+        confirmed: false,
+        failures: PROVISIONAL_FAILURE_THRESHOLD_FOR_TEST,
+        lastFailureAt: 0,
+        lastFailureTab: null
+      }
+    }
+  });
+  // The prune starts while the confirmation is mid-flight, between its read of
+  // the records and its write of them.
+  onRouteHealthRead = () => { workerGlobal.pruneUnverifiedRoutes(); };
+  await listeners.requestCompleted({
+    tabId: 130,
+    type: "main_frame",
+    url: "https://contested.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  onRouteHealthRead = null;
+  assert.equal(
+    storage.learnedDomains.includes("contested.example"),
+    true,
+    "a route confirmed while a prune is deciding must not be removed by it"
+  );
+  assert.equal(
+    storage.routeHealth["contested.example"]?.confirmed,
+    true,
+    "the confirmation must survive as well, not just the route"
+  );
 
   // Below the threshold the window elapsing is not enough on its own: three
   // separate navigations have to have failed, not one bad day.

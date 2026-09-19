@@ -1488,39 +1488,45 @@ function recordProvisionalFailure(host, tabId, now) {
   });
 }
 
-async function pruneUnverifiedRoutes(now = Date.now()) {
-  const health = await readRouteHealth();
-  const doomed = new Set(Object.entries(health)
-    .filter(([, record]) => record &&
-      !record.confirmed &&
-      (record.failures || 0) >= PROVISIONAL_FAILURE_THRESHOLD &&
-      Number.isFinite(record.firstSeenAt) &&
-      now - record.firstSeenAt >= PROVISIONAL_OBSERVATION_MS)
-    .map(([family]) => family));
-  if (doomed.size === 0) return [];
+function pruneUnverifiedRoutes(now = Date.now()) {
+  // Reading the records, removing the domains and dropping the records are one
+  // step on the health queue. Splitting them let a route confirmed by another
+  // tab in between be deleted anyway, on a decision taken before that success
+  // existed. Holding the queue across saveSettings is safe because nothing on
+  // the settings queue waits on this one -- markRouteProvisional is called by
+  // learnAndRetry after the commit, not inside it.
+  return queueRouteHealth(async () => {
+    const health = await readRouteHealth();
+    const doomed = new Set(Object.entries(health)
+      .filter(([, record]) => record &&
+        !record.confirmed &&
+        (record.failures || 0) >= PROVISIONAL_FAILURE_THRESHOLD &&
+        Number.isFinite(record.firstSeenAt) &&
+        now - record.firstSeenAt >= PROVISIONAL_OBSERVATION_MS)
+      .map(([family]) => family));
+    if (doomed.size === 0) return [];
 
-  const settings = await getSettings();
-  const removed = settings.learnedDomains.filter((domain) => doomed.has(routeFamily(domain)));
-  if (removed.length > 0) {
-    await saveSettings({
-      learnedDomains: settings.learnedDomains.filter((domain) => !doomed.has(routeFamily(domain)))
+    const settings = await getSettings();
+    const removed = settings.learnedDomains.filter((domain) => doomed.has(routeFamily(domain)));
+    if (removed.length > 0) {
+      await saveSettings({
+        learnedDomains: settings.learnedDomains.filter((domain) => !doomed.has(routeFamily(domain)))
+      });
+    }
+    const remaining = { ...health };
+    for (const family of doomed) delete remaining[family];
+    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: remaining });
+    await appendDebug("unverified-route-pruned", {
+      families: [...doomed],
+      removed
     });
-  }
-  await queueRouteHealth(async () => {
-    const latest = await readRouteHealth();
-    for (const family of doomed) delete latest[family];
-    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: latest });
+    // Nothing is sent anywhere and no global check runs: the decision is made
+    // entirely from what this browser already observed. The notice counts
+    // families rather than stored entries, because www and the apex are one site
+    // to the person reading it even though two entries were removed.
+    if (removed.length > 0) await notifyUnverifiedRemoval([...doomed]).catch(console.error);
+    return removed;
   });
-  await appendDebug("unverified-route-pruned", {
-    families: [...doomed],
-    removed
-  });
-  // Nothing is sent anywhere and no global check runs: the decision is made
-  // entirely from what this browser already observed. The notice counts
-  // families rather than stored entries, because www and the apex are one site
-  // to the person reading it even though two entries were removed.
-  if (removed.length > 0) await notifyUnverifiedRemoval([...doomed]).catch(console.error);
-  return removed;
 }
 
 function commitLearnedRoute(host, details, error) {
@@ -1549,7 +1555,6 @@ function commitLearnedRoute(host, details, error) {
       lastIssueAt: details.type === "main_frame" ? new Date(now).toISOString() : latest.lastIssueAt,
       lastGlobalCheck: details.type === "main_frame" ? null : latest.lastGlobalCheck
     });
-    await markRouteProvisional(host, now);
     const applied = await applyProxy();
     return { added: true, skipped: false, learnedDomains, now, applied };
   });
@@ -1702,6 +1707,10 @@ async function learnAndRetry(details) {
   const committed = await commitLearnedRoute(host, details, error);
   if (committed.skipped || !committed.added) return;
   const { learnedDomains, now, applied } = committed;
+  // Deliberately outside commitLearnedRoute: that runs on the settings queue,
+  // and a settings-queue task awaiting the health queue would close a cycle
+  // with pruneUnverifiedRoutes, which holds the health queue while it saves.
+  await markRouteProvisional(host, now);
   await appendDebug("learned", {
     tabId: details.tabId,
     host,
