@@ -5,6 +5,9 @@ const vm = require("node:vm");
 
 const listeners = {};
 const storage = {};
+// chrome.storage.session survives a service worker restart but not a browser
+// restart, so the harness keeps it in its own object outside the vm context.
+const sessionStorage = {};
 const storageWrites = [];
 const scheduledDelays = [];
 const globalPing = { create: "ok", result: "ok", resultDelayMs: 0 };
@@ -120,6 +123,22 @@ const chrome = {
       },
       async remove(keys) {
         for (const key of Array.isArray(keys) ? keys : [keys]) delete storage[key];
+      }
+    },
+    session: {
+      async get(keysOrDefaults) {
+        if (keysOrDefaults === null) return { ...sessionStorage };
+        if (Array.isArray(keysOrDefaults)) {
+          return Object.fromEntries(keysOrDefaults
+            .filter((key) => Object.hasOwn(sessionStorage, key))
+            .map((key) => [key, sessionStorage[key]]));
+        }
+        return Object.fromEntries(Object.entries(keysOrDefaults).map(([key, fallback]) =>
+          [key, Object.hasOwn(sessionStorage, key) ? sessionStorage[key] : fallback]));
+      },
+      async set(values) { Object.assign(sessionStorage, values); },
+      async remove(keys) {
+        for (const key of Array.isArray(keys) ? keys : [keys]) delete sessionStorage[key];
       }
     }
   },
@@ -301,12 +320,20 @@ const fetch = async (url, options = {}) => {
 };
 
 const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
-vm.runInNewContext(source, {
-  chrome, console, URL, Map, Set, Promise, JSON, fetch,
-  AbortController, clearTimeout,
-  Date: ScaledDate,
-  setTimeout: scaledSetTimeout
-});
+
+// Evaluating the worker into a fresh context, against the same chrome stub, is
+// exactly what a service worker restart does: module memory is gone, storage is
+// not. The listener assignments in the stub overwrite the previous set.
+function startWorker() {
+  vm.runInNewContext(source, {
+    chrome, console, URL, Map, Set, Promise, JSON, fetch,
+    AbortController, clearTimeout,
+    Date: ScaledDate,
+    setTimeout: scaledSetTimeout
+  });
+}
+
+startWorker();
 
 function send(message) {
   return new Promise((resolve) => {
@@ -1461,6 +1488,75 @@ async function waitForDebugFlush() {
     false,
     "a reset script on an unrouted page must not be learned"
   );
+
+  // Chrome tears the worker down after about thirty seconds without an event,
+  // which is shorter than the thirty-second candidate window. While the
+  // counters lived only in memory, a target that had already failed once
+  // started over after every restart and never reached the main-frame
+  // threshold of two, so it was never learned.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const acrossRestart = {
+    tabId: 97,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://restart-target.example/"
+  };
+  await listeners.requestError(acrossRestart);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(
+    storage.learnedDomains.includes("restart-target.example"),
+    false,
+    "one main-frame reset is below the threshold"
+  );
+  assert.ok(
+    sessionStorage.runtimeState?.detectionCandidates
+      ?.some((entry) => entry[0] === "main:restart-target.example"),
+    "the candidate has to reach session storage before the worker dies"
+  );
+
+  startWorker();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await listeners.requestError(acrossRestart);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("restart-target.example"),
+    true,
+    "the second reset must count against the candidate restored from session storage"
+  );
+
+  // A deadline that passed while the worker was down must not come back. The
+  // tab-keyed maps are cleaned by tabs.onRemoved, which wakes the worker, but
+  // these are bounded by time alone, so the restore prunes them and writes the
+  // smaller snapshot straight back.
+  // The worker reads the scaled clock the harness installs, which earlier tests
+  // have already advanced past real time, so the fixture has to use it too.
+  const sessionNow = Math.round(logicalNow());
+  sessionStorage.runtimeState = {
+    detectionCandidates: [
+      ["main:stale-candidate.example", { count: 1, lastAt: sessionNow - 120_000, error: "ERR_CONNECTION_RESET" }],
+      ["main:fresh-candidate.example", { count: 1, lastAt: sessionNow, error: "ERR_CONNECTION_RESET" }]
+    ],
+    retryCooldowns: [["99:main:stale-cooldown.example", sessionNow - 300_000]],
+    tabRecoveryStates: [["98", { mainHost: "expired.example", expiresAt: sessionNow - 1_000, rootReloadPending: false, settledReloads: 0 }]],
+    tabMainHosts: [], tabIssues: [], tabConnectionResults: [], tabRoutedHosts: [], clientFilterCandidates: []
+  };
+  startWorker();
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const pruned = sessionStorage.runtimeState;
+  // The snapshot is built inside the vm realm, so its arrays fail a strict deep
+  // comparison against host arrays; spreading copies them back.
+  assert.deepEqual(
+    [...pruned.detectionCandidates].map((entry) => entry[0]),
+    ["main:fresh-candidate.example"],
+    "an expired candidate must not survive the restore"
+  );
+  assert.deepEqual([...pruned.retryCooldowns], [], "an expired cooldown must not survive the restore");
+  assert.deepEqual([...pruned.tabRecoveryStates], [], "an expired recovery window must not survive the restore");
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
