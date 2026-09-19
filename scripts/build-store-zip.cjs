@@ -23,6 +23,9 @@ const PACKAGED_FILES = Object.freeze([
   "i18n.js",
   "_locales/en/messages.json",
   "_locales/tr/messages.json",
+  "assets/icon-16.png",
+  "assets/icon-32.png",
+  "assets/icon-48.png",
   "assets/icon-128.png",
   "LICENSE",
   "PRIVACY.md",
@@ -179,6 +182,15 @@ function verify(entries, manifest) {
   }
   for (const icon of Object.values(packagedManifest.icons)) {
     if (!names.has(icon)) throw new Error(`A manifest icon is not packaged: ${icon}`);
+  }
+  // The toolbar icon is a separate size map. A missing entry here does not stop
+  // the extension from loading, so nothing would report it before the upload:
+  // Chrome would just rescale whichever size did ship.
+  const toolbarIcons = packagedManifest.action.default_icon;
+  for (const icon of Object.values(
+    typeof toolbarIcons === "string" ? { default: toolbarIcons } : toolbarIcons
+  )) {
+    if (!names.has(icon)) throw new Error(`A toolbar icon is not packaged: ${icon}`);
   }
   for (const locale of ["en", "tr"]) {
     if (!names.has(`_locales/${locale}/messages.json`)) {
