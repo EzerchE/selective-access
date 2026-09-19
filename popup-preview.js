@@ -7,6 +7,9 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
   // anything renders and exposed through globalThis.__i18nReady.
   let messages = {};
   let uiLanguage = "en";
+  // Read from the manifest rather than hardcoded, so the preview cannot drift
+  // a release behind the extension it is standing in for.
+  let previewVersion = "0.0.0";
 
   // Not localized on purpose: localization is exactly what failed here.
   function reportCatalogueFailure(detail) {
@@ -23,6 +26,11 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
   }
 
   globalThis.__i18nReady = (async () => {
+    try {
+      const manifest = await fetch("manifest.json");
+      if (manifest.ok) previewVersion = (await manifest.json()).version || previewVersion;
+    } catch {}
+
     const preferred = String(navigator.language || "en").toLowerCase().startsWith("tr")
       ? "tr"
       : "en";
@@ -73,8 +81,14 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
           String(values[Number(index) - 1] ?? match));
       }
     },
+    // The popup subscribes to storage changes so it can follow what the
+    // background learns while it is open. Nothing drives that here, but the
+    // shell has to exist or the subscription throws on load.
+    storage: {
+      onChanged: { addListener() {} }
+    },
     runtime: {
-      getManifest: () => ({ version: "4.11.12" }),
+      getManifest: () => ({ version: previewVersion }),
       async sendMessage(message) {
         if (message?.type === "saveSettings") {
           previewState = { ...previewState, ...(message.patch || {}) };
