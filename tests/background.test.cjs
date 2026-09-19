@@ -1558,6 +1558,37 @@ async function waitForDebugFlush() {
   assert.deepEqual([...pruned.retryCooldowns], [], "an expired cooldown must not survive the restore");
   assert.deepEqual([...pruned.tabRecoveryStates], [], "an expired recovery window must not survive the restore");
 
+  // A TLS-layer handshake failure is one of the signatures the extension exists
+  // for, but it was the one retryable error with no entry in the threshold
+  // table, so registerDetectionCandidate reported it unsupported: the popup
+  // showed the unverified diagnosis and the target was never learned.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const tlsFailure = {
+    tabId: 94,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_SSL_PROTOCOL_ERROR",
+    url: "https://tls-blocked.example/"
+  };
+  await listeners.requestError(tlsFailure);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.learnedDomains.includes("tls-blocked.example"),
+    false,
+    "one TLS failure is below the threshold of two"
+  );
+  await listeners.requestError(tlsFailure);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("tls-blocked.example"),
+    true,
+    "a repeated TLS failure that also fails the direct probe must be learned"
+  );
+
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
   console.error(error);

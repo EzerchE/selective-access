@@ -40,8 +40,6 @@ let learnedDomains = [];
 let ignoredDomains = [];
 let activeList = "routed";
 
-elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
-
 function normalizeDomain(value) {
   const candidate = String(value ?? "").trim().toLowerCase();
   if (!candidate) return null;
@@ -407,6 +405,33 @@ elements.enabled.addEventListener("change", () => {
   save({ enabled: elements.enabled.checked });
 });
 
+// The background learns targets on its own while the popup is open, and the
+// popup used to show whatever it read when it opened. These are the stored keys
+// that change what it renders; debugLog is left out because it is written in
+// batches every few hundred milliseconds and sits behind Advanced anyway.
+const LIVE_KEYS = [
+  "enabled",
+  "learnedDomains",
+  "ignoredDomains",
+  "lastDetectedDomain",
+  "lastProxyError",
+  "lastIssueType",
+  "lastIssueDomain",
+  "lastGlobalCheck",
+  "lastNotificationStatus",
+  "debugEnabled"
+];
+
+chrome.storage?.onChanged?.addListener((changes, areaName) => {
+  // A save of our own already re-renders, and a global check renders when it
+  // settles; reacting again would fight whichever is in flight.
+  if (areaName !== "local" || saving || checkingGlobalStatus) return;
+  if (!LIVE_KEYS.some((key) => Object.hasOwn(changes, key))) return;
+  sendMessage({ type: "getState" })
+    .then((response) => render(response.state))
+    .catch(() => {});
+});
+
 elements.tabRouted.addEventListener("click", () => setActiveList("routed"));
 elements.tabIgnored.addEventListener("click", () => setActiveList("ignored"));
 
@@ -518,6 +543,9 @@ const previewMode = new URLSearchParams(location.search).get("preview");
   // there. The development preview loads its message catalogue over fetch and
   // must not render a single label before that catalogue is in place.
   await i18nReady;
+  // getManifest is synchronous in the extension; the development preview reads
+  // the manifest over fetch, so the version is written once that has settled.
+  elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
 
   if (previewMode) {
     currentHost = null;

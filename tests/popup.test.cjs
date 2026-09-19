@@ -90,6 +90,7 @@ function createContext(options = {}) {
   const tabPendingUrl = options.tabPendingUrl || "";
   const document = buildDocument();
   const sent = [];
+  const storageListeners = [];
   let currentState = options.state;
 
   const chrome = {
@@ -104,6 +105,11 @@ function createContext(options = {}) {
           String(values[Number(index) - 1] ?? match));
       },
       getUILanguage: () => "en-US"
+    },
+    storage: {
+      onChanged: {
+        addListener(listener) { storageListeners.push(listener); }
+      }
     },
     runtime: {
       getManifest: () => ({ version: "4.11.12" }),
@@ -154,7 +160,10 @@ function createContext(options = {}) {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, "i18n.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(root, "popup.js"), "utf8"), context);
-  return { context, document, sent };
+  // The background mutates stored state while the popup is open; the test needs
+  // the same handle so a storage event has something new to read back.
+  const setState = (next) => { currentState = next; };
+  return { context, document, storageListeners, setState, sent };
 }
 
 // Runs popup-preview.js on its own. It backs chrome.i18n when the popup is
@@ -499,6 +508,37 @@ function lastSavePatch(sent) {
     assert.match(document.querySelector("#debugLog").textContent, /"event":"learned"/);
   }
 
+  // The background learns targets on its own. The popup used to render whatever
+  // it read when it opened, so a target learned while it was open never showed.
+  {
+    const { document, storageListeners, setState, sent } = createContext({ state: baseState() });
+    await settle();
+    assert.equal(storageListeners.length, 1, "the popup must subscribe to storage changes");
+    assert.equal(document.querySelector("#domainCount").textContent, "2");
+
+    const grown = ["blocked.example", "portal.example", "late-target.example"];
+    setState(baseState({ learnedDomains: grown }));
+    storageListeners[0]({ learnedDomains: { newValue: grown } }, "local");
+    await settle();
+    assert.equal(
+      document.querySelector("#domainCount").textContent,
+      "3",
+      "a learned target must appear without reopening the popup"
+    );
+    assert.equal(document.querySelector("#domainList").children.length, 3);
+
+    // A change the popup does not render must not cost a round trip.
+    const before = sent.length;
+    storageListeners[0]({ debugLog: { newValue: [{ event: "noise" }] } }, "local");
+    await settle();
+    assert.equal(sent.length, before, "debugLog churn must not trigger a refresh");
+
+    // Another area is not ours.
+    storageListeners[0]({ learnedDomains: { newValue: [] } }, "sync");
+    await settle();
+    assert.equal(document.querySelector("#domainCount").textContent, "3");
+  }
+
   // Preview mode renders a healthy popup instead of the stale-schema error.
   {
     const { document } = createContext({ search: "?preview=1", state: baseState() });
@@ -527,9 +567,13 @@ function lastSavePatch(sent) {
       "utf8"
     ));
     const { context, requested } = await loadPreviewShim({
+      "manifest.json": { version: "9.9.9" },
       "_locales/tr/messages.json": turkish
     });
-    assert.deepEqual(requested, ["_locales/tr/messages.json"]);
+    // The shim reads the manifest instead of carrying a hardcoded version, so
+    // the preview cannot drift a release behind the extension.
+    assert.deepEqual(requested, ["manifest.json", "_locales/tr/messages.json"]);
+    assert.equal(context.chrome.runtime.getManifest().version, "9.9.9");
     assert.equal(context.chrome.i18n.getUILanguage(), "tr");
     assert.equal(context.chrome.i18n.getMessage("routeNow"), turkish.routeNow.message);
     assert.equal(
@@ -543,7 +587,11 @@ function lastSavePatch(sent) {
     const { context, requested } = await loadPreviewShim({
       "_locales/en/messages.json": messages
     });
-    assert.deepEqual(requested, ["_locales/tr/messages.json", "_locales/en/messages.json"]);
+    assert.deepEqual(requested, [
+      "manifest.json",
+      "_locales/tr/messages.json",
+      "_locales/en/messages.json"
+    ]);
     assert.equal(context.chrome.i18n.getUILanguage(), "en");
     assert.equal(context.chrome.i18n.getMessage("routeNow"), messages.routeNow.message);
   }
@@ -551,7 +599,7 @@ function lastSavePatch(sent) {
   // An English UI language asks for English only.
   {
     const { requested } = await loadPreviewShim({ "_locales/en/messages.json": messages }, "en-US");
-    assert.deepEqual(requested, ["_locales/en/messages.json"]);
+    assert.deepEqual(requested, ["manifest.json", "_locales/en/messages.json"]);
   }
 
   // When no catalogue loads at all the preview says so, rather than quietly
