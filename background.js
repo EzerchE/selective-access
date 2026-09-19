@@ -1269,6 +1269,7 @@ async function learnAndRetry(details) {
   const hasLearnedContext = [initiatorHost, mainHost]
     .some((contextHost) => contextHost && isLearned(contextHost, settings.learnedDomains));
   const isTimeoutError = ["ERR_CONNECTION_TIMED_OUT", "ERR_TIMED_OUT"].includes(error);
+  const isResetError = ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
   // Cross-origin dependency timeouts are eligible only when they belong to an
@@ -1279,9 +1280,16 @@ async function learnAndRetry(details) {
   if (DNS_RESOLUTION_ERRORS.has(error) &&
       !["main_frame", "sub_frame"].includes(details.type) &&
       !hasLearnedContext) return;
+  // A cross-origin script or stylesheet is normally left alone: most of those
+  // failures are ad and analytics hosts a content blocker stopped, not a route
+  // worth learning. The exception is a page that is already routed, because the
+  // interference that got the page learned reaches its dependencies too. A
+  // reset belongs in that exception -- it is the most common signature of the
+  // problem this extension exists for, and leaving it out let a routed page
+  // load while the scripts its player needs kept failing directly.
   if (SAME_ORIGIN_ONLY_TYPES.has(details.type)) {
     const routedDependencyFailure = hasLearnedContext &&
-      (DNS_RESOLUTION_ERRORS.has(error) || isTimeoutError);
+      (DNS_RESOLUTION_ERRORS.has(error) || isTimeoutError || isResetError);
     if ((!initiatorHost || initiatorHost !== host) && !routedDependencyFailure) return;
   }
 
