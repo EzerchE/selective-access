@@ -73,16 +73,37 @@ const RETRYABLE_TYPES = new Set([
   "other"
 ]);
 
-const retryCooldowns = new Map();
-const tabIssues = new Map();
-const tabMainHosts = new Map();
-const tabConnectionResults = new Map();
-const tabRoutedHosts = new Map();
-const detectionCandidates = new Map();
+// A map whose contents outlive the service worker. Mutating it schedules a
+// write to chrome.storage.session; restoreSessionState reads it back into the
+// same object after a restart. Only the maps whose entries carry a deadline
+// use this -- see the note on SESSION_STATE_KEY below.
+class SessionMap extends Map {
+  set(key, value) {
+    const result = super.set(key, value);
+    scheduleSessionFlush();
+    return result;
+  }
+  delete(key) {
+    const removed = super.delete(key);
+    if (removed) scheduleSessionFlush();
+    return removed;
+  }
+  clear() {
+    if (this.size > 0) scheduleSessionFlush();
+    super.clear();
+  }
+}
+
+const retryCooldowns = new SessionMap();
+const tabIssues = new SessionMap();
+const tabMainHosts = new SessionMap();
+const tabConnectionResults = new SessionMap();
+const tabRoutedHosts = new SessionMap();
+const detectionCandidates = new SessionMap();
 const reloadTimers = new Map();
 const gatewayRetryStates = new Map();
-const tabRecoveryStates = new Map();
-const clientFilterCandidates = new Map();
+const tabRecoveryStates = new SessionMap();
+const clientFilterCandidates = new SessionMap();
 const iframeRetryTimers = new Map();
 const slowLoadWatchdogs = new Map();
 const pendingLearnedNotifications = new Set();
@@ -145,6 +166,122 @@ let debugWriteQueue = Promise.resolve();
 let settingsMutationQueue = Promise.resolve();
 let routingSnapshot = { enabled: false, learnedDomains: [] };
 let routingSnapshotReady = null;
+
+// Chrome tears the service worker down after roughly thirty seconds without an
+// event, which is shorter than several of the windows these maps implement: a
+// detection candidate stays valid for thirty seconds, a reload cooldown for
+// sixty, a recovery window for ninety. Held only in memory they were gone
+// before the user came back to the tab, so a target that had already failed
+// once started counting from zero and never reached its threshold.
+//
+// chrome.storage.session is the right home for them: it lives as long as the
+// browser, is never written to disk, and is dropped at shutdown, which is the
+// same lifetime these windows already assume. Every entry is timestamped, so
+// nothing here needs a timer to survive -- the deadline is re-read on use.
+const SESSION_STATE_KEY = "runtimeState";
+const SESSION_FLUSH_DELAY_MS = 250;
+const SESSION_MAPS = Object.freeze({
+  retryCooldowns,
+  tabIssues,
+  tabMainHosts,
+  tabConnectionResults,
+  tabRoutedHosts,
+  detectionCandidates,
+  tabRecoveryStates,
+  clientFilterCandidates
+});
+// tabRoutedHosts holds a Set per tab; the rest hold plain values.
+const SESSION_SET_MAPS = new Set(["tabRoutedHosts"]);
+// The tab-keyed maps are cleaned by tabs.onRemoved, which wakes the worker, so
+// they cannot accumulate. These four are bounded by a deadline instead, and a
+// deadline that passed while the worker was down would otherwise be restored
+// and carried around until something happened to touch that exact key.
+const SESSION_TTL_MS = Object.freeze({
+  detectionCandidates: CANDIDATE_WINDOW_MS,
+  retryCooldowns: 60_000,
+  clientFilterCandidates: CLIENT_FILTER_CANDIDATE_WINDOW_MS
+});
+
+function sessionEntryExpired(name, value, now) {
+  if (name === "tabRecoveryStates") {
+    return !Number.isFinite(value?.expiresAt) || now > value.expiresAt;
+  }
+  const ttl = SESSION_TTL_MS[name];
+  if (!ttl) return false;
+  const at = name === "retryCooldowns" ? value : (value?.lastAt ?? value?.at);
+  return !Number.isFinite(at) || now - at > ttl;
+}
+let sessionFlushTimer = null;
+let sessionWriteQueue = Promise.resolve();
+let restoringSession = false;
+
+function sessionArea() {
+  return chrome.storage?.session || null;
+}
+
+function scheduleSessionFlush() {
+  // The constructors below run before this file finishes evaluating, and a
+  // restore writes through the same setters it is filling.
+  if (restoringSession || !sessionArea() || sessionFlushTimer) return;
+  sessionFlushTimer = setTimeout(() => {
+    sessionFlushTimer = null;
+    flushSessionState().catch((error) =>
+      console.debug("Otomatik Erişim oturum durumu yazılamadı", error));
+  }, SESSION_FLUSH_DELAY_MS);
+}
+
+function flushSessionState() {
+  const area = sessionArea();
+  if (!area) return Promise.resolve();
+  const snapshot = Object.fromEntries(Object.entries(SESSION_MAPS).map(([name, map]) => [
+    name,
+    SESSION_SET_MAPS.has(name)
+      ? [...map].map(([key, value]) => [key, [...value]])
+      : [...map]
+  ]));
+  sessionWriteQueue = sessionWriteQueue
+    .catch(() => {})
+    .then(() => area.set({ [SESSION_STATE_KEY]: snapshot }));
+  return sessionWriteQueue;
+}
+
+async function restoreSessionState() {
+  const area = sessionArea();
+  if (!area) return;
+  const stored = await area.get({ [SESSION_STATE_KEY]: null });
+  const snapshot = stored?.[SESSION_STATE_KEY];
+  if (!snapshot || typeof snapshot !== "object") return;
+
+  restoringSession = true;
+  const now = Date.now();
+  let dropped = 0;
+  try {
+    for (const [name, map] of Object.entries(SESSION_MAPS)) {
+      const entries = Array.isArray(snapshot[name]) ? snapshot[name] : [];
+      for (const entry of entries) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue;
+        const [key, value] = entry;
+        // An event that arrived before the restore finished carries fresher
+        // truth than the snapshot, so a key already present is left alone.
+        if (map.has(key)) continue;
+        if (sessionEntryExpired(name, value, now)) {
+          dropped += 1;
+          continue;
+        }
+        map.set(key, SESSION_SET_MAPS.has(name) ? new Set(value) : value);
+      }
+    }
+  } finally {
+    restoringSession = false;
+  }
+  // Writing back collapses whatever the prune removed, so the stored blob
+  // cannot grow across a run of restarts.
+  if (dropped > 0) await flushSessionState();
+}
+
+const sessionReady = restoreSessionState().catch((error) => {
+  console.debug("Otomatik Erişim oturum durumu okunamadı", error);
+});
 
 function queueSettingsMutation(task) {
   const current = settingsMutationQueue
@@ -394,6 +531,7 @@ function cancelSlowLoadWatchdog(tabId) {
 }
 
 async function reportSlowPage(tabId, host, startedAt) {
+  await sessionReady;
   const watchdog = slowLoadWatchdogs.get(tabId);
   if (!watchdog || watchdog.host !== host || watchdog.startedAt !== startedAt) return;
   slowLoadWatchdogs.delete(tabId);
@@ -438,6 +576,7 @@ function startSlowLoadWatchdog(tabId, url) {
 
 async function getTabContext(tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return { tabId: null, host: null };
+  await sessionReady;
   let host = tabMainHosts.get(tabId) || null;
   if (!host && typeof chrome.tabs?.get === "function") {
     try {
@@ -449,7 +588,7 @@ async function getTabContext(tabId) {
 }
 
 async function trackCompletedRoute(details) {
-  await routingSnapshotReady;
+  await Promise.all([routingSnapshotReady, sessionReady]);
   if (!Number.isInteger(details.tabId) || details.tabId < 0 || !routingSnapshot.enabled) {
     return false;
   }
@@ -486,6 +625,7 @@ function updateTabMainHost(tabId, url) {
 }
 
 async function refreshTrackedBadges(settings) {
+  await sessionReady;
   await setConnectionBadge(connectionStateForTab(settings, null));
   const tabIds = [...tabMainHosts.keys()];
   const results = await Promise.allSettled(tabIds.map((tabId) => {
@@ -515,12 +655,14 @@ async function setIssueBadge(enabled, issueType, tabId) {
 
 async function clearTabIssue(tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
+  await sessionReady;
   tabIssues.delete(tabId);
   const settings = await getSettings();
   await setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
 }
 
 async function refreshTabBadge(tabId) {
+  await sessionReady;
   if (typeof chrome.tabs?.get === "function") {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -1186,6 +1328,7 @@ function getRequestHost(details) {
 
 async function recordCriticalClientFilter(details) {
   if (!CRITICAL_CLIENT_FILTER_TYPES.has(details.type)) return;
+  await sessionReady;
   const host = getRequestHost(details);
   const initiatorHost = details.initiator
     ? getRequestHost({ url: details.initiator })
@@ -1257,6 +1400,9 @@ function commitLearnedRoute(host, details, error) {
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
+  // The candidate counters and the reload cooldown decide this whole function,
+  // and after a worker restart they live in session storage until this settles.
+  await sessionReady;
   const settings = await getSettings();
   if (!settings.enabled) return;
 
