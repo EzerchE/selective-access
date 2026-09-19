@@ -7,128 +7,90 @@
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
+    <header class="bar">
+      <img class="mark" src="assets/icon-32.png" alt="" aria-hidden="true" width="26" height="26">
+      <h1 data-i18n="extensionName">Automatic Access</h1>
+      <label class="switch" title="Enable or disable the extension" data-i18n-title="toggleTitle">
+        <!-- The label carries no text, so the title on it never reaches the
+             control. Without this the main on/off switch is announced as an
+             unnamed checkbox. -->
+        <input id="enabled" type="checkbox" aria-label="Enable or disable the extension" data-i18n-aria-label="toggleTitle">
+        <span class="slider"></span>
+      </label>
+    </header>
+
     <main>
-      <header class="topbar">
-        <img class="brand-icon" src="assets/icon-128.png" alt="" aria-hidden="true">
-        <div>
-          <h1 data-i18n="extensionName">Automatic Access</h1>
-          <p><span data-i18n="tagline">Detects errors, learns, and routes only the target</span> · <span id="appVersion">v…</span></p>
-        </div>
-        <label class="switch" title="Enable or disable the extension" data-i18n-title="toggleTitle">
-          <!-- The label carries no text, so the title on it never reaches the
-               control. Without this the main on/off switch is announced as an
-               unnamed checkbox. -->
-          <input id="enabled" type="checkbox" aria-label="Enable or disable the extension" data-i18n-aria-label="toggleTitle">
-          <span class="slider"></span>
-        </label>
-      </header>
-
-      <section id="statusCard" class="status-card is-off" aria-live="polite">
-        <span id="statusDot" class="status-dot" aria-hidden="true"></span>
-        <div>
-          <strong id="statusTitle" data-i18n="preparing">Preparing…</strong>
-          <p id="statusText" data-i18n="readingSettings">Reading settings.</p>
-        </div>
+      <!-- The tab this popup was opened over. Almost every visit is about that
+           one site, so this card carries its state, the reason and the only
+           primary action; the switch above carries the global one. -->
+      <section id="statusCard" class="tab-card is-off" aria-live="polite">
+        <p class="host-line">
+          <span id="statusDot" class="dot" aria-hidden="true"></span>
+          <span id="currentDomain" class="host" data-i18n="pageUnavailable">Unavailable for this page</span>
+        </p>
+        <strong id="statusTitle" data-i18n="preparing">Preparing…</strong>
+        <p id="statusText" data-i18n="readingSettings">Reading settings.</p>
+        <button id="siteAction" class="btn primary" type="button" disabled data-i18n="routeNow">Route now</button>
       </section>
 
-      <p class="privacy-note" data-i18n="privacyNote">The learned list stays on your device. The extension does not change your computer's DNS settings. A domain is sent to Globalping only when you select “Check global status”.</p>
-
-      <section class="current-site">
-        <div>
-          <span class="eyebrow" data-i18n="openTab">OPEN TAB</span>
-          <strong id="currentDomain" data-i18n="pageUnavailable">Unavailable for this page</strong>
-        </div>
-        <button id="siteAction" class="button secondary" type="button" disabled data-i18n="routeNow">Route now</button>
-      </section>
-
-      <section class="flow-card" aria-label="Automatic connection flow" data-i18n-aria-label="flowAria">
-        <div><span>1</span><strong data-i18n="tryDirect">Try direct</strong></div>
-        <i>→</i>
-        <div><span>2</span><strong data-i18n="detectBlock">Detect block</strong></div>
-        <i>→</i>
-        <div><span>3</span><strong data-i18n="routeSelectively">Route selectively</strong></div>
-      </section>
-
-      <section id="diagnosticCard" class="diagnostic-card" aria-live="polite" hidden>
-        <span class="eyebrow" data-i18n="connectionDiagnosis">CONNECTION DIAGNOSIS</span>
+      <section id="diagnosticCard" class="diag" aria-live="polite" hidden>
         <strong id="diagnosticTitle" data-i18n="connectionIssue">Connection issue</strong>
         <p id="diagnosticText"></p>
-        <button id="checkStatus" class="button diagnostic-button" type="button" data-i18n="checkGlobalStatus">Check global status</button>
-        <p id="diagnosticPrivacy" class="privacy-note" data-i18n="diagnosticPrivacy">Only when you select this button is the domain sent to Globalping for measurements from three continents.</p>
+        <button id="checkStatus" class="btn quiet" type="button" data-i18n="checkGlobalStatus">Check global status</button>
+        <p id="diagnosticPrivacy" class="fineprint" data-i18n="diagnosticPrivacy">Only when you select this button is the domain sent to Globalping for measurements from three continents.</p>
       </section>
 
-      <section class="panel">
-        <div class="section-heading">
+      <!-- One list at a time. Two stacked panels cost a second heading, a second
+           empty state and two paragraphs explaining what the row buttons do. -->
+      <section class="lists">
+        <div class="segmented" role="tablist">
+          <button id="tabRouted" class="seg is-active" type="button" role="tab" aria-selected="true" aria-controls="domainList">
+            <span data-i18n="segmentRouted">Routed</span><span id="domainCount" class="pill">0</span>
+          </button>
+          <button id="tabIgnored" class="seg" type="button" role="tab" aria-selected="false" aria-controls="ignoredList">
+            <span data-i18n="segmentIgnored">Ignored</span><span id="ignoredCount" class="pill">0</span>
+          </button>
+        </div>
+        <div id="domainList" class="list" role="tabpanel" aria-labelledby="tabRouted"></div>
+        <div id="ignoredList" class="list" role="tabpanel" aria-labelledby="tabIgnored" hidden></div>
+      </section>
+
+      <details class="adv">
+        <summary data-i18n="advanced">Advanced</summary>
+        <dl class="facts">
           <div>
-            <span class="eyebrow" data-i18n="learnedTargetsEyebrow">LEARNED TARGETS</span>
-            <h2 data-i18n="automaticallyRoutedSites">Automatically routed sites</h2>
+            <dt data-i18n="gatewayLabel">Gateway</dt>
+            <dd id="proxyPort">127.0.0.1:1080</dd>
           </div>
-          <span id="domainCount" class="count">0</span>
-        </div>
-        <div id="domainList" class="domain-list" aria-live="polite"></div>
-        <p class="hint" data-i18n="learnedHint">× removes the target for now; Ignore removes it and prevents relearning after future errors.</p>
-      </section>
-
-      <section class="panel ignored-panel">
-        <div class="section-heading">
           <div>
-            <span class="eyebrow" data-i18n="ignoredTargetsEyebrow">IGNORED TARGETS</span>
-            <h2 data-i18n="neverLearnSites">Sites that will not be learned automatically</h2>
+            <dt data-i18n="versionLabel">Version</dt>
+            <dd id="appVersion">v…</dd>
           </div>
-          <span id="ignoredCount" class="count">0</span>
+        </dl>
+        <p class="fineprint" data-i18n="privacyShort">The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.</p>
+        <div class="row-actions">
+          <button id="retry" class="btn quiet" type="button" data-i18n="reapply">Reapply</button>
+          <button id="testNotification" class="btn quiet" type="button" data-i18n="testNotification">Test notification</button>
         </div>
-        <div id="ignoredList" class="domain-list" aria-live="polite"></div>
-        <p class="hint" data-i18n="ignoredHint">Ignored targets are not added to automatic routing even after connection errors. Use ↩ on a row to restore one.</p>
-      </section>
-
-      <details class="advanced">
-        <summary data-i18n="localGatewaySettings">Local gateway settings</summary>
-        <div class="proxy-row">
-          <label>
-            <span data-i18n="server">Server</span>
-            <input type="text" value="127.0.0.1" disabled>
-          </label>
-          <label>
-            <span data-i18n="port">Port</span>
-            <input id="proxyPort" type="number" value="1080" disabled>
-          </label>
-        </div>
-        <p class="hint" data-i18n="gatewayHint">For security, it connects only to the SOCKS5 gateway on this computer.</p>
-        <button id="testNotification" class="button ghost inline-button" type="button" data-i18n="testNotification">Test notification</button>
-      </details>
-
-      <details class="advanced">
-        <summary data-i18n="debugLogTitle">Debug log</summary>
-        <p class="hint" data-i18n="debugHint">Only time, domain, request/error type, and routing stage are kept on the device; page content is not recorded.</p>
-        <label class="debug-toggle">
+        <label class="check">
           <input id="debugEnabled" type="checkbox">
           <span data-i18n="enableDebug">Enable debug logging</span>
         </label>
         <div id="debugControls" hidden>
-          <pre id="debugLog" class="debug-log" data-i18n="noLogs">No records yet</pre>
-          <div class="debug-actions">
-            <button id="copyDebugLog" class="button ghost inline-button" type="button" data-i18n="copyLog">Copy log</button>
-            <button id="clearDebugLog" class="button ghost inline-button" type="button" data-i18n="clear">Clear</button>
+          <pre id="debugLog" class="log" data-i18n="noLogs">No records yet</pre>
+          <div class="row-actions">
+            <button id="copyDebugLog" class="btn quiet" type="button" data-i18n="copyLog">Copy log</button>
+            <button id="clearDebugLog" class="btn quiet" type="button" data-i18n="clear">Clear</button>
           </div>
         </div>
       </details>
 
       <div id="notice" class="notice" role="status" hidden></div>
-
-      <footer>
-        <button id="save" class="button primary" type="button" data-i18n="saveApply">Save and apply</button>
-        <button id="retry" class="button ghost" type="button" data-i18n="reapply">Reapply</button>
-      </footer>
-
-      <aside class="support-card" aria-label="Support the project" data-i18n-aria-label="supportAria">
-        <span class="support-kicker" data-i18n="supportKicker">OPEN-SOURCE & INDEPENDENT</span>
-        <p data-i18n="supportText">If Automatic Access helps you, you can support its development.</p>
-        <a class="support-link" href="https://buymeacoffee.com/ezerche" target="_blank" rel="noopener noreferrer">
-          <span class="support-cup" aria-hidden="true">☕</span>
-          <span data-i18n="supportButton">Buy me a coffee</span>
-        </a>
-      </aside>
     </main>
+
+    <footer class="foot">
+      <a class="support" href="https://buymeacoffee.com/ezerche" target="_blank" rel="noopener noreferrer" data-i18n="supportButton">Buy me a coffee</a>
+    </footer>
     <script src="popup-preview.js"></script>
     <script src="i18n.js"></script>
     <script src="popup.js"></script>

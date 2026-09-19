@@ -5,13 +5,14 @@ const elements = {
   statusText: document.querySelector("#statusText"),
   currentDomain: document.querySelector("#currentDomain"),
   siteAction: document.querySelector("#siteAction"),
+  tabRouted: document.querySelector("#tabRouted"),
+  tabIgnored: document.querySelector("#tabIgnored"),
   domainList: document.querySelector("#domainList"),
   domainCount: document.querySelector("#domainCount"),
   ignoredList: document.querySelector("#ignoredList"),
   ignoredCount: document.querySelector("#ignoredCount"),
   proxyPort: document.querySelector("#proxyPort"),
   notice: document.querySelector("#notice"),
-  save: document.querySelector("#save"),
   retry: document.querySelector("#retry"),
   appVersion: document.querySelector("#appVersion"),
   diagnosticCard: document.querySelector("#diagnosticCard"),
@@ -33,9 +34,11 @@ let currentHost = null;
 let currentTabId = null;
 let currentState = null;
 let protocolReady = true;
+let saving = false;
 let checkingGlobalStatus = false;
 let learnedDomains = [];
 let ignoredDomains = [];
+let activeList = "routed";
 
 elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
 
@@ -61,56 +64,63 @@ function isLearned(host, domains) {
   return domains.includes(host);
 }
 
+function withoutCover(domains, host) {
+  return domains.filter((domain) => !(host === domain || host.endsWith(`.${domain}`)));
+}
+
+// Icon-only row action. The label is both the tooltip and the accessible name,
+// which is what lets the list drop the paragraphs that used to explain each
+// glyph underneath it.
+function iconButton(glyph, label, className, onClick) {
+  const button = document.createElement("button");
+  button.className = className;
+  button.type = "button";
+  button.textContent = glyph;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function domainRow(domain, actions) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = domain;
+  name.title = domain;
+  row.append(name, ...actions);
+  return row;
+}
+
+function emptyState(message) {
+  const empty = document.createElement("p");
+  empty.className = "empty";
+  empty.textContent = message;
+  return empty;
+}
+
 function renderDomainList() {
   elements.domainList.replaceChildren();
   elements.domainCount.textContent = String(learnedDomains.length);
 
   if (learnedDomains.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "domain-empty";
-    empty.textContent = t("noLearnedTargets");
-    elements.domainList.append(empty);
+    elements.domainList.append(emptyState(t("noLearnedTargets")));
     return;
   }
 
   for (const domain of learnedDomains) {
-    const row = document.createElement("div");
-    row.className = "domain-row";
-
-    const name = document.createElement("span");
-    name.className = "domain-name";
-    name.textContent = domain;
-    name.title = domain;
-
-    const actions = document.createElement("div");
-    actions.className = "domain-actions";
-
-    const ignore = document.createElement("button");
-    ignore.className = "domain-ignore";
-    ignore.type = "button";
-    ignore.textContent = t("ignore");
-    ignore.title = t("ignoreDomain", domain);
-    ignore.setAttribute("aria-label", t("ignoreDomain", domain));
-    ignore.addEventListener("click", () => {
-      save({
-        learnedDomains: learnedDomains.filter((value) => value !== domain),
-        ignoredDomains: [...ignoredDomains, domain]
-      });
-    });
-
-    const remove = document.createElement("button");
-    remove.className = "domain-remove";
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.title = t("removeDomain", domain);
-    remove.setAttribute("aria-label", t("removeDomain", domain));
-    remove.addEventListener("click", () => {
-      save({ learnedDomains: learnedDomains.filter((value) => value !== domain) });
-    });
-
-    actions.append(ignore, remove);
-    row.append(name, actions);
-    elements.domainList.append(row);
+    elements.domainList.append(domainRow(domain, [
+      iconButton("⊘", t("ignoreDomain", domain), "icon-btn", () => {
+        save({
+          learnedDomains: learnedDomains.filter((value) => value !== domain),
+          ignoredDomains: [...ignoredDomains, domain]
+        });
+      }),
+      iconButton("×", t("removeDomain", domain), "icon-btn danger", () => {
+        save({ learnedDomains: learnedDomains.filter((value) => value !== domain) });
+      })
+    ]));
   }
 }
 
@@ -119,38 +129,65 @@ function renderIgnoredList() {
   elements.ignoredCount.textContent = String(ignoredDomains.length);
 
   if (ignoredDomains.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "domain-empty";
-    empty.textContent = t("noIgnoredTargets");
-    elements.ignoredList.append(empty);
+    elements.ignoredList.append(emptyState(t("noIgnoredTargets")));
     return;
   }
 
   for (const domain of ignoredDomains) {
-    const row = document.createElement("div");
-    row.className = "domain-row";
-    const name = document.createElement("span");
-    name.className = "domain-name";
-    name.textContent = domain;
-    name.title = domain;
-    const restore = document.createElement("button");
-    restore.className = "domain-remove";
-    restore.type = "button";
-    restore.textContent = "↩";
-    restore.title = t("restoreDomain", domain);
-    restore.setAttribute("aria-label", t("restoreDomain", domain));
-    restore.addEventListener("click", () => {
-      save({ ignoredDomains: ignoredDomains.filter((value) => value !== domain) });
-    });
-    row.append(name, restore);
-    elements.ignoredList.append(row);
+    elements.ignoredList.append(domainRow(domain, [
+      iconButton("↩", t("restoreDomain", domain), "icon-btn", () => {
+        save({ ignoredDomains: ignoredDomains.filter((value) => value !== domain) });
+      })
+    ]));
   }
+}
+
+function setActiveList(name) {
+  activeList = name;
+  const routed = name === "routed";
+  elements.tabRouted.classList.toggle("is-active", routed);
+  elements.tabIgnored.classList.toggle("is-active", !routed);
+  elements.tabRouted.setAttribute("aria-selected", String(routed));
+  elements.tabIgnored.setAttribute("aria-selected", String(!routed));
+  elements.domainList.hidden = !routed;
+  elements.ignoredList.hidden = routed;
 }
 
 function showNotice(message, isError = false) {
   elements.notice.textContent = message;
   elements.notice.classList.toggle("error", isError);
   elements.notice.hidden = !message;
+}
+
+// The card describes the tab this popup was opened over, so the branches run
+// from the conditions that make the whole extension unusable down to the ones
+// that only concern this one host.
+function describeTab(state, { versionMismatch, hasControlError, hasGatewayError, learned, ignored }) {
+  if (versionMismatch) {
+    return { tone: "is-error", title: t("reloadRequired"), detail: t("reloadInstruction") };
+  }
+  if (hasControlError) {
+    return { tone: "is-error", title: t("gatewayUnavailable"), detail: t("proxyControlled") };
+  }
+  if (hasGatewayError) {
+    return { tone: "is-error", title: t("gatewayUnavailable"), detail: state.lastProxyError };
+  }
+  if (!state.enabled) {
+    return { tone: "is-off", title: t("accessDisabled"), detail: t("directMode") };
+  }
+  if (ignored) {
+    return { tone: "is-off", title: t("stateIgnored"), detail: t("stateIgnoredDetail") };
+  }
+  if (learned) {
+    return { tone: "is-on", title: t("stateRouted"), detail: t("stateRoutedDetail") };
+  }
+  return {
+    tone: "is-on",
+    title: t("detectionEnabled"),
+    detail: state.lastDetectedDomain
+      ? t("learnedSummary", [String(learnedDomains.length), state.lastDetectedDomain])
+      : t("detectionWaiting")
+  };
 }
 
 function render(state) {
@@ -162,11 +199,11 @@ function render(state) {
   elements.enabled.checked = state.enabled;
   elements.enabled.disabled = versionMismatch;
   elements.siteAction.disabled = versionMismatch || !currentHost;
-  elements.save.disabled = versionMismatch;
   elements.retry.disabled = versionMismatch;
   renderDomainList();
   renderIgnoredList();
-  elements.proxyPort.value = String(state.proxyPort);
+  setActiveList(activeList);
+  elements.proxyPort.textContent = `${state.proxyHost || "127.0.0.1"}:${state.proxyPort}`;
   elements.debugEnabled.checked = Boolean(state.debugEnabled);
   elements.debugControls.hidden = !state.debugEnabled;
   elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
@@ -175,41 +212,33 @@ function render(state) {
 
   const hasControlError = ["not_controllable", "controlled_by_other_extensions"]
     .includes(state.levelOfControl);
-  const activeTargetUsesGateway = Boolean(currentHost && isLearned(currentHost, learnedDomains));
-  const hasActiveGatewayError = Boolean(state.lastProxyError && activeTargetUsesGateway);
-  const hasError = versionMismatch || hasActiveGatewayError || hasControlError;
+  const learned = Boolean(currentHost && isLearned(currentHost, learnedDomains));
+  const ignored = Boolean(currentHost && isCovered(currentHost, ignoredDomains));
+  const hasGatewayError = Boolean(state.lastProxyError && learned);
 
-  elements.statusCard.className = `status-card ${hasError ? "is-error" : state.enabled ? "is-on" : "is-off"}`;
-  elements.statusTitle.textContent = hasError
-    ? versionMismatch
-      ? t("reloadRequired")
-      : t("gatewayUnavailable")
-    : state.enabled
-      ? t("detectionEnabled")
-      : t("accessDisabled");
-  elements.statusText.textContent = hasError
-    ? versionMismatch
-      ? t("reloadInstruction")
-      : hasActiveGatewayError
-        ? state.lastProxyError
-        : t("proxyControlled")
-    : state.enabled
-      ? state.lastDetectedDomain
-        ? t("learnedSummary", [String(learnedDomains.length), state.lastDetectedDomain])
-        : t("detectionWaiting")
-      : t("directMode");
+  const tab = describeTab(state, {
+    versionMismatch,
+    hasControlError,
+    hasGatewayError,
+    learned,
+    ignored
+  });
+  elements.statusCard.className = `tab-card ${tab.tone}`;
+  elements.statusTitle.textContent = tab.title;
+  elements.statusText.textContent = tab.detail;
 
   if (versionMismatch) {
     showNotice(t("backgroundOutdated"), true);
-  } else {
-    updateSiteAction();
-    renderDiagnostic(state);
-    if (["denied", "failed"].includes(state.lastNotificationStatus)) {
-      showNotice(
-        t("notificationFailed", state.lastNotificationError || t("notificationSettingsHint")),
-        true
-      );
-    }
+    return;
+  }
+
+  updateSiteAction();
+  renderDiagnostic(state);
+  if (["denied", "failed"].includes(state.lastNotificationStatus)) {
+    showNotice(
+      t("notificationFailed", state.lastNotificationError || t("notificationSettingsHint")),
+      true
+    );
   }
 }
 
@@ -219,7 +248,7 @@ function renderDiagnostic(state) {
   elements.diagnosticCard.hidden = !issueMatches && !globalCheck;
   if (elements.diagnosticCard.hidden) return;
 
-  elements.diagnosticCard.className = "diagnostic-card";
+  elements.diagnosticCard.className = "diag";
   elements.checkStatus.hidden = false;
   elements.checkStatus.disabled = checkingGlobalStatus;
   elements.checkStatus.textContent = checkingGlobalStatus ? t("checkingContinents") : t("checkGlobalStatus");
@@ -236,18 +265,15 @@ function renderDiagnostic(state) {
       elements.diagnosticTitle.textContent = t("outageLikely");
       elements.diagnosticText.textContent = t("outageLikelyDetail");
     } else if (globalCheck.status === "regional") {
-      elements.diagnosticCard.classList.add("is-warning");
       elements.diagnosticTitle.textContent = t("regionalIssue");
       elements.diagnosticText.textContent = t("regionalIssueDetail", locationText);
     } else {
-      elements.diagnosticCard.classList.add("is-warning");
       elements.diagnosticTitle.textContent = t("statusInconclusive");
       elements.diagnosticText.textContent = t("statusInconclusiveDetail");
     }
     return;
   }
 
-  elements.diagnosticCard.classList.add("is-warning");
   if (state.lastIssueType === "client_filter_blocked") {
     elements.checkStatus.textContent = t("reloadWithoutCache");
     elements.diagnosticPrivacy.hidden = true;
@@ -280,7 +306,13 @@ function renderDiagnostic(state) {
 }
 
 function updateSiteAction() {
-  if (!currentHost) return;
+  if (!currentHost) {
+    // Nothing to act on, but the label is still read out, so it must not keep
+    // advertising an action for whichever host was open last.
+    elements.siteAction.textContent = t("routeNow");
+    elements.siteAction.dataset.mode = "none";
+    return;
+  }
   const learned = isLearned(currentHost, learnedDomains);
   const ignored = isCovered(currentHost, ignoredDomains);
   elements.siteAction.textContent = ignored ? t("stopIgnoring") : learned ? t("removeFromList") : t("routeNow");
@@ -315,11 +347,17 @@ async function loadCurrentTab() {
   }
 
   elements.currentDomain.textContent = currentHost || t("pageUnavailable");
-  // The field ellipsises past 205px, and the learned rows already carry the
-  // full value in a title, so a long host should not be the one place it is
-  // unreadable.
+  // The host ellipsises, and the list rows already carry the full value in a
+  // title, so a long host should not be the one place it is unreadable.
   elements.currentDomain.title = currentHost || "";
   elements.siteAction.disabled = !currentHost;
+}
+
+function setBusy(busy) {
+  saving = busy;
+  elements.siteAction.disabled = busy || !protocolReady || !currentHost;
+  elements.retry.disabled = busy || !protocolReady;
+  elements.enabled.disabled = busy || !protocolReady;
 }
 
 async function save(patch = {}) {
@@ -327,7 +365,7 @@ async function save(patch = {}) {
     showNotice(t("refreshBeforeContinue"), true);
     return;
   }
-  elements.save.disabled = true;
+  setBusy(true);
   showNotice("");
 
   try {
@@ -352,13 +390,16 @@ async function save(patch = {}) {
 
     if (response.state.applyResult?.ok === false) {
       showNotice(response.state.applyResult.error, true);
-    } else {
+    } else if (elements.notice.hidden) {
+      // render() leaves a standing problem in the notice, such as a refused
+      // notification permission. Overwriting it with the success line would
+      // swallow that warning on every change the user makes.
       showNotice(t("settingsApplied"));
     }
   } catch (error) {
     showNotice(error.message, true);
   } finally {
-    elements.save.disabled = !protocolReady;
+    setBusy(false);
   }
 }
 
@@ -366,32 +407,26 @@ elements.enabled.addEventListener("change", () => {
   save({ enabled: elements.enabled.checked });
 });
 
+elements.tabRouted.addEventListener("click", () => setActiveList("routed"));
+elements.tabIgnored.addEventListener("click", () => setActiveList("ignored"));
+
 elements.siteAction.addEventListener("click", () => {
   if (!currentHost) return;
-  let nextDomains = [...learnedDomains];
 
-  if (elements.siteAction.dataset.mode === "remove") {
-    nextDomains = nextDomains.filter((domain) => domain !== currentHost);
-  } else if (elements.siteAction.dataset.mode === "unignore") {
-    save({
-      ignoredDomains: ignoredDomains.filter(
-        (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
-      )
-    });
+  if (elements.siteAction.dataset.mode === "unignore") {
+    save({ ignoredDomains: withoutCover(ignoredDomains, currentHost) });
     return;
-  } else {
-    nextDomains.push(currentHost);
   }
+
+  const nextDomains = elements.siteAction.dataset.mode === "remove"
+    ? learnedDomains.filter((domain) => domain !== currentHost)
+    : [...learnedDomains, currentHost];
 
   save({
     learnedDomains: nextDomains,
-    ignoredDomains: ignoredDomains.filter(
-      (domain) => !(currentHost === domain || currentHost.endsWith(`.${domain}`))
-    )
+    ignoredDomains: withoutCover(ignoredDomains, currentHost)
   });
 });
-
-elements.save.addEventListener("click", () => save());
 
 elements.retry.addEventListener("click", async () => {
   showNotice("");

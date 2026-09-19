@@ -250,11 +250,12 @@ function lastSavePatch(sent) {
     await settle();
     assert.equal(document.querySelector("#domainCount").textContent, "2");
     assert.equal(document.querySelector("#ignoredCount").textContent, "1");
-    assert.equal(document.querySelector("#save").disabled, false);
+    assert.equal(document.querySelector("#retry").disabled, false);
+    assert.equal(document.querySelector("#siteAction").disabled, false);
     assert.equal(document.querySelector("#enabled").disabled, false);
     assert.equal(document.querySelector("#enabled").checked, true);
     assert.equal(document.querySelector("#currentDomain").textContent, "portal.example");
-    assert.equal(document.querySelector("#statusCard").className, "status-card is-on");
+    assert.equal(document.querySelector("#statusCard").className, "tab-card is-on");
     const rows = document.querySelector("#domainList").children;
     assert.equal(rows.length, 2);
     assert.equal(rows[0].children[0].textContent, "blocked.example");
@@ -264,7 +265,6 @@ function lastSavePatch(sent) {
   {
     const { document } = createContext({ state: baseState({ schemaVersion: 7 }) });
     await settle();
-    assert.equal(document.querySelector("#save").disabled, true);
     assert.equal(document.querySelector("#enabled").disabled, true);
     assert.equal(document.querySelector("#retry").disabled, true);
     assert.equal(document.querySelector("#siteAction").disabled, true);
@@ -274,9 +274,9 @@ function lastSavePatch(sent) {
     );
 
     // Saving is refused outright while the schema is known to be stale.
-    document.querySelector("#save").dispatch("click");
+    document.querySelector("#debugEnabled").dispatch("change");
     await settle();
-    assert.equal(document.querySelector("#save").disabled, true);
+    assert.equal(document.querySelector("#retry").disabled, true);
     assert.equal(
       document.querySelector("#notice").textContent,
       messages.refreshBeforeContinue.message
@@ -288,19 +288,20 @@ function lastSavePatch(sent) {
   {
     const { document } = createContext({ state: baseState(), staleAfterSave: true });
     await settle();
-    assert.equal(document.querySelector("#save").disabled, false);
-    document.querySelector("#save").dispatch("click");
+    assert.equal(document.querySelector("#retry").disabled, false);
+    document.querySelector("#debugEnabled").dispatch("change");
     await settle();
-    assert.equal(document.querySelector("#save").disabled, true);
+    assert.equal(document.querySelector("#retry").disabled, true);
     assert.equal(document.querySelector("#enabled").disabled, true);
+    assert.equal(document.querySelector("#siteAction").disabled, true);
   }
 
   // The gateway port is fixed by the local service: shown, never sent back.
   {
     const { document, sent } = createContext({ state: baseState() });
     await settle();
-    assert.equal(document.querySelector("#proxyPort").value, "1080");
-    document.querySelector("#save").dispatch("click");
+    assert.equal(document.querySelector("#proxyPort").textContent, "127.0.0.1:1080");
+    document.querySelector("#debugEnabled").dispatch("change");
     await settle();
     assert.equal("proxyPort" in lastSavePatch(sent), false);
   }
@@ -347,13 +348,49 @@ function lastSavePatch(sent) {
     const { document, sent } = createContext({ state: baseState() });
     await settle();
     const row = document.querySelector("#domainList").children[0];
-    const [name, actions] = row.children;
+    // Row actions are icon buttons now: the accessible name is what replaced
+    // the paragraph that used to explain each glyph.
+    const [name, ignore, remove] = row.children;
     assert.equal(name.textContent, "blocked.example");
-    actions.children[0].dispatch("click");
+    assert.equal(
+      ignore.getAttribute("aria-label"),
+      messages.ignoreDomain.message.replace("$1", "blocked.example")
+    );
+    assert.equal(
+      remove.getAttribute("aria-label"),
+      messages.removeDomain.message.replace("$1", "blocked.example")
+    );
+    ignore.dispatch("click");
     await settle();
     const patch = lastSavePatch(sent);
     assert.deepEqual(patch.learnedDomains, ["portal.example"]);
     assert.deepEqual(patch.ignoredDomains, ["blocked.example", "ignored.example"]);
+  }
+
+  // The segmented control shows one list at a time, and the chosen side has to
+  // survive the re-render that every save triggers.
+  {
+    const { document } = createContext({ state: baseState() });
+    await settle();
+    assert.equal(document.querySelector("#domainList").hidden, false);
+    assert.equal(document.querySelector("#ignoredList").hidden, true);
+    assert.equal(document.querySelector("#tabRouted").classList.contains("is-active"), true);
+    assert.equal(document.querySelector("#tabRouted").getAttribute("aria-selected"), "true");
+    assert.equal(document.querySelector("#tabIgnored").getAttribute("aria-selected"), "false");
+
+    document.querySelector("#tabIgnored").dispatch("click");
+    assert.equal(document.querySelector("#domainList").hidden, true);
+    assert.equal(document.querySelector("#ignoredList").hidden, false);
+    assert.equal(document.querySelector("#tabIgnored").classList.contains("is-active"), true);
+    assert.equal(document.querySelector("#tabRouted").classList.contains("is-active"), false);
+    assert.equal(document.querySelector("#tabIgnored").getAttribute("aria-selected"), "true");
+
+    document.querySelector("#debugEnabled").dispatch("change");
+    await settle();
+    assert.equal(document.querySelector("#ignoredList").hidden, false);
+    assert.equal(document.querySelector("#domainList").hidden, true);
+    assert.equal(document.querySelector("#domainCount").textContent, "2");
+    assert.equal(document.querySelector("#ignoredCount").textContent, "1");
   }
 
   // A non-web tab leaves the site action unavailable rather than guessing a host.
@@ -398,7 +435,7 @@ function lastSavePatch(sent) {
       state: baseState({ lastProxyError: "net::ERR_PROXY_CONNECTION_FAILED" })
     });
     await settle();
-    assert.equal(document.querySelector("#statusCard").className, "status-card is-error");
+    assert.equal(document.querySelector("#statusCard").className, "tab-card is-error");
     assert.equal(
       document.querySelector("#statusTitle").textContent,
       messages.gatewayUnavailable.message
@@ -412,7 +449,7 @@ function lastSavePatch(sent) {
       })
     });
     await settle();
-    assert.equal(document.querySelector("#statusCard").className, "status-card is-on");
+    assert.equal(document.querySelector("#statusCard").className, "tab-card is-on");
   }
 
   // The diagnostic card stays hidden unless the issue belongs to the open tab.
@@ -466,8 +503,8 @@ function lastSavePatch(sent) {
   {
     const { document } = createContext({ search: "?preview=1", state: baseState() });
     await settle();
-    assert.equal(document.querySelector("#statusCard").className, "status-card is-on");
-    assert.equal(document.querySelector("#save").disabled, false);
+    assert.equal(document.querySelector("#statusCard").className, "tab-card is-on");
+    assert.equal(document.querySelector("#retry").disabled, false);
     assert.equal(document.querySelector("#currentDomain").textContent, messages.pageUnavailable.message);
     assert.equal(document.querySelector("#siteAction").disabled, true);
   }
@@ -476,7 +513,7 @@ function lastSavePatch(sent) {
   {
     const { document } = createContext({ search: "?preview=legacy", state: baseState() });
     await settle();
-    assert.equal(document.querySelector("#statusCard").className, "status-card is-error");
+    assert.equal(document.querySelector("#statusCard").className, "tab-card is-error");
     assert.equal(
       document.querySelector("#statusTitle").textContent,
       messages.reloadRequired.message
