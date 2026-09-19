@@ -15,13 +15,16 @@
           <p><span data-i18n="tagline">Detects errors, learns, and routes only the target</span> · <span id="appVersion">v…</span></p>
         </div>
         <label class="switch" title="Enable or disable the extension" data-i18n-title="toggleTitle">
-          <input id="enabled" type="checkbox">
+          <!-- The label carries no text, so the title on it never reaches the
+               control. Without this the main on/off switch is announced as an
+               unnamed checkbox. -->
+          <input id="enabled" type="checkbox" aria-label="Enable or disable the extension" data-i18n-aria-label="toggleTitle">
           <span class="slider"></span>
         </label>
       </header>
 
       <section id="statusCard" class="status-card is-off" aria-live="polite">
-        <span id="statusDot" class="status-dot"></span>
+        <span id="statusDot" class="status-dot" aria-hidden="true"></span>
         <div>
           <strong id="statusTitle" data-i18n="preparing">Preparing…</strong>
           <p id="statusText" data-i18n="readingSettings">Reading settings.</p>
@@ -110,7 +113,7 @@
         </div>
       </details>
 
-      <div id="notice" class="notice" hidden></div>
+      <div id="notice" class="notice" role="status" hidden></div>
 
       <footer>
         <button id="save" class="button primary" type="button" data-i18n="saveApply">Save and apply</button>

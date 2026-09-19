@@ -9,6 +9,21 @@
   box-sizing: border-box;
 }
 
+/* One ring for every control. Buttons, summaries and inputs otherwise render
+   no focus indicator at all here, because the rules below reset their borders
+   and backgrounds without replacing the outline. */
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+/* The switch input is 0x0 and transparent, so its own ring would be invisible.
+   It is drawn on the slider the input actually controls. */
+.switch input:focus-visible + .slider {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
 body {
   width: 390px;
   min-height: 560px;
@@ -57,11 +72,19 @@ h1 {
 
 .topbar p,
 .status-card p,
+.privacy-note,
 .hint {
   margin-top: 3px;
   color: #67736e;
   font-size: 11px;
   line-height: 1.45;
+}
+
+/* The standalone note is a block of its own rather than a caption under a
+   heading, so it keeps the 10px rhythm every other top-level section uses.
+   The one inside the diagnostic card is smaller and styled with that card. */
+main > .privacy-note {
+  margin-top: 10px;
 }
 
 .switch {
@@ -82,7 +105,9 @@ h1 {
   cursor: pointer;
   border-radius: 999px;
   background: #cbd2ce;
-  transition: 160ms ease;
+  /* Named rather than "all": the default would animate the focus ring too, so
+     it faded in over 160ms instead of appearing when the key was pressed. */
+  transition: background-color 160ms ease;
 }
 
 .slider::before {
@@ -95,7 +120,7 @@ h1 {
   background: white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
   content: "";
-  transition: 160ms ease;
+  transition: transform 160ms ease;
 }
 
 .switch input:checked + .slider {
@@ -583,11 +608,6 @@ footer {
 
 .support-link:active {
   transform: translateY(1px);
-}
-
-.support-link:focus-visible {
-  outline: 3px solid rgba(15, 118, 110, 0.2);
-  outline-offset: 2px;
 }
 
 .support-cup {

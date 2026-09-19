@@ -315,6 +315,10 @@ async function loadCurrentTab() {
   }
 
   elements.currentDomain.textContent = currentHost || t("pageUnavailable");
+  // The field ellipsises past 205px, and the learned rows already carry the
+  // full value in a title, so a long host should not be the one place it is
+  // unreadable.
+  elements.currentDomain.title = currentHost || "";
   elements.siteAction.disabled = !currentHost;
 }
 
