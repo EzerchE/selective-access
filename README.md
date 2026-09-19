@@ -4,9 +4,9 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.11.12**
+Current version: **4.12.0**
 
-<img src="assets/screenshots/popup-v4-11-en.png" alt="Automatic Access extension popup in English" width="307">
+<img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
 ## Why this project matters
 
@@ -67,6 +67,16 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - The toolbar icon stays unobstructed after a successful direct connection. It shows a blue `↗` when the local gateway is used, cyan `+` for a newly learned route, amber `?` while an issue is being checked, red `!` for an access or gateway failure, and gray `×` when disabled. These compact marks reflect both the main-page result and routed dependencies used by the tab.
 
 This tool is not a VPN. It does not change your IP address or country. Use it only for targets you are authorized to access and in accordance with applicable rules.
+
+## Interface
+
+The popup is built around the tab it was opened over. One card names that host, says what is happening to it, and offers the single action that applies: route it, remove it, or stop ignoring it. A diagnosis card appears underneath only while that tab actually has an issue.
+
+Both target lists share one segmented control, so a long routed list never pushes the ignored list off screen. Row actions are icon buttons that carry their own accessible names: the slashed circle moves a target to the ignored list, the cross removes it for now, and the arrow restores an ignored target.
+
+Everything outside that daily loop sits in a single collapsed **Advanced** section: the fixed gateway address, the installed version, the reapply and test-notification actions, and debug logging.
+
+The popup follows the browser light or dark theme. Every control draws a keyboard focus ring, the on/off switch carries an accessible name, and status messages are announced through a live region.
 
 ## Installation
 
