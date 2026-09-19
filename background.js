@@ -296,13 +296,26 @@ function FindProxyForURL(url, host) {
   var address = host.replace(/^\\[|\\]$/g, "");
   var ipv4 = address.split(".");
   var isPrivateIpv4 = false;
+  // Every label has to be a real octet, exactly as isLocalHost checks it.
+  // Reading only the first two would classify a host name such as
+  // "10.media.example.com" as a private address and force it DIRECT, so a
+  // learned route for that host would never reach the gateway.
   if (ipv4.length === 4) {
-    var first = parseInt(ipv4[0], 10);
-    var second = parseInt(ipv4[1], 10);
-    isPrivateIpv4 = first === 0 || first === 10 || first === 127 ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168);
+    var isDottedQuad = true;
+    for (var octetIndex = 0; octetIndex < 4; octetIndex++) {
+      if (!/^\\d{1,3}$/.test(ipv4[octetIndex]) || parseInt(ipv4[octetIndex], 10) > 255) {
+        isDottedQuad = false;
+        break;
+      }
+    }
+    if (isDottedQuad) {
+      var first = parseInt(ipv4[0], 10);
+      var second = parseInt(ipv4[1], 10);
+      isPrivateIpv4 = first === 0 || first === 10 || first === 127 ||
+        (first === 169 && second === 254) ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168);
+    }
   }
   var isPrivateIpv6 = address.indexOf(":") !== -1 &&
     (address === "::" || address === "::1" ||

@@ -360,14 +360,21 @@ async function waitForDebugFlush() {
       enabled: true,
       debugEnabled: true,
       proxyPort: 1080,
-      learnedDomains: ["https://Example.com/path", "example.com"]
+      learnedDomains: ["https://Example.com/path", "example.com", "10.media.example.com"]
     }
   });
 
   assert.equal(enabled.ok, true);
-  assert.deepEqual([...enabled.state.learnedDomains], ["example.com"]);
+  assert.deepEqual([...enabled.state.learnedDomains], ["10.media.example.com", "example.com"]);
   assert.equal(proxyConfig.mode, "pac_script");
   const findProxy = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(findProxy("https://example.com/", "example.com"), "SOCKS5 127.0.0.1:1080");
+  // A host name whose labels merely look like a private address must not be
+  // mistaken for one, or its learned route would silently never be applied.
+  assert.equal(
+    findProxy("https://10.media.example.com/", "10.media.example.com"),
+    "SOCKS5 127.0.0.1:1080"
+  );
   assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
