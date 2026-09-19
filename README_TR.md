@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.12.1**
+Güncel sürüm: **4.12.2**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
