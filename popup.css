@@ -566,25 +566,51 @@ main {
 }
 
 .foot {
-  padding: 0 14px 14px;
+  padding: 2px 14px 16px;
   text-align: center;
 }
 
+/* Buy Me a Coffee brand colours, deliberately fixed in both themes: a themed
+   version of this button stops reading as the one people recognise. The card
+   around it is gone, the button itself is not. */
 .support {
-  color: var(--text-3);
-  font-size: 10.5px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid #e3b900;
+  border-radius: 999px;
+  padding: 0 18px;
+  background: #ffdd00;
+  box-shadow: 0 4px 12px rgba(190, 151, 0, 0.22);
+  color: #2d2600;
+  font-size: 11.5px;
+  font-weight: 800;
   text-decoration: none;
+  transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
 .support:hover {
-  color: var(--accent-text);
-  text-decoration: underline;
+  background: #ffe536;
+  box-shadow: 0 6px 16px rgba(190, 151, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.support:active {
+  transform: translateY(1px);
+}
+
+.cup {
+  font-size: 14px;
+  line-height: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .slider,
   .slider::before,
-  .btn {
+  .btn,
+  .support {
     transition: none;
   }
 }
