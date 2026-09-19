@@ -1,129 +1,352 @@
 {
-  "extensionName": { "message": "Automatic Access" },
-  "extensionShortName": { "message": "Auto Access" },
-  "extensionDescription": { "message": "Learns targets with connection errors and routes only them through a local compatibility gateway." },
-  "tagline": { "message": "Detects errors, learns, and routes only the target" },
-  "toggleTitle": { "message": "Enable or disable the extension" },
-  "preparing": { "message": "Preparing…" },
-  "readingSettings": { "message": "Reading settings." },
-  "privacyNote": { "message": "The learned list stays on your device. The extension does not change your computer's DNS settings. A domain is sent to Globalping only when you select “Check global status”." },
-  "openTab": { "message": "OPEN TAB" },
-  "pageUnavailable": { "message": "Unavailable for this page" },
-  "routeNow": { "message": "Route now" },
-  "flowAria": { "message": "Automatic connection flow" },
-  "tryDirect": { "message": "Try direct" },
-  "detectBlock": { "message": "Detect block" },
-  "routeSelectively": { "message": "Route selectively" },
-  "connectionDiagnosis": { "message": "CONNECTION DIAGNOSIS" },
-  "connectionIssue": { "message": "Connection issue" },
-  "checkGlobalStatus": { "message": "Check global status" },
-  "diagnosticPrivacy": { "message": "Only when you select this button is the domain sent to Globalping for measurements from three continents." },
-  "learnedTargetsEyebrow": { "message": "LEARNED TARGETS" },
-  "automaticallyRoutedSites": { "message": "Automatically routed sites" },
-  "learnedHint": { "message": "× removes the target for now; Ignore removes it and prevents relearning after future errors." },
-  "ignoredTargetsEyebrow": { "message": "IGNORED TARGETS" },
-  "neverLearnSites": { "message": "Sites that will not be learned automatically" },
-  "ignoredHint": { "message": "Ignored targets are not added to automatic routing even after connection errors. Use ↩ on a row to restore one." },
-  "localGatewaySettings": { "message": "Local gateway settings" },
-  "server": { "message": "Server" },
-  "port": { "message": "Port" },
-  "gatewayHint": { "message": "For security, it connects only to the SOCKS5 gateway on this computer. The local service listens on a fixed port, so the address is shown rather than edited." },
-  "testNotification": { "message": "Test notification" },
-  "debugLogTitle": { "message": "Debug log" },
-  "debugHint": { "message": "Only time, domain, request/error type, and routing stage are kept on the device; page content is not recorded." },
-  "enableDebug": { "message": "Enable debug logging" },
-  "noLogs": { "message": "No records yet" },
-  "copyLog": { "message": "Copy log" },
-  "clear": { "message": "Clear" },
-  "saveApply": { "message": "Save and apply" },
-  "reapply": { "message": "Reapply" },
-  "noLearnedTargets": { "message": "No blocked target has been detected yet" },
-  "ignore": { "message": "Ignore" },
-  "ignoreDomain": { "message": "Permanently ignore $1" },
-  "removeDomain": { "message": "Remove $1" },
-  "noIgnoredTargets": { "message": "No ignored targets" },
-  "restoreDomain": { "message": "Stop ignoring $1" },
-  "reloadRequired": { "message": "The extension must be reloaded" },
-  "gatewayUnavailable": { "message": "Local gateway unavailable" },
-  "gatewayRecoveringTitle": { "message": "Local gateway is starting" },
-  "gatewayRecoveringDetail": { "message": "The extension will retry this routed page briefly while the local gateway becomes ready." },
-  "gatewayUnavailableDetail": { "message": "The local gateway did not become ready after the limited automatic retries. Check the installed helper, then retry." },
-  "detectionEnabled": { "message": "Automatic block detection is active" },
-  "accessDisabled": { "message": "Automatic access is off" },
-  "reloadInstruction": { "message": "Select the reload icon on the Automatic Access card at chrome://extensions." },
-  "proxyControlled": { "message": "The proxy setting is controlled by another extension or administrator." },
-  "learnedSummary": { "message": "$1 targets learned. Last detected: $2" },
-  "detectionWaiting": { "message": "Targets are saved after connection errors; only a failed main page is reloaded once." },
-  "directMode": { "message": "Chrome is connecting directly; block detection is inactive." },
-  "backgroundOutdated": { "message": "The background code is still on an older version. Reload the extension card and reopen the popup." },
-  "notificationFailed": { "message": "The last notification could not be shown: $1" },
-  "notificationSettingsHint": { "message": "Check Chrome or Windows notification settings." },
-  "checkingContinents": { "message": "Checking from three continents…" },
-  "locationsResponded": { "message": "$1/$2 external locations returned an HTTP response." },
-  "siteOnline": { "message": "Site appears online" },
-  "siteOnlineDetail": { "message": "$1 The site is reachable externally; the issue may be on the local network or regional route." },
-  "outageLikely": { "message": "Widespread outage possible" },
-  "outageLikelyDetail": { "message": "External locations on at least two continents could not reach the target; the issue is probably not on your device." },
-  "regionalIssue": { "message": "Regional issue possible" },
-  "regionalIssueDetail": { "message": "$1 The site is not completely offline, but it is not reachable from every region." },
-  "statusInconclusive": { "message": "Global status could not be confirmed" },
-  "statusInconclusiveDetail": { "message": "The external measurements are inconclusive; try again later." },
-  "reloadWithoutCache": { "message": "Reload without cache" },
-  "clientFilterTitle": { "message": "A browser filter stopped the application" },
-  "clientFilterDetail": { "message": "A first-party application file was blocked by another content filter. Check the site exception, then reload without using the broken cache." },
-  "routeFailedTitle": { "message": "The issue continues after the gateway attempt" },
-  "routeFailedDetail": { "message": "The target is already using the automatic gateway. The site may be offline or experiencing a different connection issue." },
-  "transientTitle": { "message": "Temporary connection error" },
-  "transientDetail": { "message": "The direct check received a response. The site was not added to routing; you can retry the page." },
-  "unverifiedTitle": { "message": "Block not confirmed" },
-  "unverifiedDetail": { "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status." },
-  "slowLoadingTitle": { "message": "Page loading is taking unusually long" },
-  "slowLoadingDetail": { "message": "The page or one of its required resources has not finished loading. The connection was not changed; retry or check global status." },
-  "alternativeTitle": { "message": "Trying an alternative connection" },
-  "alternativeDetail": { "message": "The target was learned and is loading once more through the local gateway." },
-  "stopIgnoring": { "message": "Stop ignoring" },
-  "removeFromList": { "message": "Remove from list" },
-  "operationFailed": { "message": "The operation could not be completed." },
-  "refreshBeforeContinue": { "message": "Reload the extension at chrome://extensions before continuing." },
-  "settingsApplied": { "message": "Automatic connection settings were applied to Chrome." },
-  "ruleReapplied": { "message": "The automatic proxy rule was reapplied." },
-  "logCopied": { "message": "The debug log was copied to the clipboard." },
-  "logCopyFailed": { "message": "The log could not be copied: $1" },
-  "logCleared": { "message": "The debug log was cleared." },
-  "testNotificationSent": { "message": "The test notification was sent to Chrome. If it is not visible, check Windows Notification Center and Do not disturb." },
-  "notificationPermissionDenied": { "message": "Chrome notification permission is disabled." },
-  "notificationCreationFailed": { "message": "The notification could not be created." },
-  "learnedOneTitle": { "message": "Block detected" },
-  "learnedManyTitle": { "message": "$1 targets added to routing" },
-  "learnedOneMessage": { "message": "$1 will now be tried through the local gateway." },
-  "moreTargets": { "message": " and $1 more targets" },
-  "notificationTestTitle": { "message": "Automatic Access notification test" },
-  "notificationTestMessage": { "message": "If you can see this notification, new-target notifications are working." },
-  "notificationAcceptedWarning": { "message": "Chrome accepted the notification. It may not appear if Windows notifications are disabled." },
-  "outageNotificationMessage": { "message": "$1 is unreachable from multiple external locations. The site may be broadly unavailable." },
-  "unsupportedProbe": { "message": "Unsupported probe protocol." },
-  "invalidPublicDomain": { "message": "A valid public domain is required." },
-  "globalRateLimited": { "message": "The global status service reached its request limit; try again later." },
-  "globalStartFailed": { "message": "The global status measurement could not be started." },
-  "globalNoId": { "message": "The global status service did not return a measurement ID." },
-  "globalReadFailed": { "message": "The global status measurement could not be read." },
-  "globalTimedOut": { "message": "The global status measurement did not finish in time." },
-  "localProxyFailed": { "message": "Could not connect to the local proxy." },
-  "tabNotFound": { "message": "The tab to reload was not found." },
-  "unknownRequest": { "message": "Unknown request." },
-  "badgeGatewayError": { "message": "Automatic Access — local gateway error" },
-  "badgeTargetLearned": { "message": "Automatic Access — new blocked target learned" },
-  "badgeDirect": { "message": "Automatic Access — this tab is connecting directly" },
-  "badgeRouted": { "message": "Automatic Access — this tab is using the local gateway" },
-  "badgeUnavailable": { "message": "Automatic Access — unavailable for this page" },
-  "badgeChecking": { "message": "Automatic Access — waiting for the connection result" },
-  "badgeUnreachable": { "message": "Automatic Access — this page could not be reached" },
-  "badgeDisabled": { "message": "Automatic Access — disabled" },
-  "badgeOutageLikely": { "message": "Automatic Access — widespread outage possible" },
-  "badgeIssueContinues": { "message": "Automatic Access — connection issue continues" },
-  "previewUnsupported": { "message": "Unsupported request in preview mode." },
-  "supportAria": { "message": "Support the project" },
-  "supportKicker": { "message": "OPEN-SOURCE & INDEPENDENT" },
-  "supportText": { "message": "If Automatic Access helps you, you can support its development." },
-  "supportButton": { "message": "Buy me a coffee" }
+  "accessDisabled": {
+    "message": "Automatic access is off"
+  },
+  "advanced": {
+    "message": "Advanced",
+    "description": "Collapsed section holding gateway facts, recovery actions and debug logging."
+  },
+  "alternativeDetail": {
+    "message": "The target was learned and is loading once more through the local gateway."
+  },
+  "alternativeTitle": {
+    "message": "Trying an alternative connection"
+  },
+  "backgroundOutdated": {
+    "message": "The background code is still on an older version. Reload the extension card and reopen the popup."
+  },
+  "badgeChecking": {
+    "message": "Automatic Access — waiting for the connection result"
+  },
+  "badgeDirect": {
+    "message": "Automatic Access — this tab is connecting directly"
+  },
+  "badgeDisabled": {
+    "message": "Automatic Access — disabled"
+  },
+  "badgeGatewayError": {
+    "message": "Automatic Access — local gateway error"
+  },
+  "badgeIssueContinues": {
+    "message": "Automatic Access — connection issue continues"
+  },
+  "badgeOutageLikely": {
+    "message": "Automatic Access — widespread outage possible"
+  },
+  "badgeRouted": {
+    "message": "Automatic Access — this tab is using the local gateway"
+  },
+  "badgeTargetLearned": {
+    "message": "Automatic Access — new blocked target learned"
+  },
+  "badgeUnavailable": {
+    "message": "Automatic Access — unavailable for this page"
+  },
+  "badgeUnreachable": {
+    "message": "Automatic Access — this page could not be reached"
+  },
+  "checkGlobalStatus": {
+    "message": "Check global status"
+  },
+  "checkingContinents": {
+    "message": "Checking from three continents…"
+  },
+  "clear": {
+    "message": "Clear"
+  },
+  "clientFilterDetail": {
+    "message": "A first-party application file was blocked by another content filter. Check the site exception, then reload without using the broken cache."
+  },
+  "clientFilterTitle": {
+    "message": "A browser filter stopped the application"
+  },
+  "connectionIssue": {
+    "message": "Connection issue"
+  },
+  "copyLog": {
+    "message": "Copy log"
+  },
+  "detectionEnabled": {
+    "message": "Automatic block detection is active"
+  },
+  "detectionWaiting": {
+    "message": "Targets are saved after connection errors; only a failed main page is reloaded once."
+  },
+  "diagnosticPrivacy": {
+    "message": "Only when you select this button is the domain sent to Globalping for measurements from three continents."
+  },
+  "directMode": {
+    "message": "Chrome is connecting directly; block detection is inactive."
+  },
+  "enableDebug": {
+    "message": "Enable debug logging"
+  },
+  "extensionDescription": {
+    "message": "Learns targets with connection errors and routes only them through a local compatibility gateway."
+  },
+  "extensionName": {
+    "message": "Automatic Access"
+  },
+  "extensionShortName": {
+    "message": "Auto Access"
+  },
+  "gatewayLabel": {
+    "message": "Gateway",
+    "description": "Label for the fixed local gateway address."
+  },
+  "gatewayRecoveringDetail": {
+    "message": "The extension will retry this routed page briefly while the local gateway becomes ready."
+  },
+  "gatewayRecoveringTitle": {
+    "message": "Local gateway is starting"
+  },
+  "gatewayUnavailable": {
+    "message": "Local gateway unavailable"
+  },
+  "gatewayUnavailableDetail": {
+    "message": "The local gateway did not become ready after the limited automatic retries. Check the installed helper, then retry."
+  },
+  "globalNoId": {
+    "message": "The global status service did not return a measurement ID."
+  },
+  "globalRateLimited": {
+    "message": "The global status service reached its request limit; try again later."
+  },
+  "globalReadFailed": {
+    "message": "The global status measurement could not be read."
+  },
+  "globalStartFailed": {
+    "message": "The global status measurement could not be started."
+  },
+  "globalTimedOut": {
+    "message": "The global status measurement did not finish in time."
+  },
+  "ignore": {
+    "message": "Ignore"
+  },
+  "ignoreDomain": {
+    "message": "Permanently ignore $1"
+  },
+  "invalidPublicDomain": {
+    "message": "A valid public domain is required."
+  },
+  "learnedManyTitle": {
+    "message": "$1 targets added to routing"
+  },
+  "learnedOneMessage": {
+    "message": "$1 will now be tried through the local gateway."
+  },
+  "learnedOneTitle": {
+    "message": "Block detected"
+  },
+  "learnedSummary": {
+    "message": "$1 targets learned. Last detected: $2"
+  },
+  "localProxyFailed": {
+    "message": "Could not connect to the local proxy."
+  },
+  "locationsResponded": {
+    "message": "$1/$2 external locations returned an HTTP response."
+  },
+  "logCleared": {
+    "message": "The debug log was cleared."
+  },
+  "logCopied": {
+    "message": "The debug log was copied to the clipboard."
+  },
+  "logCopyFailed": {
+    "message": "The log could not be copied: $1"
+  },
+  "moreTargets": {
+    "message": " and $1 more targets"
+  },
+  "noIgnoredTargets": {
+    "message": "No ignored targets"
+  },
+  "noLearnedTargets": {
+    "message": "No blocked target has been detected yet"
+  },
+  "noLogs": {
+    "message": "No records yet"
+  },
+  "notificationAcceptedWarning": {
+    "message": "Chrome accepted the notification. It may not appear if Windows notifications are disabled."
+  },
+  "notificationCreationFailed": {
+    "message": "The notification could not be created."
+  },
+  "notificationFailed": {
+    "message": "The last notification could not be shown: $1"
+  },
+  "notificationPermissionDenied": {
+    "message": "Chrome notification permission is disabled."
+  },
+  "notificationSettingsHint": {
+    "message": "Check Chrome or Windows notification settings."
+  },
+  "notificationTestMessage": {
+    "message": "If you can see this notification, new-target notifications are working."
+  },
+  "notificationTestTitle": {
+    "message": "Automatic Access notification test"
+  },
+  "operationFailed": {
+    "message": "The operation could not be completed."
+  },
+  "outageLikely": {
+    "message": "Widespread outage possible"
+  },
+  "outageLikelyDetail": {
+    "message": "External locations on at least two continents could not reach the target; the issue is probably not on your device."
+  },
+  "outageNotificationMessage": {
+    "message": "$1 is unreachable from multiple external locations. The site may be broadly unavailable."
+  },
+  "pageUnavailable": {
+    "message": "Unavailable for this page"
+  },
+  "preparing": {
+    "message": "Preparing…"
+  },
+  "previewUnsupported": {
+    "message": "Unsupported request in preview mode.",
+    "description": "Error returned by the development preview shim for a message it does not implement."
+  },
+  "privacyShort": {
+    "message": "The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.",
+    "description": "Condensed privacy statement shown in the advanced section."
+  },
+  "proxyControlled": {
+    "message": "The proxy setting is controlled by another extension or administrator."
+  },
+  "readingSettings": {
+    "message": "Reading settings."
+  },
+  "reapply": {
+    "message": "Reapply"
+  },
+  "refreshBeforeContinue": {
+    "message": "Reload the extension at chrome://extensions before continuing."
+  },
+  "regionalIssue": {
+    "message": "Regional issue possible"
+  },
+  "regionalIssueDetail": {
+    "message": "$1 The site is not completely offline, but it is not reachable from every region."
+  },
+  "reloadInstruction": {
+    "message": "Select the reload icon on the Automatic Access card at chrome://extensions."
+  },
+  "reloadRequired": {
+    "message": "The extension must be reloaded"
+  },
+  "reloadWithoutCache": {
+    "message": "Reload without cache"
+  },
+  "removeDomain": {
+    "message": "Remove $1"
+  },
+  "removeFromList": {
+    "message": "Remove from list"
+  },
+  "restoreDomain": {
+    "message": "Stop ignoring $1"
+  },
+  "routeFailedDetail": {
+    "message": "The target is already using the automatic gateway. The site may be offline or experiencing a different connection issue."
+  },
+  "routeFailedTitle": {
+    "message": "The issue continues after the gateway attempt"
+  },
+  "routeNow": {
+    "message": "Route now"
+  },
+  "ruleReapplied": {
+    "message": "The automatic proxy rule was reapplied."
+  },
+  "segmentIgnored": {
+    "message": "Ignored",
+    "description": "Segmented control label for the ignored list."
+  },
+  "segmentRouted": {
+    "message": "Routed",
+    "description": "Segmented control label for the automatically routed list."
+  },
+  "settingsApplied": {
+    "message": "Automatic connection settings were applied to Chrome."
+  },
+  "siteOnline": {
+    "message": "Site appears online"
+  },
+  "siteOnlineDetail": {
+    "message": "$1 The site is reachable externally; the issue may be on the local network or regional route."
+  },
+  "slowLoadingDetail": {
+    "message": "The page or one of its required resources has not finished loading. The connection was not changed; retry or check global status."
+  },
+  "slowLoadingTitle": {
+    "message": "Page loading is taking unusually long"
+  },
+  "stateIgnored": {
+    "message": "Ignored",
+    "description": "Tab card headline when the open site is on the ignored list."
+  },
+  "stateIgnoredDetail": {
+    "message": "This site is never added automatically, even after connection errors.",
+    "description": "Tab card detail for an ignored site."
+  },
+  "stateRouted": {
+    "message": "Routed through the gateway",
+    "description": "Tab card headline when the open site is on the learned list."
+  },
+  "stateRoutedDetail": {
+    "message": "Chrome sends this site to the local gateway instead of connecting directly.",
+    "description": "Tab card detail for a routed site."
+  },
+  "statusInconclusive": {
+    "message": "Global status could not be confirmed"
+  },
+  "statusInconclusiveDetail": {
+    "message": "The external measurements are inconclusive; try again later."
+  },
+  "stopIgnoring": {
+    "message": "Stop ignoring"
+  },
+  "supportButton": {
+    "message": "Buy me a coffee"
+  },
+  "tabNotFound": {
+    "message": "The tab to reload was not found."
+  },
+  "testNotification": {
+    "message": "Test notification"
+  },
+  "testNotificationSent": {
+    "message": "The test notification was sent to Chrome. If it is not visible, check Windows Notification Center and Do not disturb."
+  },
+  "toggleTitle": {
+    "message": "Enable or disable the extension"
+  },
+  "transientDetail": {
+    "message": "The direct check received a response. The site was not added to routing; you can retry the page."
+  },
+  "transientTitle": {
+    "message": "Temporary connection error"
+  },
+  "unknownRequest": {
+    "message": "Unknown request."
+  },
+  "unsupportedProbe": {
+    "message": "Unsupported probe protocol."
+  },
+  "unverifiedDetail": {
+    "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status."
+  },
+  "unverifiedTitle": {
+    "message": "Block not confirmed"
+  },
+  "versionLabel": {
+    "message": "Version",
+    "description": "Label for the installed extension version."
+  }
 }

@@ -296,13 +296,26 @@ function FindProxyForURL(url, host) {
   var address = host.replace(/^\\[|\\]$/g, "");
   var ipv4 = address.split(".");
   var isPrivateIpv4 = false;
+  // Every label has to be a real octet, exactly as isLocalHost checks it.
+  // Reading only the first two would classify a host name such as
+  // "10.media.example.com" as a private address and force it DIRECT, so a
+  // learned route for that host would never reach the gateway.
   if (ipv4.length === 4) {
-    var first = parseInt(ipv4[0], 10);
-    var second = parseInt(ipv4[1], 10);
-    isPrivateIpv4 = first === 0 || first === 10 || first === 127 ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168);
+    var isDottedQuad = true;
+    for (var octetIndex = 0; octetIndex < 4; octetIndex++) {
+      if (!/^\\d{1,3}$/.test(ipv4[octetIndex]) || parseInt(ipv4[octetIndex], 10) > 255) {
+        isDottedQuad = false;
+        break;
+      }
+    }
+    if (isDottedQuad) {
+      var first = parseInt(ipv4[0], 10);
+      var second = parseInt(ipv4[1], 10);
+      isPrivateIpv4 = first === 0 || first === 10 || first === 127 ||
+        (first === 169 && second === 254) ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168);
+    }
   }
   var isPrivateIpv6 = address.indexOf(":") !== -1 &&
     (address === "::" || address === "::1" ||
@@ -1256,6 +1269,7 @@ async function learnAndRetry(details) {
   const hasLearnedContext = [initiatorHost, mainHost]
     .some((contextHost) => contextHost && isLearned(contextHost, settings.learnedDomains));
   const isTimeoutError = ["ERR_CONNECTION_TIMED_OUT", "ERR_TIMED_OUT"].includes(error);
+  const isResetError = ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
   // Cross-origin dependency timeouts are eligible only when they belong to an
@@ -1266,9 +1280,16 @@ async function learnAndRetry(details) {
   if (DNS_RESOLUTION_ERRORS.has(error) &&
       !["main_frame", "sub_frame"].includes(details.type) &&
       !hasLearnedContext) return;
+  // A cross-origin script or stylesheet is normally left alone: most of those
+  // failures are ad and analytics hosts a content blocker stopped, not a route
+  // worth learning. The exception is a page that is already routed, because the
+  // interference that got the page learned reaches its dependencies too. A
+  // reset belongs in that exception -- it is the most common signature of the
+  // problem this extension exists for, and leaving it out let a routed page
+  // load while the scripts its player needs kept failing directly.
   if (SAME_ORIGIN_ONLY_TYPES.has(details.type)) {
     const routedDependencyFailure = hasLearnedContext &&
-      (DNS_RESOLUTION_ERRORS.has(error) || isTimeoutError);
+      (DNS_RESOLUTION_ERRORS.has(error) || isTimeoutError || isResetError);
     if ((!initiatorHost || initiatorHost !== host) && !routedDependencyFailure) return;
   }
 

@@ -334,8 +334,15 @@ const preview = fs.readFileSync(path.join(root, "popup-preview.js"), "utf8");
 const popup = fs.readFileSync(path.join(root, "popup.js"), "utf8");
 
 // The bundled Windows service listens on a port the extension cannot change,
-// so nothing may reintroduce an editable field or trust a stored value.
-if (!/id="proxyPort"[^>]*\bdisabled\b/.test(popupHtml)) {
+// so nothing may reintroduce an editable field or trust a stored value. The
+// popup prints the address as read-only text; a form control is tolerated only
+// while it is disabled, so neither shape can regress into an editable one.
+const proxyPortTag = popupHtml.match(/<([a-zA-Z]+)\b[^>]*\bid="proxyPort"[^>]*>/);
+if (!proxyPortTag) {
+  fail("Yerel gecit portu gostergesi popup.html icinde bulunamadi.");
+}
+if (["input", "select", "textarea"].includes(proxyPortTag[1].toLowerCase()) &&
+    !/\bdisabled\b/.test(proxyPortTag[0])) {
   fail("Yerel gecit portu kullanici tarafindan degistirilebilir olmamalidir.");
 }
 if (/normalizePort/.test(background) ||

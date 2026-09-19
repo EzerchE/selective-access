@@ -4,9 +4,9 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.11.12**
+Güncel sürüm: **4.12.0**
 
-<img src="assets/screenshots/popup-v4-11-en.png" alt="Otomatik Erişim eklentisinin İngilizce arayüzü" width="307">
+<img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
 ## Bu proje neden önemli?
 
@@ -67,6 +67,16 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Araç çubuğu ikonu doğrudan ve başarılı bağlantıda yazısız kalır. Yerel geçit kullanıldığında mavi `↗`, yeni rota öğrenildiğinde camgöbeği `+`, süren kontrolde turuncu `?`, erişim veya geçit hatasında kırmızı `!`, kapalı durumda gri `×` gösterilir. Kısa işaretler ikonu kapatmaz; durum hem ana sayfanın sonucunu hem de sekmedeki yönlendirilmiş bağımlılıkları izler.
 
 Bu araç VPN değildir; IP adresini veya ülkeyi değiştirmez. Yalnız kullanıcının erişim yetkisi bulunan hedeflerde ve yürürlükteki kurallara uygun kullanılmalıdır.
+
+## Arayüz
+
+Açılır pencere, üzerinde açıldığı sekmeye göre kurgulanmıştır. Tek bir kart o alan adını gösterir, ona ne olduğunu söyler ve yalnız geçerli olan eylemi sunar: geçide al, listeden çıkar veya yoksaymayı kaldır. Tanı kartı yalnız o sekmede gerçekten bir sorun varken altında belirir.
+
+İki hedef listesi tek bir segment denetimini paylaşır; böylece uzun bir yönlendirme listesi yoksayılanları ekrandan itmez. Satır eylemleri kendi erişilebilir adlarını taşıyan simge düğmeleridir: eğik çizgili daire hedefi yoksayılanlara taşır, çarpı şimdilik kaldırır, ok ise yoksayılan bir hedefi geri getirir.
+
+Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: sabit geçit adresi, kurulu sürüm, yeniden uygulama ve bildirim testi eylemleri ile debug kaydı.
+
+Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim klavye odak halkası çizer, aç/kapa anahtarı erişilebilir bir ad taşır ve durum mesajları canlı bölge üzerinden duyurulur.
 
 ## Kurulum
 

@@ -360,14 +360,21 @@ async function waitForDebugFlush() {
       enabled: true,
       debugEnabled: true,
       proxyPort: 1080,
-      learnedDomains: ["https://Example.com/path", "example.com"]
+      learnedDomains: ["https://Example.com/path", "example.com", "10.media.example.com"]
     }
   });
 
   assert.equal(enabled.ok, true);
-  assert.deepEqual([...enabled.state.learnedDomains], ["example.com"]);
+  assert.deepEqual([...enabled.state.learnedDomains], ["10.media.example.com", "example.com"]);
   assert.equal(proxyConfig.mode, "pac_script");
   const findProxy = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(findProxy("https://example.com/", "example.com"), "SOCKS5 127.0.0.1:1080");
+  // A host name whose labels merely look like a private address must not be
+  // mistaken for one, or its learned route would silently never be applied.
+  assert.equal(
+    findProxy("https://10.media.example.com/", "10.media.example.com"),
+    "SOCKS5 127.0.0.1:1080"
+  );
   assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
@@ -1404,6 +1411,56 @@ async function waitForDebugFlush() {
     globalPing.resultDelayMs = 0;
     setClockScale(1);
   }
+
+  // A routed page keeps failing on the cross-origin scripts its player needs.
+  // A reset there is the same interference that got the page learned, so the
+  // dependency has to become a candidate rather than being dropped as a
+  // third-party script. Reported from a live log: the main document returned
+  // 200 through the gateway while its CDN script reset on every reload.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: ["routed-page.example"], ignoredDomains: [] }
+  });
+  const resetDependency = {
+    tabId: 91,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://static-cdn.example/player/app.js",
+    initiator: "https://routed-page.example"
+  };
+  await listeners.requestError(resetDependency);
+  await listeners.requestError(resetDependency);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("static-cdn.example"),
+    true,
+    "a reset script dependency of a routed page must be learned"
+  );
+  // The same failure away from a routed page stays ignored: an unrelated
+  // third-party script is not evidence of interference.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["routed-page.example"], ignoredDomains: [] }
+  });
+  const unroutedDependency = {
+    tabId: 92,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_CONNECTION_RESET",
+    url: "https://tracker-cdn.example/tag.js",
+    initiator: "https://ordinary-page.example"
+  };
+  await listeners.requestError(unroutedDependency);
+  await listeners.requestError(unroutedDependency);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("tracker-cdn.example"),
+    false,
+    "a reset script on an unrouted page must not be learned"
+  );
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
