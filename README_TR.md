@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.12.2**
+Güncel sürüm: **4.13.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -60,6 +60,7 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Yerel geçit bağlantı hazırlığı süreyle sınırlıdır; başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
 - Yerel geçit uzun süre boşta kalan oturumlarda kararlı çalışmayı sürdürür.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
+- Yeni öğrenilen bir rota, geçit üzerinden bir ana sayfa gerçekten açılana kadar geçicidir; bu açılış rotayı doğrular ve doğrulanmış bir rota otomatik olarak asla kaldırılmaz. Hiç başarı görmemiş ve birbirinden ayrı üç gezinmede başarısız olmuş geçici bir rota, tam bir günlük gözlem süresinin ardından, hiç doğrulanamadığını belirten bir bildirimle kaldırılır ve sonraki bir ziyarette yeniden öğrenilebilir. Yerel geçit arızaları ile eklentinin kendi kurtarma yenilemeleri bu sayıma girmez; `www` ile kök alan adı tek bir sağlık kaydını paylaşır. Hiçbir dış kontrol devreye girmez.
 - Başarıyla açılan yönlendirilmiş sayfanın öğrenilen rotası kullanıcı kaldırana veya yoksayana kadar korunur; sayfa yüklenirken tarayıcı genelindeki proxy ayarı değiştirilmez.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.

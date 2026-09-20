@@ -342,6 +342,18 @@
   "unverifiedDetail": {
     "message": "This error alone does not prove an access block. The target was not added automatically; retry or check global status."
   },
+  "unverifiedRemovedMany": {
+    "message": "$1 targets were removed because they never loaded through the gateway. They will be learned again if they are still needed.",
+    "description": "Body when several unverified routes were removed. $1 is the count."
+  },
+  "unverifiedRemovedOne": {
+    "message": "$1 was removed because it never loaded through the gateway. It will be learned again if it is still needed.",
+    "description": "Body when exactly one unverified route was removed. $1 is the domain."
+  },
+  "unverifiedRemovedTitle": {
+    "message": "Unverified target removed",
+    "description": "Notification shown when a route that never loaded through the gateway is pruned."
+  },
   "unverifiedTitle": {
     "message": "Block not confirmed"
   },

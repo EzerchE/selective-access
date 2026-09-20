@@ -342,6 +342,18 @@
   "unverifiedDetail": {
     "message": "Bu hata tek başına erişim engeli kanıtı değildir. Hedef otomatik eklenmedi; yeniden deneyin veya genel durumu kontrol edin."
   },
+  "unverifiedRemovedMany": {
+    "message": "$1 hedef geçit üzerinden hiç açılmadığı için kaldırıldı. Hâlâ gerekiyorlarsa yeniden öğrenilirler.",
+    "description": "Birden çok doğrulanmamış rota kaldırıldığında gövde. $1 sayıdır."
+  },
+  "unverifiedRemovedOne": {
+    "message": "$1 geçit üzerinden hiç açılmadığı için kaldırıldı. Hâlâ gerekiyorsa yeniden öğrenilir.",
+    "description": "Tek bir doğrulanmamış rota kaldırıldığında gövde. $1 alan adıdır."
+  },
+  "unverifiedRemovedTitle": {
+    "message": "Doğrulanmamış hedef kaldırıldı",
+    "description": "Geçit üzerinden hiç açılmamış bir rota budandığında gösterilen bildirim."
+  },
   "unverifiedTitle": {
     "message": "Engel doğrulanmadı"
   },

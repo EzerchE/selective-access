@@ -1285,6 +1285,27 @@ async function sendTestNotification() {
   }
 }
 
+async function notifyUnverifiedRemoval(domains) {
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") return { ok: false, error: t("notificationPermissionDenied") };
+  try {
+    const createdId = await chrome.notifications.create(`unverified:${Date.now()}`, {
+      type: "basic",
+      iconUrl: "assets/icon-128.png",
+      title: t("unverifiedRemovedTitle"),
+      message: domains.length === 1
+        ? t("unverifiedRemovedOne", domains[0])
+        : t("unverifiedRemovedMany", String(domains.length)),
+      priority: 0
+    });
+    return { ok: true, id: createdId };
+  } catch (error) {
+    return { ok: false, error: error.message || t("notificationCreationFailed") };
+  }
+}
+
 async function notifyLikelyGlobalOutage(domain) {
   const permission = typeof chrome.notifications.getPermissionLevel === "function"
     ? await chrome.notifications.getPermissionLevel()
@@ -1373,6 +1394,159 @@ async function recordCriticalClientFilter(details) {
   await setIssueBadge(true, "client_filter_blocked", details.tabId);
 }
 
+// A route is learned from a single failure, which is what keeps a DNS-blocked
+// site fast to open. The cost is that a typo or a domain that no longer exists
+// is learned just as eagerly and then stays. These records are how such a route
+// gets taken back out without slowing the common case down.
+//
+// A route starts provisional. One main document that actually loads through the
+// gateway confirms it, and a confirmed route is never pruned. A provisional
+// route that has never once succeeded, and has failed on three separate
+// navigations, becomes a candidate -- but it is only removed after a full day
+// of observation, so a bad afternoon on a working site cannot delete it. The
+// record lives in local storage rather than session storage precisely because
+// that window outlives the browser.
+//
+// What deliberately does not count: a local gateway or proxy failure, and the
+// extension's own recovery reloads. Neither says anything about the target, and
+// counting them would let one broken helper empty the whole list.
+const ROUTE_HEALTH_KEY = "routeHealth";
+const PROVISIONAL_FAILURE_THRESHOLD = 3;
+const PROVISIONAL_OBSERVATION_MS = 24 * 60 * 60_000;
+const PROVISIONAL_FAILURE_GRACE_MS = 90_000;
+let routeHealthQueue = Promise.resolve();
+
+// www and the apex share one record, so a site learned under both aliases is
+// judged once rather than twice from half the evidence.
+function routeFamily(host) {
+  return comparableMainHost(host);
+}
+
+function queueRouteHealth(task) {
+  const current = routeHealthQueue.catch(() => {}).then(task);
+  routeHealthQueue = current.catch(() => {});
+  return current;
+}
+
+async function readRouteHealth() {
+  const stored = await chrome.storage.local.get({ [ROUTE_HEALTH_KEY]: {} });
+  const health = stored[ROUTE_HEALTH_KEY];
+  return health && typeof health === "object" && !Array.isArray(health) ? health : {};
+}
+
+function markRouteProvisional(host, now) {
+  return queueRouteHealth(async () => {
+    const health = await readRouteHealth();
+    const family = routeFamily(host);
+    // Re-learning a family that is already tracked keeps its history; the point
+    // of the observation window is that it cannot be reset by relearning.
+    if (health[family]) return false;
+    health[family] = {
+      firstSeenAt: now,
+      confirmed: false,
+      failures: 0,
+      lastFailureAt: 0,
+      lastFailureTab: null
+    };
+    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
+    return true;
+  });
+}
+
+function confirmRoute(host) {
+  return queueRouteHealth(async () => {
+    const health = await readRouteHealth();
+    const family = routeFamily(host);
+    const record = health[family];
+    if (record?.confirmed) return false;
+    // The record may not exist yet: the route reaches the settings before
+    // markRouteProvisional runs, so a success in another tab can land in
+    // between. Recording it directly keeps that success instead of letting the
+    // route be created provisional a moment later as if it had never loaded.
+    health[family] = record
+      ? { ...record, confirmed: true, failures: 0 }
+      : {
+          firstSeenAt: Date.now(),
+          confirmed: true,
+          failures: 0,
+          lastFailureAt: 0,
+          lastFailureTab: null
+        };
+    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
+    return true;
+  });
+}
+
+function recordProvisionalFailure(host, tabId, now) {
+  return queueRouteHealth(async () => {
+    const health = await readRouteHealth();
+    const family = routeFamily(host);
+    const record = health[family];
+    if (!record || record.confirmed) return false;
+    // The extension reloads a tab itself while recovering a route. That second
+    // failure is the same navigation seen twice, not new evidence.
+    const sameNavigation = record.lastFailureTab === tabId &&
+      Number.isFinite(record.lastFailureAt) &&
+      now - record.lastFailureAt < PROVISIONAL_FAILURE_GRACE_MS;
+    if (sameNavigation) return false;
+    health[family] = {
+      ...record,
+      failures: (record.failures || 0) + 1,
+      lastFailureAt: now,
+      lastFailureTab: tabId
+    };
+    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
+    return true;
+  });
+}
+
+function pruneUnverifiedRoutes(now = Date.now()) {
+  // Reading the records, removing the domains and dropping the records are one
+  // step on the health queue. Splitting them let a route confirmed by another
+  // tab in between be deleted anyway, on a decision taken before that success
+  // existed. Holding the queue across saveSettings is safe because nothing on
+  // the settings queue waits on this one -- markRouteProvisional is called by
+  // learnAndRetry after the commit, not inside it.
+  return queueRouteHealth(async () => {
+    const health = await readRouteHealth();
+    const doomed = new Set(Object.entries(health)
+      .filter(([, record]) => record &&
+        !record.confirmed &&
+        (record.failures || 0) >= PROVISIONAL_FAILURE_THRESHOLD &&
+        Number.isFinite(record.firstSeenAt) &&
+        now - record.firstSeenAt >= PROVISIONAL_OBSERVATION_MS)
+      .map(([family]) => family));
+    if (doomed.size === 0) return [];
+
+    // Reading the learned list, filtering it and writing it back has to be one
+    // step on the settings queue as well. Splitting it wrote a snapshot taken
+    // before whatever commitLearnedRoute added in between, which silently
+    // dropped a target learned while the prune was running.
+    const removed = await queueSettingsMutation(async () => {
+      const latest = await getSettings();
+      const doomedDomains = latest.learnedDomains.filter((domain) => doomed.has(routeFamily(domain)));
+      if (doomedDomains.length === 0) return [];
+      await saveSettingsUnlocked({
+        learnedDomains: latest.learnedDomains.filter((domain) => !doomed.has(routeFamily(domain)))
+      });
+      return doomedDomains;
+    });
+    const remaining = { ...health };
+    for (const family of doomed) delete remaining[family];
+    await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: remaining });
+    await appendDebug("unverified-route-pruned", {
+      families: [...doomed],
+      removed
+    });
+    // Nothing is sent anywhere and no global check runs: the decision is made
+    // entirely from what this browser already observed. The notice counts
+    // families rather than stored entries, because www and the apex are one site
+    // to the person reading it even though two entries were removed.
+    if (removed.length > 0) await notifyUnverifiedRemoval([...doomed]).catch(console.error);
+    return removed;
+  });
+}
+
 function commitLearnedRoute(host, details, error) {
   return queueSettingsMutation(async () => {
     const latest = await getSettings();
@@ -1448,10 +1622,21 @@ async function learnAndRetry(details) {
 
   if (isLearned(host, settings.learnedDomains)) {
     if (details.type === "main_frame") {
+      // A sick gateway is not the target failing, and a tab the extension is
+      // itself reloading is the same navigation seen again.
+      const blamesTarget = !settings.lastProxyError &&
+        !matchingGatewayConnectionError(details) &&
+        !tabRecoveryStates.has(details.tabId);
+      const counted = blamesTarget
+        ? await recordProvisionalFailure(host, details.tabId, Date.now())
+        : false;
+      if (counted) await pruneUnverifiedRoutes().catch(console.error);
       await appendDebug("learned-route-failed", {
         tabId: details.tabId,
         host,
-        error: matchingError(details, RETRYABLE_ERRORS)
+        error: matchingError(details, RETRYABLE_ERRORS),
+        blamesTarget,
+        counted
       });
       await chrome.storage.local.set({
         lastIssueType: "route_failed",
@@ -1540,6 +1725,10 @@ async function learnAndRetry(details) {
   const committed = await commitLearnedRoute(host, details, error);
   if (committed.skipped || !committed.added) return;
   const { learnedDomains, now, applied } = committed;
+  // Deliberately outside commitLearnedRoute: that runs on the settings queue,
+  // and a settings-queue task awaiting the health queue would close a cycle
+  // with pruneUnverifiedRoutes, which holds the health queue while it saves.
+  await markRouteProvisional(host, now);
   await appendDebug("learned", {
     tabId: details.tabId,
     host,
@@ -1714,6 +1903,11 @@ async function clearIssueAfterSuccess(details) {
   if (details.tabId < 0 || details.type !== "main_frame") return;
   const host = getRequestHost(details);
   let settings = await getSettings();
+  // A document served from cache never traversed the gateway, so it is not
+  // evidence that the route works.
+  if (host && !details.fromCache && isLearned(host, settings.learnedDomains)) {
+    await confirmRoute(host);
+  }
   if (host && isLearned(host, settings.learnedDomains) && settings.lastProxyError) {
     await chrome.storage.local.set({ lastProxyError: null });
     settings = { ...settings, lastProxyError: null };
@@ -1787,7 +1981,11 @@ async function initialize() {
 
 chrome.runtime.onInstalled.addListener(() => initialize().catch(console.error));
 
-chrome.runtime.onStartup.addListener(() => applyProxy().catch(console.error));
+chrome.runtime.onStartup.addListener(() => {
+  applyProxy()
+    .then(() => pruneUnverifiedRoutes())
+    .catch(console.error);
+});
 
 chrome.proxy.onProxyError.addListener(async (details) => {
   const message = details?.error || t("localProxyFailed");
