@@ -1784,7 +1784,8 @@ async function waitForDebugFlush() {
   });
   // The prune starts while the confirmation is mid-flight, between its read of
   // the records and its write of them.
-  onRouteHealthRead = () => { workerGlobal.pruneUnverifiedRoutes(); };
+  let contestedPrune = null;
+  onRouteHealthRead = () => { contestedPrune = workerGlobal.pruneUnverifiedRoutes(); };
   await listeners.requestCompleted({
     tabId: 130,
     type: "main_frame",
@@ -1792,8 +1793,18 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
-  await new Promise((resolve) => setTimeout(resolve, 200));
   onRouteHealthRead = null;
+  // Waiting on a timer instead would pass on a slow runner simply because the
+  // prune had not got as far as deleting anything yet.
+  assert.ok(contestedPrune, "the prune must have started from inside the record read");
+  // Asserting on what the prune itself returned, rather than on storage after a
+  // timer, is what makes the wait load-bearing: a test that did not await it
+  // would pass on a fast machine and fail on a slow one.
+  assert.deepEqual(
+    [...await contestedPrune],
+    [],
+    "the prune must report removing nothing once the route is confirmed"
+  );
   assert.equal(
     storage.learnedDomains.includes("contested.example"),
     true,
@@ -1803,6 +1814,73 @@ async function waitForDebugFlush() {
     storage.routeHealth["contested.example"]?.confirmed,
     true,
     "the confirmation must survive as well, not just the route"
+  );
+
+  // A target learned while a prune is running must not be dropped by it. The
+  // prune wrote back a learned list it had read before that target existed.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["doomed-one.example"], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({
+    routeHealth: {
+      "doomed-one.example": {
+        firstSeenAt: Math.round(logicalNow()) - 3 * DAY_MS,
+        confirmed: false,
+        failures: PROVISIONAL_FAILURE_THRESHOLD_FOR_TEST,
+        lastFailureAt: 0,
+        lastFailureTab: null
+      }
+    }
+  });
+  let newcomerSaved = null;
+  onRouteHealthRead = () => {
+    // Lands between the prune reading the learned list and writing it back.
+    newcomerSaved = send({
+      type: "saveSettings",
+      patch: { learnedDomains: ["doomed-one.example", "newcomer.example"] }
+    });
+  };
+  const snapshotPrune = workerGlobal.pruneUnverifiedRoutes();
+  assert.deepEqual(
+    [...await snapshotPrune],
+    ["doomed-one.example"],
+    "the prune must report exactly the unverified route it removed"
+  );
+  onRouteHealthRead = null;
+  assert.ok(newcomerSaved, "the concurrent save must have started from inside the read");
+  await newcomerSaved;
+  assert.equal(
+    storage.learnedDomains.includes("doomed-one.example"),
+    false,
+    "the unverified route is still the one being removed"
+  );
+  assert.equal(
+    storage.learnedDomains.includes("newcomer.example"),
+    true,
+    "a target learned while the prune ran must survive it"
+  );
+
+  // A success that arrives before the health record exists must not be lost.
+  // The route reaches the settings first and markRouteProvisional follows, so
+  // confirmRoute can find nothing to update.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["early-success.example"], ignoredDomains: [] }
+  });
+  await chrome.storage.local.set({ routeHealth: {} });
+  await listeners.requestCompleted({
+    tabId: 131,
+    type: "main_frame",
+    url: "https://early-success.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.routeHealth["early-success.example"]?.confirmed,
+    true,
+    "a success with no record yet must still confirm the route"
   );
 
   // Below the threshold the window elapsing is not enough on its own: three

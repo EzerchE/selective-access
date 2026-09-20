@@ -1458,8 +1458,20 @@ function confirmRoute(host) {
     const health = await readRouteHealth();
     const family = routeFamily(host);
     const record = health[family];
-    if (!record || record.confirmed) return false;
-    health[family] = { ...record, confirmed: true, failures: 0 };
+    if (record?.confirmed) return false;
+    // The record may not exist yet: the route reaches the settings before
+    // markRouteProvisional runs, so a success in another tab can land in
+    // between. Recording it directly keeps that success instead of letting the
+    // route be created provisional a moment later as if it had never loaded.
+    health[family] = record
+      ? { ...record, confirmed: true, failures: 0 }
+      : {
+          firstSeenAt: Date.now(),
+          confirmed: true,
+          failures: 0,
+          lastFailureAt: 0,
+          lastFailureTab: null
+        };
     await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
     return true;
   });
@@ -1506,13 +1518,19 @@ function pruneUnverifiedRoutes(now = Date.now()) {
       .map(([family]) => family));
     if (doomed.size === 0) return [];
 
-    const settings = await getSettings();
-    const removed = settings.learnedDomains.filter((domain) => doomed.has(routeFamily(domain)));
-    if (removed.length > 0) {
-      await saveSettings({
-        learnedDomains: settings.learnedDomains.filter((domain) => !doomed.has(routeFamily(domain)))
+    // Reading the learned list, filtering it and writing it back has to be one
+    // step on the settings queue as well. Splitting it wrote a snapshot taken
+    // before whatever commitLearnedRoute added in between, which silently
+    // dropped a target learned while the prune was running.
+    const removed = await queueSettingsMutation(async () => {
+      const latest = await getSettings();
+      const doomedDomains = latest.learnedDomains.filter((domain) => doomed.has(routeFamily(domain)));
+      if (doomedDomains.length === 0) return [];
+      await saveSettingsUnlocked({
+        learnedDomains: latest.learnedDomains.filter((domain) => !doomed.has(routeFamily(domain)))
       });
-    }
+      return doomedDomains;
+    });
     const remaining = { ...health };
     for (const family of doomed) delete remaining[family];
     await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: remaining });
