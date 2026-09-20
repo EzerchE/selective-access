@@ -359,6 +359,84 @@ if (/proxyPort:\s*port\b/.test(popup)) {
 if (/\.\.\.patch\b/.test(background)) {
   fail("Ayar yazimi cagiranin gonderdigi alanlari oldugu gibi yaymamalidir.");
 }
+
+// pruneUnverifiedRoutes holds the route-health queue while it waits on the
+// settings queue. That is only safe while the dependency runs one way: a task
+// already inside queueSettingsMutation must never wait on the health queue, or
+// the two deadlock and routing stops silently. No test can observe a deadlock
+// that has not happened yet, so the shape is checked here instead.
+const HEALTH_QUEUE_ENTRY_POINTS = Object.freeze([
+  "queueRouteHealth",
+  "markRouteProvisional",
+  "confirmRoute",
+  "recordProvisionalFailure",
+  "pruneUnverifiedRoutes"
+]);
+
+// Reads the balanced argument list of every call to `name`, so the analysis
+// looks at the callback actually handed to the queue rather than the whole
+// function that happens to contain it.
+function callArguments(source, name) {
+  const calls = [];
+  const pattern = new RegExp(`\\b${name}\\s*\\(`, "g");
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    let depth = 1;
+    let index = match.index + match[0].length;
+    while (index < source.length && depth > 0) {
+      const character = source[index];
+      if (character === "(") depth += 1;
+      else if (character === ")") depth -= 1;
+      index += 1;
+    }
+    if (depth !== 0) return null;
+    calls.push(source.slice(match.index + match[0].length, index - 1));
+  }
+  return calls;
+}
+
+function topLevelFunctionBodies(source) {
+  const bodies = new Map();
+  const lines = source.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const declaration = /^(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/.exec(lines[index]);
+    if (!declaration) continue;
+    let end = index + 1;
+    while (end < lines.length && lines[end] !== "}") end += 1;
+    if (end >= lines.length) return null;
+    bodies.set(declaration[1], lines.slice(index + 1, end).join("\n"));
+    index = end;
+  }
+  return bodies;
+}
+
+const settingsQueueCallbacks = callArguments(background, "queueSettingsMutation");
+const backgroundFunctions = topLevelFunctionBodies(background);
+// A structural check that quietly stops matching is worse than none, so the
+// analysis fails when it can no longer find what it reasons about.
+if (!settingsQueueCallbacks || settingsQueueCallbacks.length < 2) {
+  fail("Ayar kuyrugu geri cagrimlari cozumlenemedi; kilitlenme denetimi gecersiz.");
+}
+if (!backgroundFunctions || !backgroundFunctions.has("saveSettingsUnlocked")) {
+  fail("Arka plan fonksiyon govdeleri cozumlenemedi; kilitlenme denetimi gecersiz.");
+}
+
+const reachableFromSettingsQueue = new Set(["saveSettingsUnlocked"]);
+const pending = [...settingsQueueCallbacks, backgroundFunctions.get("saveSettingsUnlocked")];
+while (pending.length > 0) {
+  const body = pending.pop();
+  for (const entryPoint of HEALTH_QUEUE_ENTRY_POINTS) {
+    if (new RegExp(`\\b${entryPoint}\\s*\\(`).test(body)) {
+      fail(`Ayar kuyrugu icinden saglik kuyruguna cagri var (${entryPoint}); kuyruklar kilitlenir.`);
+    }
+  }
+  for (const [name, functionBody] of backgroundFunctions) {
+    if (reachableFromSettingsQueue.has(name)) continue;
+    if (!new RegExp(`\\b${name}\\s*\\(`).test(body)) continue;
+    reachableFromSettingsQueue.add(name);
+    pending.push(functionBody);
+  }
+}
 // Every outbound request in the global status check is bounded, and bounded by
 // what is left of the overall budget rather than a fresh full timeout.
 if (!/Math\.min\(GLOBAL_CHECK_REQUEST_TIMEOUT_MS, remaining\)/.test(background) ||
