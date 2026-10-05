@@ -23,7 +23,7 @@ Teşhis kayıtları tam URL, sorgu parametresi, çerez, form verisi, sayfa içer
 
 Kullanıcı **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu işlem otomatik değildir. Sağlayıcının kendi kayıt ve saklama koşulları geçerlidir.
 
-Otomatik yönlendirmeye alınmış bir alan adı sistem DNS'iyle çözülemezse veya sistem yanıtını tamamlamak gerekirse yerel geçit yalnız bu alan adını şifreli DNS sağlayıcısına gönderebilir. Sağlayıcılar sırayla denenir; sorgu iki sağlayıcıya aynı anda yayılmaz. Yol, sorgu parametreleri, çerezler ve sayfa içeriği gönderilmez. Bu işlem normal ve yönlendirilmemiş bağlantıların DNS davranışını değiştirmez.
+Yerel geçit yalnız otomatik yönlendirmeye alınmış alan adını kimliği doğrulanan şifreli DNS sağlayıcısına gönderir. Sağlayıcılar sırayla denenir; sorgu iki sağlayıcıya aynı anda yayılmaz. Şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri dönülebilir. Doğrudan IP istekleri değişmez. Yol, sorgu parametreleri, çerezler ve sayfa içeriği gönderilmez. Bu işlem normal ve yönlendirilmemiş bağlantıların DNS davranışını değiştirmez; TLS sertifika doğrulaması hiçbir zaman kapatılmaz.
 
 Bunun dışında geliştiriciye veya başka bir dış hizmete gezinme verisi gönderilmez. Yerel yardımcı yalnız kullanıcının bilgisayarında çalışır; yönlendirilen HTTPS içeriği şifreli kalır ve yerel geçit tarafından çözülmez.
 

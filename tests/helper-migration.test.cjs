@@ -63,6 +63,18 @@ assert.match(
   /token\.Register\(delegate\s*\{\s*listener\.Stop\(\);\s*\}\)/i,
   "Gateway listener must be stopped when the service is cancelled"
 );
+const encryptedResolution = gatewaySource.indexOf("ResolveEncryptedAsync(host, setupToken)");
+const systemResolution = gatewaySource.indexOf("ResolveSystemAsync(host)");
+assert.ok(encryptedResolution >= 0, "Gateway must resolve routed hostnames through encrypted DNS");
+assert.ok(
+  systemResolution > encryptedResolution,
+  "Gateway must prefer encrypted DNS and use system DNS only as a connection fallback"
+);
+assert.match(
+  gatewaySource,
+  /IPAddress\.TryParse\(host,\s*out parsed\)[\s\S]*?TryBackendAddressesAsync\(new\[\]\s*\{\s*parsed\s*\}/i,
+  "Gateway must leave literal IP requests unchanged"
+);
 
 const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
 const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();

@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.13.0**
+Current version: **4.13.1**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -49,7 +49,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 
 - Connections that work normally remain direct.
 - A single temporary error does not automatically route a target.
-- Main pages and external frames affected by DNS resolution errors can be learned. The local gateway resolves only routed hostnames and can use encrypted DNS when the system resolver fails.
+- Main pages and external frames affected by DNS resolution errors can be learned. Repeated certificate-authority failures may also trigger a selective retry, but certificate validation is never bypassed.
 - A timed-out main page is learned and retried only when a sanitized direct-origin probe also fails; a slow but reachable page remains direct.
 - If the browser tab remains loading unusually long without a network error, the extension reports a slow-page diagnosis and offers the optional global status check without changing the route.
 - Once a page is routed, dependencies initiated by that page that fail DNS resolution or time out can also be learned after a failed direct-origin probe; unrelated pages cannot cause this broader dependency handling.
@@ -117,7 +117,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The public local gateway listens only on `127.0.0.1:1080`. That port is fixed by the installed Windows service, so the popup reports it instead of offering an edit that would silently break every learned route. It first tries the existing system resolver and supplements the result through an authenticated encrypted-DNS connection when necessary. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS remains end-to-end between Chrome and the destination. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Only hostnames explicitly routed by the extension reach this resolver path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The public local gateway listens only on `127.0.0.1:1080`. That port is fixed by the installed Windows service, so the popup reports it instead of offering an edit that would silently break every learned route. For hostnames explicitly routed by the extension, it prefers an authenticated encrypted-DNS answer and falls back to the existing system resolver only when encrypted resolution produces no usable address. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
