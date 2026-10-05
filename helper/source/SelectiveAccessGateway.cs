@@ -133,11 +133,17 @@ internal static class SelectiveAccessGateway
                     if (IPAddress.TryParse(host, out parsed)) {
                         backend = await TryBackendAddressesAsync(new[] { parsed }, port, setupToken).ConfigureAwait(false);
                     } else {
-                        IPAddress[] systemAddresses = await ResolveSystemAsync(host).ConfigureAwait(false);
-                        backend = await TryBackendAddressesAsync(systemAddresses, port, setupToken).ConfigureAwait(false);
-                        if (backend == null) {
-                            IPAddress[] encryptedAddresses = await ResolveEncryptedAsync(host, setupToken).ConfigureAwait(false);
+                        // A routed hostname may have reached this gateway because the
+                        // active network returned a synthetic DNS answer. Prefer an
+                        // authenticated encrypted answer for routed names; fall back
+                        // to the system resolver only when encrypted resolution does
+                        // not produce an address. Literal IP requests stay unchanged.
+                        IPAddress[] encryptedAddresses = await ResolveEncryptedAsync(host, setupToken).ConfigureAwait(false);
+                        if (encryptedAddresses.Length > 0) {
                             backend = await TryBackendAddressesAsync(encryptedAddresses, port, setupToken).ConfigureAwait(false);
+                        } else {
+                            IPAddress[] systemAddresses = await ResolveSystemAsync(host).ConfigureAwait(false);
+                            backend = await TryBackendAddressesAsync(systemAddresses, port, setupToken).ConfigureAwait(false);
                         }
                     }
                 }

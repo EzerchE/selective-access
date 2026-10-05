@@ -41,6 +41,7 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_TIMED_OUT",
   "ERR_EMPTY_RESPONSE",
   "ERR_SSL_PROTOCOL_ERROR",
+  "ERR_CERT_AUTHORITY_INVALID",
   "ERR_NAME_NOT_RESOLVED",
   "ERR_NAME_RESOLUTION_FAILED",
   "ERR_DNS_TIMED_OUT",
@@ -127,6 +128,10 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   // entry here the error was detected and then dropped: the popup showed the
   // unverified diagnosis and the target could never be learned.
   ERR_SSL_PROTOCOL_ERROR: { main: 2, embedded: 2 },
+  // This can indicate a genuinely invalid certificate, so it never bypasses
+  // certificate validation. Repeated failures only allow the already-existing
+  // selective route to retry resolution through the authenticated gateway.
+  ERR_CERT_AUTHORITY_INVALID: { main: 2, embedded: 2 },
   ERR_NAME_NOT_RESOLVED: { main: 1, embedded: 1 },
   ERR_NAME_RESOLUTION_FAILED: { main: 1, embedded: 1 },
   ERR_DNS_TIMED_OUT: { main: 1, embedded: 1 },

@@ -1612,6 +1612,36 @@ async function waitForDebugFlush() {
     "a repeated TLS failure that also fails the direct probe must be learned"
   );
 
+  // A synthetic DNS answer can present an unrelated, untrusted certificate.
+  // Repeated authority failures may therefore try the selective route, but the
+  // gateway and browser must continue to enforce certificate validation.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const authorityFailure = {
+    tabId: 95,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_CERT_AUTHORITY_INVALID",
+    url: "https://certificate-route.example/"
+  };
+  await listeners.requestError(authorityFailure);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.learnedDomains.includes("certificate-route.example"),
+    false,
+    "one certificate-authority failure is below the threshold of two"
+  );
+  await listeners.requestError(authorityFailure);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("certificate-route.example"),
+    true,
+    "a repeated authority failure that also fails the direct probe must be learned"
+  );
+
   // Provisional routes. A route is learned from a single DNS failure so a
   // blocked site opens fast, which also means a typo is learned just as
   // eagerly. These assertions cover the guarantees that let such a route be

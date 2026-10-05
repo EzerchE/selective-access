@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.13.0**
+Güncel sürüm: **4.13.1**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -49,7 +49,7 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 
 - Normal çalışan bağlantılar doğrudan kalır.
 - Tek bir geçici hata hedefi otomatik olarak yönlendirmez.
-- DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Yerel geçit yalnız yönlendirilen alan adlarını çözer ve sistem çözümleyicisi başarısız olduğunda şifreli DNS kullanabilir.
+- DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Tekrarlanan sertifika otoritesi hataları da seçici yeniden denemeyi tetikleyebilir; ancak sertifika doğrulaması hiçbir zaman atlanmaz.
 - Zaman aşımına uğrayan bir ana sayfa yalnız temizlenmiş doğrudan origin probu da başarısızsa öğrenilip yeniden denenir; yavaş fakat erişilebilir sayfa doğrudan kalır.
 - Tarayıcı sekmesi ağ hatası üretmeden olağandan uzun süre yükleniyor kalırsa eklenti rotayı değiştirmeden yavaş sayfa teşhisi gösterir ve isteğe bağlı genel durum kontrolünü sunar.
 - Bir sayfa yönlendirildikten sonra o sayfanın başlattığı ve DNS hatası ya da zaman aşımı yaşayan bağımlılıklar doğrudan origin probu da başarısızsa öğrenilebilir; ilgisiz sayfalar bu genişletilmiş bağımlılık işlemini tetikleyemez.
@@ -117,7 +117,7 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Bu portu kurulan Windows hizmeti belirler; bu yüzden açılır pencere portu değiştirilebilir bir alan olarak sunmaz, yalnızca gösterir. Aksi hâlde öğrenilmiş tüm rotalar sessizce bozulurdu. Önce mevcut sistem çözümleyicisini dener, gerektiğinde sonucu kimliği doğrulanan şifreli DNS bağlantısıyla tamamlar. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS şifresi Chrome ile hedef arasında uçtan uca kalır. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Yalnız eklentinin açıkça yönlendirdiği alan adları bu çözümleme yoluna girer. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
+Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Bu portu kurulan Windows hizmeti belirler; bu yüzden açılır pencere portu değiştirilebilir bir alan olarak sunmaz, yalnızca gösterir. Aksi hâlde öğrenilmiş tüm rotalar sessizce bozulurdu. Eklentinin açıkça yönlendirdiği alan adlarında kimliği doğrulanan şifreli DNS cevabını öncelikli kullanır; şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri döner. Doğrudan IP istekleri değişmez. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS doğrulaması Chrome ile hedef arasında uçtan uca kalır ve hiçbir zaman kapatılmaz. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Normal ve yönlendirilmemiş trafik cihazın mevcut DNS'ini ve doğrudan yolunu kullanmayı sürdürür. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
 - paketlenen iki ikilinin SHA-256 değerlerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;
