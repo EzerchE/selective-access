@@ -122,12 +122,20 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   ERR_TIMED_OUT: { main: 1, embedded: 1 },
   ERR_EMPTY_RESPONSE: { main: 3, embedded: 2 },
   // A handshake that fails at the TLS layer is one of the signatures this
-  // extension exists for, but it is also what a genuinely misconfigured server
-  // or an outdated cipher looks like, so it asks for two failures on both
-  // scopes rather than the single embedded failure a reset gets. Without an
-  // entry here the error was detected and then dropped: the popup showed the
-  // unverified diagnosis and the target could never be learned.
-  ERR_SSL_PROTOCOL_ERROR: { main: 2, embedded: 2 },
+  // extension exists for. It asked for two main-frame failures at first, as a
+  // guard against a genuinely misconfigured server or an outdated cipher, but
+  // that guard did not work: this error happens exactly once per navigation,
+  // and a candidate expires after CANDIDATE_WINDOW_MS, so reaching two meant
+  // reloading the same blocked page inside thirty seconds. A person who tried
+  // again later never got there, and nothing in the popup said to hurry.
+  //
+  // One main-frame failure is enough now. The direct probe still has to fail
+  // first, and a route learned here is provisional: if it never loads through
+  // the gateway it is removed after a day, so a misconfigured server costs a
+  // stale entry for a day rather than a target that can never be reached.
+  // An embedded failure still asks for two -- a page makes several requests to
+  // the same host, so the count climbs there on its own.
+  ERR_SSL_PROTOCOL_ERROR: { main: 1, embedded: 2 },
   // This can indicate a genuinely invalid certificate, so it never bypasses
   // certificate validation. Repeated failures only allow the already-existing
   // selective route to retry resolution through the authenticated gateway.

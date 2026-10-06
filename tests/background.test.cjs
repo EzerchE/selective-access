@@ -1597,19 +1597,45 @@ async function waitForDebugFlush() {
     error: "net::ERR_SSL_PROTOCOL_ERROR",
     url: "https://tls-blocked.example/"
   };
-  await listeners.requestError(tlsFailure);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(
-    storage.learnedDomains.includes("tls-blocked.example"),
-    false,
-    "one TLS failure is below the threshold of two"
-  );
+  // One failure is enough on a main frame. Asking for two meant reloading the
+  // same blocked page inside the thirty-second candidate window, because this
+  // error happens exactly once per navigation; a person who tried again the
+  // next day never reached the threshold at all.
   await listeners.requestError(tlsFailure);
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(
     storage.learnedDomains.includes("tls-blocked.example"),
     true,
-    "a repeated TLS failure that also fails the direct probe must be learned"
+    "a single main-frame TLS failure that also fails the direct probe must be learned"
+  );
+
+  // An embedded one still asks for two: a page makes several requests to the
+  // same host, so the count climbs there without a second navigation.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const embeddedTls = {
+    tabId: 96,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "sub_frame",
+    error: "net::ERR_SSL_PROTOCOL_ERROR",
+    url: "https://tls-embedded.example/widget"
+  };
+  await listeners.requestError(embeddedTls);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    storage.learnedDomains.includes("tls-embedded.example"),
+    false,
+    "one embedded TLS failure is still below its threshold"
+  );
+  await listeners.requestError(embeddedTls);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("tls-embedded.example"),
+    true,
+    "a repeated embedded TLS failure must be learned"
   );
 
   // A synthetic DNS answer can present an unrelated, untrusted certificate.
