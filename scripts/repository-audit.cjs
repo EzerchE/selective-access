@@ -6,7 +6,10 @@ const crypto = require("node:crypto");
 const { execFileSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
-const excludedDirectories = new Set([".git", "node_modules", "ops", "dist"]);
+// The walk below reads the working tree, not git, so local-only material has
+// to be named here as well as in .gitignore -- "ops" already works this way.
+// Anything that ever reached a commit is still covered by the --history scan.
+const excludedDirectories = new Set([".git", "node_modules", "ops", "agent-work", "dist"]);
 const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe"]);
 const publicHostAllowlist = new Set([
   "api.globalping.io",
