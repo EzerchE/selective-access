@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.13.2**
+Güncel sürüm: **4.13.3**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -57,7 +57,8 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken geç başlayan sayfa bağımlılıkları, ana belge tamamlanmış olsa bile sınırlı bir sakinleşme penceresinde toplanır; gerekirse kontrollü olarak yeniden denenir ve yenileme döngüsü sınırlandırılır.
 - Tekrarlanan gerçek-zaman bağlantı hataları, ilgisiz bir HTTP doğrulamasını beklemek yerine sınırlı hata eşiğini doğrudan kullanır.
-- Yerel geçit bağlantı hazırlığı süreyle sınırlıdır; başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
+- Yerel geçit bağlantı hazırlığı süreyle sınırlıdır. Yalnız loopback üzerinde çalışan sağlık kontrolü, durmuş yerel yardımcı ile çalışan geçit üzerinden de erişilemeyen hedefi ayırır; böylece yanıltıcı kurulum uyarıları ve gereksiz yenilemeler önlenir. Başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
+- Genel durum yoklaması sınırlı toplam süre bütçesinin tamamını kullanır; yavaş ölçümler sabit yoklama sayısı yüzünden erken kesilmez.
 - Yerel geçit uzun süre boşta kalan oturumlarda kararlı çalışmayı sürdürür.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
 - Yeni öğrenilen bir rota, geçit üzerinden bir ana sayfa gerçekten açılana kadar geçicidir; bu açılış rotayı doğrular ve doğrulanmış bir rota otomatik olarak asla kaldırılmaz. Hiç başarı görmemiş ve birbirinden ayrı üç gezinmede başarısız olmuş geçici bir rota, tam bir günlük gözlem süresinin ardından, hiç doğrulanamadığını belirten bir bildirimle kaldırılır ve sonraki bir ziyarette yeniden öğrenilebilir. Yerel geçit arızaları ile eklentinin kendi kurtarma yenilemeleri bu sayıma girmez; `www` ile kök alan adı tek bir sağlık kaydını paylaşır. Hiçbir dış kontrol devreye girmez.
