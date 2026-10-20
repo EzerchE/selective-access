@@ -180,6 +180,7 @@ const GATEWAY_HEALTH_TIMEOUT_MS = 750;
 const GLOBAL_CHECK_REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_CHECK_TOTAL_TIMEOUT_MS = 25_000;
 const GLOBAL_CHECK_POLL_DELAY_MS = 600;
+const GLOBAL_OUTAGE_HOLD_MS = 15 * 60_000;
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -1079,6 +1080,15 @@ function comparableMainHost(host) {
   return String(host || "").replace(/^www\./, "");
 }
 
+function hasActiveGlobalOutage(host, summary, now = Date.now()) {
+  if (!host || summary?.status !== "likely_down") return false;
+  const checkedAt = Date.parse(summary.checkedAt || "");
+  return Number.isFinite(checkedAt) &&
+    now - checkedAt >= 0 &&
+    now - checkedAt < GLOBAL_OUTAGE_HOLD_MS &&
+    comparableMainHost(summary.domain) === comparableMainHost(host);
+}
+
 function beginTabRecovery(tabId, mainHost, now = Date.now()) {
   if (!Number.isInteger(tabId) || tabId < 0 || !mainHost) return;
   tabRecoveryStates.set(tabId, {
@@ -1634,6 +1644,25 @@ async function learnAndRetry(details) {
   const isResetError = ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
 
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  // A user-requested multi-continent check has stronger evidence than the next
+  // automatic timeout from the still-open tab. Keep its result visible and do
+  // not immediately relearn the route that the check just removed. The hold is
+  // deliberately temporary: a later visit can be tested and learned normally
+  // after the outage may have recovered.
+  if (hasActiveGlobalOutage(host, settings.lastGlobalCheck)) {
+    const scope = details.type === "main_frame" ? "main" : "embedded";
+    detectionCandidates.delete(`${scope}:${host}`);
+    await appendDebug("global-outage-learning-suppressed", {
+      tabId: details.tabId,
+      host,
+      requestType: details.type,
+      error
+    });
+    if (details.type === "main_frame") {
+      await setIssueBadge(true, "globally_down", details.tabId);
+    }
+    return;
+  }
   // Cross-origin dependency timeouts are eligible only when they belong to an
   // already routed page. A top-level timeout is independently verified. Both
   // paths still have to fail the sanitized direct-origin probe below before a

@@ -722,6 +722,23 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastGlobalCheck.domain, "globally-down.example");
   assert.equal(storage.lastGlobalCheck.status, "likely_down");
 
+  // The open failed tab must not immediately relearn the route that a
+  // user-requested global outage check just removed.
+  await listeners.requestError({
+    tabId: 33,
+    type: "main_frame",
+    error: "net::ERR_CONNECTION_TIMED_OUT",
+    url: "https://www.globally-down.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("globally-down.example"), false);
+  assert.equal(storage.learnedDomains.includes("www.globally-down.example"), false);
+  assert.equal(storage.lastGlobalCheck.status, "likely_down");
+  assert.equal(storage.lastIssueType, null);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "global-outage-learning-suppressed" &&
+    entry.host === "www.globally-down.example"), true);
+
   notificationPermission = "denied";
   const deniedOutageStatus = await send({
     type: "checkGlobalStatus",

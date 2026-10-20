@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.13.3**
+Current version: **4.13.4**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -58,7 +58,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - During main-target recovery, late page dependencies are collected in a bounded settling window even if the main document has already completed. A limited additional reload may be attempted without creating a reload loop.
 - Repeated real-time connection failures use their bounded failure threshold directly instead of waiting for an unrelated HTTP probe.
 - Local gateway setup attempts are time-bounded. A loopback-only health check distinguishes a stopped local helper from a destination that remains unreachable through a working gateway, preventing misleading setup warnings and pointless reloads. Successful pages keep a stable proxy configuration while their remaining resources load.
-- Global status polling uses its full bounded time budget, allowing slow measurements to finish instead of ending early at a fixed poll count.
+- Global status polling uses its full bounded time budget, allowing slow measurements to finish instead of ending early at a fixed poll count. When a user-requested multi-continent check finds a likely general outage, the removed route is not automatically relearned by the still-failing tab for fifteen minutes; the result remains visible while the temporary hold expires naturally.
 - The local gateway remains stable during long-running idle sessions.
 - Learned rules apply only to the exact hostname that produced the error.
 - A newly learned route is provisional until a main page actually loads through the gateway; that confirms it, and a confirmed route is never removed automatically. A provisional route that never succeeded and failed three separate navigations is removed after a full day of observation, with a notification saying it was never verified, and it can be learned again on a later visit. Local gateway failures and the extension's own recovery reloads are excluded from that count, and `www` shares one health record with the apex domain. No external check is involved.
