@@ -13,7 +13,7 @@ let onRouteHealthRead = null;
 const sessionStorage = {};
 const storageWrites = [];
 const scheduledDelays = [];
-const globalPing = { create: "ok", result: "ok", resultDelayMs: 0 };
+const globalPing = { create: "ok", result: "ok", resultDelayMs: 0, resultPolls: 0 };
 
 let clockScale = 1;
 let clockAnchorReal = Date.now();
@@ -87,6 +87,7 @@ const scriptExecutionResults = [0, 1];
 let proxyConfig = null;
 let clearCount = 0;
 let measurementShouldBeDown = false;
+let gatewayHealthAvailable = false;
 let notificationPermission = "granted";
 let notificationCreateError = null;
 const directlyReachableHosts = new Set();
@@ -271,6 +272,10 @@ const chrome = {
 };
 
 const fetch = async (url, options = {}) => {
+  if (String(url) === "http://127.0.0.1:1080/health") {
+    if (gatewayHealthAvailable) return { ok: true, status: 204 };
+    throw new Error("gateway health unavailable");
+  }
   if (options.method === "GET" && options.headers?.Range === "bytes=0-0") {
     directProbeUrls.push(String(url));
     const host = new URL(url).hostname;
@@ -309,6 +314,12 @@ const fetch = async (url, options = {}) => {
         return { status: "in-progress", results: [] };
       }
     };
+  }
+  if (globalPing.result === "slowFinish") {
+    globalPing.resultPolls += 1;
+    if (globalPing.resultPolls <= 20) {
+      return { ok: true, status: 200, async json() { return { status: "in-progress", results: [] }; } };
+    }
   }
   return {
     ok: true,
@@ -1270,6 +1281,27 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastIssueType, null);
   assertBadge(lastForTab(badgeTexts, 120), 120, "↗");
 
+  // A live local gateway can report that the destination is unreachable using
+  // the same Chromium error emitted when no SOCKS service is listening. The
+  // local health response distinguishes them and prevents pointless reloads.
+  gatewayHealthAvailable = true;
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: ["gateway-startup.example", "gateway-target.example"] }
+  });
+  tabUrls.set(122, "https://gateway-target.example/");
+  const reloadCountBeforeTargetFailure = reloads.length;
+  await listeners.requestError({
+    tabId: 122,
+    type: "main_frame",
+    error: "net::ERR_SOCKS_CONNECTION_FAILED",
+    url: "https://gateway-target.example/"
+  });
+  assert.equal(storage.lastIssueType, "route_failed");
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.equal(reloads.length, reloadCountBeforeTargetFailure);
+  gatewayHealthAvailable = false;
+
   tabUrls.set(121, "https://direct-page.example/");
   await listeners.requestCompleted({
     tabId: 121,
@@ -1450,15 +1482,26 @@ async function waitForDebugFlush() {
       "a request near the deadline must be clamped by the remaining budget"
     );
 
-    // The poll wait is clamped the same way. With the twenty attempt cap a poll
-    // cannot currently start close enough to the deadline for the clamp to bite,
-    // so this asserts the invariant rather than a reachable overrun.
+    // The poll wait is clamped by the same deadline.
     const pollWaits = scheduledDelays.filter((timer) => timer.delay > 0 && timer.delay <= 600);
     assert.equal(pollWaits.every((timer) => timer.at + timer.delay <= budgetEnd + 200), true);
+
+    // A real HTTP measurement can legitimately need more than twenty 600 ms
+    // polls. It must finish while the overall budget is still available.
+    globalPing.result = "slowFinish";
+    globalPing.resultPolls = 0;
+    const slowFinish = await send({
+      type: "checkGlobalStatus",
+      domain: "slow-finish.example",
+      tabId: 200
+    });
+    assert.equal(slowFinish.ok, true);
+    assert.equal(globalPing.resultPolls, 21);
   } finally {
     globalPing.create = "ok";
     globalPing.result = "ok";
     globalPing.resultDelayMs = 0;
+    globalPing.resultPolls = 0;
     setClockScale(1);
   }
 

@@ -75,6 +75,11 @@ assert.match(
   /IPAddress\.TryParse\(host,\s*out parsed\)[\s\S]*?TryBackendAddressesAsync\(new\[\]\s*\{\s*parsed\s*\}/i,
   "Gateway must leave literal IP requests unchanged"
 );
+assert.match(
+  gatewaySource,
+  /HTTP\/1\.1 204 No Content[\s\S]*?Access-Control-Allow-Origin: \*/i,
+  "Gateway must expose a loopback health response for extension diagnosis"
+);
 
 const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
 const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();

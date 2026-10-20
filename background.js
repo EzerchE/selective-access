@@ -176,6 +176,7 @@ const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 3;
 const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
+const GATEWAY_HEALTH_TIMEOUT_MS = 750;
 const GLOBAL_CHECK_REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_CHECK_TOTAL_TIMEOUT_MS = 25_000;
 const GLOBAL_CHECK_POLL_DELAY_MS = 600;
@@ -810,6 +811,22 @@ function matchingGatewayConnectionError(details) {
   return matchingError(details, GATEWAY_CONNECTION_ERRORS);
 }
 
+async function localGatewayAvailable() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GATEWAY_HEALTH_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `http://${DEFAULT_SETTINGS.proxyHost}:${DEFAULT_SETTINGS.proxyPort}/health`,
+      { method: "GET", cache: "no-store", signal: controller.signal }
+    );
+    return response.status === 204;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function registerDetectionCandidate(host, details, error) {
   const threshold = AUTO_LEARN_ERROR_THRESHOLDS[error];
   if (!threshold) return { ready: false, supported: false, count: 0 };
@@ -1034,10 +1051,14 @@ async function recoverTransientGatewayFailure(details) {
 
   const settings = await getSettings();
   if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
-  const scheduled = scheduleGatewayRetry(details, host);
+  const gatewayAvailable = await localGatewayAvailable();
+  const scheduled = gatewayAvailable ? false : scheduleGatewayRetry(details, host);
+  const issueType = gatewayAvailable
+    ? "route_failed"
+    : scheduled ? "gateway_recovering" : "gateway_unavailable";
   await chrome.storage.local.set({
     lastProxyError: error,
-    lastIssueType: scheduled ? "gateway_recovering" : "gateway_unavailable",
+    lastIssueType: issueType,
     lastIssueDomain: host,
     lastIssueError: error,
     lastIssueAt: new Date().toISOString(),
@@ -1047,9 +1068,10 @@ async function recoverTransientGatewayFailure(details) {
     tabId: details.tabId,
     host,
     error,
+    gatewayAvailable,
     retryScheduled: scheduled
   });
-  await setIssueBadge(true, scheduled ? "gateway_recovering" : "gateway_unavailable", details.tabId);
+  await setIssueBadge(true, issueType, details.tabId);
   return true;
 }
 
@@ -1859,7 +1881,11 @@ async function checkGlobalStatus(value, tabId = null) {
   if (!created.data?.id) throw new Error(t("globalNoId"));
 
   let measurement = null;
-  for (let attempt = 0; attempt < 20 && Date.now() < deadline; attempt += 1) {
+  // Some probes need their full 15-second HTTP timeout before Globalping can
+  // finish the measurement. A fixed twenty-poll cap stopped after roughly
+  // twelve seconds, even though the overall 25-second budget was still open.
+  // The deadline is the single bound; keep polling while that budget remains.
+  while (Date.now() < deadline) {
     const resultResponse = await globalCheckJson(
       `https://api.globalping.io/v1/measurements/${created.data.id}`,
       deadline,

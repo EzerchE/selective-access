@@ -108,6 +108,19 @@ internal static class SelectiveAccessGateway
             client.NoDelay = true;
             NetworkStream input = client.GetStream();
             byte[] head = await ReadExactAsync(input, 2, token).ConfigureAwait(false);
+            // Chrome maps both "nothing is listening locally" and a reachable
+            // SOCKS server reporting "target unreachable" to the same browser
+            // error. A loopback-only HTTP health response lets the extension
+            // distinguish those cases without probing any external host.
+            if (head[0] == (byte)'G' && head[1] == (byte)'E') {
+                byte[] health = Encoding.ASCII.GetBytes(
+                    "HTTP/1.1 204 No Content\r\n" +
+                    "Access-Control-Allow-Origin: *\r\n" +
+                    "Cache-Control: no-store\r\n" +
+                    "Connection: close\r\n\r\n");
+                await input.WriteAsync(health, 0, health.Length, token).ConfigureAwait(false);
+                return;
+            }
             if (head[0] != 5) return;
             await ReadExactAsync(input, head[1], token).ConfigureAwait(false);
             await input.WriteAsync(new byte[] { 5, 0 }, 0, 2, token).ConfigureAwait(false);
