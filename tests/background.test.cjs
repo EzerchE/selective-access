@@ -1165,7 +1165,7 @@ async function waitForDebugFlush() {
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "intermittent-media.example" &&
-    entry.overriddenByRepeatedReset === true), true);
+    entry.overriddenBySignature === true), true);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -2023,6 +2023,78 @@ async function waitForDebugFlush() {
     true,
     "two failures must not be enough however old the record is"
   );
+
+  // A TLS handshake fails before any HTTP is exchanged, and the probe opens its
+  // own connection, so a probe that answers is measuring something other than
+  // the request that failed. It used to veto the route anyway, which is how a
+  // blocked site stayed unreachable while the popup called it transient.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  directlyReachableHosts.add("tls-but-reachable.example");
+  await listeners.requestError({
+    tabId: 140,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_SSL_PROTOCOL_ERROR",
+    url: "https://tls-but-reachable.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("tls-but-reachable.example"),
+    true,
+    "a main-frame TLS failure must be learned even when the probe answers"
+  );
+  await waitForDebugFlush();
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "direct-check" &&
+    entry.host === "tls-but-reachable.example" &&
+    entry.reachable === true &&
+    entry.overriddenBySignature === true), true, "the override must be recorded");
+  directlyReachableHosts.delete("tls-but-reachable.example");
+
+  // ERR_FAILED is still never learned on a main frame, but it no longer passes
+  // in silence: the page failed, and the popup now says what it saw.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  await listeners.requestError({
+    tabId: 141,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_FAILED",
+    url: "https://generic-failure.example/page"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("generic-failure.example"),
+    false,
+    "a generic failure must still never be learned automatically"
+  );
+  assert.equal(storage.lastIssueType, "generic_failure");
+  assert.equal(storage.lastIssueDomain, "generic-failure.example");
+  assert.equal(storage.lastIssueError, "ERR_FAILED");
+
+  // An ignored target stays quiet: the person already said they do not want it.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: [], ignoredDomains: ["quiet-failure.example"] }
+  });
+  await chrome.storage.local.set({ lastIssueType: null, lastIssueDomain: null });
+  await listeners.requestError({
+    tabId: 142,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_FAILED",
+    url: "https://quiet-failure.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(storage.lastIssueType, null, "an ignored target must not raise a diagnosis");
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {

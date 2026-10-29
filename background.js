@@ -1623,6 +1623,31 @@ function commitLearnedRoute(host, details, error) {
   });
 }
 
+// ERR_FAILED is Chrome's catch-all: a request another extension blocked, a
+// navigation the person cancelled and a connection that genuinely died all
+// arrive as the same code. isRetryableError refuses it outside a WebSocket for
+// that reason, and that refusal stays -- learning on it would route working
+// sites. But refusing to act and refusing to speak are different decisions,
+// and only the first one was intended. The page failed, the badge turned red
+// and the popup explained nothing, which reads as the extension having no
+// opinion. Naming the failure hands the choice back to the person.
+async function reportGenericMainFrameFailure(details, settings) {
+  if (!settings.enabled) return false;
+  if (matchingError(details, RETRYABLE_ERRORS) !== "ERR_FAILED") return false;
+  const host = getRequestHost(details);
+  if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return false;
+  if (isLearned(host, settings.learnedDomains)) return false;
+  await chrome.storage.local.set({
+    lastIssueType: "generic_failure",
+    lastIssueDomain: host,
+    lastIssueError: "ERR_FAILED",
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("generic-main-frame-failure", { tabId: details.tabId, host });
+  return true;
+}
+
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
@@ -1753,10 +1778,25 @@ async function learnAndRetry(details) {
   const repeatedWebSocketFailure = details.type === "websocket" &&
     error === "ERR_FAILED" &&
     candidate.count >= candidate.required;
-  const repeatedReset = repeatedMainReset || repeatedEmbeddedReset || repeatedWebSocketFailure;
-  // An HTTP origin probe cannot validate a failed WebSocket handshake. Once
-  // the bounded repeated-failure threshold is met, waiting for that unrelated
-  // probe only delays applying the route.
+  // Decided during the TLS handshake, before any HTTP is exchanged. The probe
+  // opens its own connection, possibly to a different address and certainly at
+  // a different moment, so it measures something other than the request that
+  // failed. Reported from a live log: on a profile with nothing learned, where
+  // both therefore went direct, the navigation failed and the probe succeeded
+  // against the same host seconds apart.
+  //
+  // A probe that succeeds is also evidence against what the veto was there to
+  // catch. A genuinely misconfigured server fails both; only interference
+  // fails one. The route is still provisional either way, so a wrong call is
+  // removed after a day rather than kept.
+  const mainTlsFailure = details.type === "main_frame" &&
+    error === "ERR_SSL_PROTOCOL_ERROR" &&
+    candidate.count >= candidate.required;
+  const signatureBeatsProbe = repeatedMainReset || repeatedEmbeddedReset ||
+    repeatedWebSocketFailure || mainTlsFailure;
+  // An HTTP origin probe cannot validate a failed WebSocket handshake either.
+  // Once the bounded repeated-failure threshold is met, waiting for that
+  // unrelated probe only delays applying the route.
   const directlyReachable = repeatedWebSocketFailure
     ? false
     : await directRequestResponds(details.url);
@@ -1766,9 +1806,9 @@ async function learnAndRetry(details) {
     requestType: details.type,
     reachable: directlyReachable,
     skippedForRepeatedWebSocket: repeatedWebSocketFailure,
-    overriddenByRepeatedReset: directlyReachable && repeatedReset
+    overriddenBySignature: directlyReachable && signatureBeatsProbe
   });
-  if (directlyReachable && !repeatedReset) {
+  if (directlyReachable && !signatureBeatsProbe) {
     const keepForRepeatedEmbeddedReset = details.type !== "main_frame" &&
       ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
     if (!keepForRepeatedEmbeddedReset) detectionCandidates.delete(candidate.key);
@@ -2090,6 +2130,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       if (details.type === "main_frame") {
         const settings = await getSettings();
         await setIssueBadge(settings.enabled, "unreachable", details.tabId);
+        await reportGenericMainFrameFailure(details, settings);
       }
       return learnAndRetry(details);
     });

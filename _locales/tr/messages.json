@@ -106,6 +106,14 @@
   "gatewayUnavailableDetail": {
     "message": "Sınırlı otomatik denemelerden sonra yerel geçit hazır olmadı. Kurulu yardımcıyı kontrol edip yeniden deneyin."
   },
+  "genericFailureDetail": {
+    "message": "Chrome genel bir hata bildirdi; bu hata iptal edilen veya başka bir eklentinin durdurduğu bir isteği de kapsar. Hedef otomatik eklenmedi. Sayfa açılmamayı sürdürüyorsa Şimdi geçide al düğmesini kullanın veya önce genel durumu kontrol edin.",
+    "description": "Genel hata tanısının açıklaması."
+  },
+  "genericFailureTitle": {
+    "message": "Hata türü belirlenemedi",
+    "description": "Ana sayfa Chrome'un genel ERR_FAILED hatasıyla düştüğünde gösterilen tanı."
+  },
   "globalNoId": {
     "message": "Genel durum servisi ölçüm kimliği döndürmedi."
   },
