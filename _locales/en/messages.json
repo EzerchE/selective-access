@@ -106,6 +106,14 @@
   "gatewayUnavailableDetail": {
     "message": "The local gateway did not become ready after the limited automatic retries. Check the installed helper, then retry."
   },
+  "genericFailureDetail": {
+    "message": "Chrome reported a generic failure, which also covers a request that was cancelled or stopped by another extension. The target was not added automatically. If the page keeps failing, use Route now, or check global status first.",
+    "description": "Detail for the generic failure diagnosis."
+  },
+  "genericFailureTitle": {
+    "message": "Failure could not be identified",
+    "description": "Diagnosis shown when a main page failed with Chrome's generic ERR_FAILED."
+  },
   "globalNoId": {
     "message": "The global status service did not return a measurement ID."
   },

@@ -41,6 +41,8 @@ const RETRYABLE_ERRORS = Object.freeze([
   "ERR_TIMED_OUT",
   "ERR_EMPTY_RESPONSE",
   "ERR_SSL_PROTOCOL_ERROR",
+  "ERR_QUIC_PROTOCOL_ERROR",
+  "ERR_HTTP2_PROTOCOL_ERROR",
   "ERR_CERT_AUTHORITY_INVALID",
   "ERR_NAME_NOT_RESOLVED",
   "ERR_NAME_RESOLUTION_FAILED",
@@ -136,6 +138,15 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   // An embedded failure still asks for two -- a page makes several requests to
   // the same host, so the count climbs there on its own.
   ERR_SSL_PROTOCOL_ERROR: { main: 1, embedded: 2 },
+  // A transport that breaks mid-protocol is what a middlebox rewriting the
+  // stream looks like, and Chrome surfaces it only after its own fallback has
+  // already failed. Reported from a live log: a main document returned 200
+  // while the page's own script died with a QUIC protocol error, so the page
+  // loaded and then hung. One failure is enough on both scopes because a page
+  // usually asks for such a script once; the route is provisional, so a wrong
+  // call is removed after a day.
+  ERR_QUIC_PROTOCOL_ERROR: { main: 1, embedded: 1 },
+  ERR_HTTP2_PROTOCOL_ERROR: { main: 1, embedded: 1 },
   // This can indicate a genuinely invalid certificate, so it never bypasses
   // certificate validation. Repeated failures only allow the already-existing
   // selective route to retry resolution through the authenticated gateway.
@@ -172,6 +183,13 @@ const DEBUG_BATCH_SIZE = 20;
 const MAX_CONCURRENT_PROBES = 3;
 const DIRECT_PROBE_CACHE_MS = 2_000;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
+// Failures settled on the connection itself rather than by anything the server
+// sent back, so a separate probe connection cannot speak to them.
+const PROTOCOL_LAYER_ERRORS = new Set([
+  "ERR_SSL_PROTOCOL_ERROR",
+  "ERR_QUIC_PROTOCOL_ERROR",
+  "ERR_HTTP2_PROTOCOL_ERROR"
+]);
 const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 3;
@@ -801,7 +819,14 @@ function isRetryableError(details) {
   if (details.tabId < 0 || !RETRYABLE_TYPES.has(details.type)) return false;
   const error = matchingError(details, RETRYABLE_ERRORS);
   if (!error) return false;
-  return error !== "ERR_FAILED" || details.type === "websocket";
+  // ERR_FAILED stays refused in general: a blocked request, a cancelled
+  // navigation and a dead connection all arrive as this one code. A script or
+  // stylesheet is the exception, because learnAndRetry additionally requires
+  // those to be same-origin, and a page's own script failing is not the
+  // ambiguous case the refusal was written for.
+  return error !== "ERR_FAILED" ||
+    details.type === "websocket" ||
+    SAME_ORIGIN_ONLY_TYPES.has(details.type);
 }
 
 function matchingError(details, candidates) {
@@ -1623,6 +1648,31 @@ function commitLearnedRoute(host, details, error) {
   });
 }
 
+// ERR_FAILED is Chrome's catch-all: a request another extension blocked, a
+// navigation the person cancelled and a connection that genuinely died all
+// arrive as the same code. isRetryableError refuses it outside a WebSocket for
+// that reason, and that refusal stays -- learning on it would route working
+// sites. But refusing to act and refusing to speak are different decisions,
+// and only the first one was intended. The page failed, the badge turned red
+// and the popup explained nothing, which reads as the extension having no
+// opinion. Naming the failure hands the choice back to the person.
+async function reportGenericMainFrameFailure(details, settings) {
+  if (!settings.enabled) return false;
+  if (matchingError(details, RETRYABLE_ERRORS) !== "ERR_FAILED") return false;
+  const host = getRequestHost(details);
+  if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return false;
+  if (isLearned(host, settings.learnedDomains)) return false;
+  await chrome.storage.local.set({
+    lastIssueType: "generic_failure",
+    lastIssueDomain: host,
+    lastIssueError: "ERR_FAILED",
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("generic-main-frame-failure", { tabId: details.tabId, host });
+  return true;
+}
+
 async function learnAndRetry(details) {
   if (!isRetryableError(details)) return;
 
@@ -1753,10 +1803,32 @@ async function learnAndRetry(details) {
   const repeatedWebSocketFailure = details.type === "websocket" &&
     error === "ERR_FAILED" &&
     candidate.count >= candidate.required;
-  const repeatedReset = repeatedMainReset || repeatedEmbeddedReset || repeatedWebSocketFailure;
-  // An HTTP origin probe cannot validate a failed WebSocket handshake. Once
-  // the bounded repeated-failure threshold is met, waiting for that unrelated
-  // probe only delays applying the route.
+  // Decided during the TLS handshake, before any HTTP is exchanged. The probe
+  // opens its own connection, possibly to a different address and certainly at
+  // a different moment, so it measures something other than the request that
+  // failed. Reported from a live log: on a profile with nothing learned, where
+  // both therefore went direct, the navigation failed and the probe succeeded
+  // against the same host seconds apart.
+  //
+  // A probe that succeeds is also evidence against what the veto was there to
+  // catch. A genuinely misconfigured server fails both; only interference
+  // fails one. The route is still provisional either way, so a wrong call is
+  // removed after a day rather than kept.
+  // A handshake or protocol failure is decided on the connection that carried
+  // the request. The probe opens its own, possibly to a different address and
+  // certainly at a different moment, so it answers a different question. The
+  // clearest case is a page whose main document returned 200 while one of its
+  // own scripts died at the protocol layer: the origin is demonstrably
+  // reachable, which is all the probe can ever report, and the route is
+  // needed anyway. A misconfigured server fails both; only interference fails
+  // one. The route stays provisional, so a wrong call is removed after a day.
+  const protocolLayerFailure = PROTOCOL_LAYER_ERRORS.has(error) &&
+    candidate.count >= candidate.required;
+  const signatureBeatsProbe = repeatedMainReset || repeatedEmbeddedReset ||
+    repeatedWebSocketFailure || protocolLayerFailure;
+  // An HTTP origin probe cannot validate a failed WebSocket handshake either.
+  // Once the bounded repeated-failure threshold is met, waiting for that
+  // unrelated probe only delays applying the route.
   const directlyReachable = repeatedWebSocketFailure
     ? false
     : await directRequestResponds(details.url);
@@ -1766,9 +1838,9 @@ async function learnAndRetry(details) {
     requestType: details.type,
     reachable: directlyReachable,
     skippedForRepeatedWebSocket: repeatedWebSocketFailure,
-    overriddenByRepeatedReset: directlyReachable && repeatedReset
+    overriddenBySignature: directlyReachable && signatureBeatsProbe
   });
-  if (directlyReachable && !repeatedReset) {
+  if (directlyReachable && !signatureBeatsProbe) {
     const keepForRepeatedEmbeddedReset = details.type !== "main_frame" &&
       ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
     if (!keepForRepeatedEmbeddedReset) detectionCandidates.delete(candidate.key);
@@ -2090,6 +2162,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       if (details.type === "main_frame") {
         const settings = await getSettings();
         await setIssueBadge(settings.enabled, "unreachable", details.tabId);
+        await reportGenericMainFrameFailure(details, settings);
       }
       return learnAndRetry(details);
     });

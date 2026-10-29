@@ -294,6 +294,9 @@ function renderDiagnostic(state) {
   } else if (state.lastIssueType === "transient_unverified") {
     elements.diagnosticTitle.textContent = t("unverifiedTitle");
     elements.diagnosticText.textContent = t("unverifiedDetail");
+  } else if (state.lastIssueType === "generic_failure") {
+    elements.diagnosticTitle.textContent = t("genericFailureTitle");
+    elements.diagnosticText.textContent = t("genericFailureDetail");
   } else if (state.lastIssueType === "slow_loading") {
     elements.diagnosticTitle.textContent = t("slowLoadingTitle");
     elements.diagnosticText.textContent = t("slowLoadingDetail");

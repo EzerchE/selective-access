@@ -1165,7 +1165,7 @@ async function waitForDebugFlush() {
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "intermittent-media.example" &&
-    entry.overriddenByRepeatedReset === true), true);
+    entry.overriddenBySignature === true), true);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -2022,6 +2022,198 @@ async function waitForDebugFlush() {
     storage.learnedDomains.includes("shy.example"),
     true,
     "two failures must not be enough however old the record is"
+  );
+
+  // A TLS handshake fails before any HTTP is exchanged, and the probe opens its
+  // own connection, so a probe that answers is measuring something other than
+  // the request that failed. It used to veto the route anyway, which is how a
+  // blocked site stayed unreachable while the popup called it transient.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  directlyReachableHosts.add("tls-but-reachable.example");
+  await listeners.requestError({
+    tabId: 140,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_SSL_PROTOCOL_ERROR",
+    url: "https://tls-but-reachable.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("tls-but-reachable.example"),
+    true,
+    "a main-frame TLS failure must be learned even when the probe answers"
+  );
+  await waitForDebugFlush();
+  assert.equal(storage.debugLog.some((entry) =>
+    entry.event === "direct-check" &&
+    entry.host === "tls-but-reachable.example" &&
+    entry.reachable === true &&
+    entry.overriddenBySignature === true), true, "the override must be recorded");
+  directlyReachableHosts.delete("tls-but-reachable.example");
+
+  // ERR_FAILED is still never learned on a main frame, but it no longer passes
+  // in silence: the page failed, and the popup now says what it saw.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  await listeners.requestError({
+    tabId: 141,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_FAILED",
+    url: "https://generic-failure.example/page"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("generic-failure.example"),
+    false,
+    "a generic failure must still never be learned automatically"
+  );
+  assert.equal(storage.lastIssueType, "generic_failure");
+  assert.equal(storage.lastIssueDomain, "generic-failure.example");
+  assert.equal(storage.lastIssueError, "ERR_FAILED");
+
+  // An ignored target stays quiet: the person already said they do not want it.
+  await send({
+    type: "saveSettings",
+    patch: { learnedDomains: [], ignoredDomains: ["quiet-failure.example"] }
+  });
+  await chrome.storage.local.set({ lastIssueType: null, lastIssueDomain: null });
+  await listeners.requestError({
+    tabId: 142,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    error: "net::ERR_FAILED",
+    url: "https://quiet-failure.example/"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(storage.lastIssueType, null, "an ignored target must not raise a diagnosis");
+
+  // The shape reported from a live log: the main document returns 200, so the
+  // origin is demonstrably reachable and the probe will always answer, while
+  // the page's own script dies at the protocol layer and the page hangs. The
+  // probe can only ever confirm what the 200 already showed, so it must not
+  // decide this one.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  directlyReachableHosts.add("quic-broken.example");
+  await listeners.requestCompleted({
+    tabId: 150,
+    type: "main_frame",
+    url: "https://quic-broken.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  await listeners.requestError({
+    tabId: 150,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_QUIC_PROTOCOL_ERROR",
+    url: "https://quic-broken.example/app.js",
+    initiator: "https://quic-broken.example"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("quic-broken.example"),
+    true,
+    "a protocol-layer failure on the page's own script must be learned"
+  );
+  directlyReachableHosts.delete("quic-broken.example");
+
+  // The same for HTTP/2, and from a single failure.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  await listeners.requestError({
+    tabId: 151,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_HTTP2_PROTOCOL_ERROR",
+    url: "https://h2-broken.example/bundle.js",
+    initiator: "https://h2-broken.example"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(storage.learnedDomains.includes("h2-broken.example"), true);
+
+  // A page's own script dying with the catch-all is no longer ignored either,
+  // but it still needs the embedded threshold.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const ownScript = {
+    tabId: 152,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_FAILED",
+    url: "https://own-script.example/main.js",
+    initiator: "https://own-script.example"
+  };
+  await listeners.requestError(ownScript);
+  await listeners.requestError(ownScript);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("own-script.example"),
+    true,
+    "a repeated same-origin script failure must be learned"
+  );
+
+  // A third party's script is still left alone: that is the ambiguous case the
+  // refusal was written for.
+  await send({
+    type: "saveSettings",
+    patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  const thirdParty = {
+    tabId: 153,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_FAILED",
+    url: "https://third-party-cdn.example/tag.js",
+    initiator: "https://ordinary-page.example"
+  };
+  await listeners.requestError(thirdParty);
+  await listeners.requestError(thirdParty);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    storage.learnedDomains.includes("third-party-cdn.example"),
+    false,
+    "a cross-origin script failing with the catch-all must stay ignored"
+  );
+
+  // And media, which is where the catch-all is noisiest, is untouched. Fired
+  // twice on purpose: once would clear the threshold on its own, so a single
+  // call would pass even if media were let through.
+  const noisyMedia = {
+    tabId: 154,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "media",
+    error: "net::ERR_FAILED",
+    url: "https://noisy-media.example/clip.mp4",
+    initiator: "https://ordinary-page.example"
+  };
+  await listeners.requestError(noisyMedia);
+  await listeners.requestError(noisyMedia);
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  assert.equal(
+    storage.learnedDomains.includes("noisy-media.example"),
+    false,
+    "media must stay out of the catch-all exception however often it fails"
   );
 
   process.stdout.write("background tests passed\n");
