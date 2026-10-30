@@ -8,7 +8,7 @@ Otomatik Erişim, bağlantı hatası yaşayan alan adlarını kullanıcının ke
 
 Eklenti HTTP/HTTPS/WS/WSS isteklerinde Chrome'un bildirdiği bağlantı hata türünü, istek türünü ve alan adını geçici olarak işler. Chrome tam istek adresini olay içinde sağlayabilir; eklenti bundan yalnız alan adını türetir ve tam adresi depolamaz.
 
-Otomatik doğrulama sırasında kullanıcı bilgisi, yol, sorgu ve fragment kaldırılır. Yalnız hedef origin'in kökü; çerezsiz, kimlik bilgisi olmadan ve sınırlı içerik isteğiyle doğrudan sınanır. Öğrenilen yönlendirme kuralları kullanıcı listeden kaldırana veya yoksayana kadar cihazda kalır; başarılı sayfa yüklemeleri sırasında tarayıcı genelindeki proxy yapılandırması değiştirilmez. Kullanıcı **Genel durumu kontrol et** ile genel kesinti doğrularsa eşleşen öğrenilmiş rota kaldırılabilir.
+Otomatik doğrulama sırasında kullanıcı bilgisi, yol, sorgu ve fragment kaldırılır. Yalnız hedef origin'in kökü; çerezsiz, kimlik bilgisi olmadan ve sınırlı içerik isteğiyle doğrudan sınanır. Otomatik öğrenilen bir rota, sağlıklı yerel geçit hedefe erişemediğinde tek ve süre sınırlı bir doğrudan bağlantı denemesinden sonra kaldırılabilir; yalnız öğrenmeyi tetikleyen istek türündeki başarı bu kararı doğrular. Kullanıcının elle seçtiği ve eski sürümlerden kaynağı belirsiz rotalar sessizce kaldırılmaz. Kullanıcı **Genel durumu kontrol et** ile genel kesinti doğrularsa eşleşen öğrenilmiş rota da kaldırılabilir.
 
 Şunlar `chrome.storage.local` içinde yalnız cihazda tutulabilir:
 

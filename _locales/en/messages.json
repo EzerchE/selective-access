@@ -100,6 +100,12 @@
   "gatewayRecoveringTitle": {
     "message": "Local gateway is starting"
   },
+  "directRecoveryDetail": {
+    "message": "The automatic route failed for this target. A single direct connection trial is running; a matching successful request keeps the direct path, while failure restores the route without a reload loop."
+  },
+  "directRecoveryTitle": {
+    "message": "Testing the direct path"
+  },
   "gatewayUnavailable": {
     "message": "Local gateway unavailable"
   },

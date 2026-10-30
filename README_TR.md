@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.14.0**
+Güncel sürüm: **4.15.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -56,13 +56,14 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.
 - Kontroller alan adı bazında yürütülür. Bir hedefteki gecikme diğer alan adlarını bekletmez ve aynı anda en fazla üç doğrulama yapılır.
 - Ana hedef kurtarılırken geç başlayan sayfa bağımlılıkları, ana belge tamamlanmış olsa bile sınırlı bir sakinleşme penceresinde toplanır; gerekirse kontrollü olarak yeniden denenir ve yenileme döngüsü sınırlandırılır.
-- Tekrarlanan gerçek-zaman bağlantı hataları, ilgisiz bir HTTP doğrulamasını beklemek yerine sınırlı hata eşiğini doğrudan kullanır.
+- Tekrarlanan gerçek zamanlı ve protokol katmanı hataları da temizlenmiş doğrudan origin kontrolünü gerektirir. Başarılı doğrudan kontrol; WebSocket sıfırlaması, `ERR_FAILED`, QUIC veya HTTP/2 imzasıyla tek başına geçersiz sayılamaz.
 - Yerel geçit bağlantı hazırlığı süreyle sınırlıdır. Yalnız loopback üzerinde çalışan sağlık kontrolü, durmuş yerel yardımcı ile çalışan geçit üzerinden de erişilemeyen hedefi ayırır; böylece yanıltıcı kurulum uyarıları ve gereksiz yenilemeler önlenir. Başarıyla açılan sayfanın kalan kaynakları yüklenirken proxy yapılandırması sabit tutulur.
 - Genel durum yoklaması sınırlı toplam süre bütçesinin tamamını kullanır; yavaş ölçümler sabit yoklama sayısı yüzünden erken kesilmez. Kullanıcının başlattığı kıtalar arası kontrol olası genel kesinti bulursa kaldırılan rota, hâlâ hata veren açık sekme tarafından on beş dakika boyunca otomatik olarak yeniden öğrenilmez; geçici bekleme kendiliğinden sona ererken sonuç görünür kalır.
 - Yerel geçit uzun süre boşta kalan oturumlarda kararlı çalışmayı sürdürür.
 - Öğrenilen kurallar yalnız hatayı veren tam alan adına uygulanır.
-- Yeni öğrenilen bir rota, geçit üzerinden bir ana sayfa gerçekten açılana kadar geçicidir; bu açılış rotayı doğrular ve doğrulanmış bir rota otomatik olarak asla kaldırılmaz. Hiç başarı görmemiş ve birbirinden ayrı üç gezinmede başarısız olmuş geçici bir rota, tam bir günlük gözlem süresinin ardından, hiç doğrulanamadığını belirten bir bildirimle kaldırılır ve sonraki bir ziyarette yeniden öğrenilebilir. Yerel geçit arızaları ile eklentinin kendi kurtarma yenilemeleri bu sayıma girmez; `www` ile kök alan adı tek bir sağlık kaydını paylaşır. Hiçbir dış kontrol devreye girmez.
-- Başarıyla açılan yönlendirilmiş sayfanın öğrenilen rotası kullanıcı kaldırana veya yoksayana kadar korunur; sayfa yüklenirken tarayıcı genelindeki proxy ayarı değiştirilmez.
+- Yeni öğrenilen otomatik rota, öğrenmeyi tetikleyen istek türü geçit üzerinden başarılı olana kadar geçicidir. Bu nedenle ana sayfanın HTTP başarısı bir WebSocket rotasını doğrulayamaz. Doğrulanmamış rota aynı türde üç ayrı gezinmede başarısız olursa tam günlük gözlemden sonra kaldırılır; geçit arızaları ve kurtarma yenilemeleri sayılmaz, `www` ile kök alan adı aynı sağlık kaydını paylaşır.
+- Sağlıklı yerel geçit otomatik öğrenilmiş hedefe erişemezse eklenti bir kez, sınırlandırılmış doğrudan yol denemesi yapar. Aynı türde doğrudan başarı otomatik rotayı kaldırır; başarısızlık rotayı geri yükler. On dakikalık bekleme süresi rota ve yenileme döngüsünü engeller.
+- Kullanıcının açıkça seçtiği rotalar otomatik doğrudan kurtarma ile kaldırılmaz. Eski sürümlerin oluşturduğu rotalarda güvenilir kaynak bilgisi bulunmadığından, kullanıcı kaldırıp yeniden ekleyene kadar bunlar da güvenli biçimde manuel rota gibi korunur.
 - Özel, yerel ve link-local IPv4/IPv6 adresleri yönlendirme dışında tutulur.
 - Öğrenilen ve yoksayılan alan adları yalnız `chrome.storage.local` içinde saklanır.
 - Eklenti ve yardımcı; tarayıcı, adaptör, sistem veya modem DNS yapılandırmasını değiştirmez.

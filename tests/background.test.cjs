@@ -529,10 +529,10 @@ async function waitForDebugFlush() {
     }
   }
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(storage.learnedDomains.includes("normal-available.example"), true);
-  assert.equal(storage.learnedDomains.includes("www.normal-available.example"), true);
-  assert.equal(storage.lastIssueType, "route_learned");
-  assertBadge(lastForTab(badgeTexts, 55), 55, "+");
+  assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
+  assert.equal(storage.learnedDomains.includes("www.normal-available.example"), false);
+  assert.equal(storage.lastIssueType, "transient_reachable");
+  assertBadge(lastForTab(badgeTexts, 55), 55, "?");
   assert.equal(notifications.length, 2);
   await listeners.requestCompleted({
     tabId: 55,
@@ -541,9 +541,9 @@ async function waitForDebugFlush() {
     statusCode: 200,
     fromCache: false
   });
-  assertBadge(lastForTab(badgeTexts, 55), 55, "↗");
-  assert.equal(lastForTab(badgeColors, 55)?.color, "#2563eb");
-  assert.match(lastForTab(actionTitles, 55)?.title, /yerel geçid/i);
+  assertBadge(lastForTab(badgeTexts, 55), 55, "");
+  assert.equal(lastForTab(badgeColors, 55)?.color, "#15803d");
+  assert.match(lastForTab(actionTitles, 55)?.title, /doğrudan/i);
 
   directlyReachableHosts.add("slow-but-valid.example");
   await listeners.requestError({
@@ -683,7 +683,7 @@ async function waitForDebugFlush() {
   assert.match(notifications[2].id, /^learned:\d+$/);
   assert.equal(reloads.length, 2);
   assert.equal(storage.debugLog.some((entry) =>
-    entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), true);
+    entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), false);
   assert.equal(listeners.completedFilter.types, undefined);
   assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
 
@@ -945,12 +945,12 @@ async function waitForDebugFlush() {
     url: "wss://socket-api.example/connect",
     initiator: "https://portal.example/"
   });
-  assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
+  assert.deepEqual([...storage.learnedDomains], []);
   await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "socket-api.example" &&
-    entry.skippedForRepeatedWebSocket === true), true);
+    entry.reachable === true), true);
   directlyReachableHosts.delete("socket-api.example");
 
   await listeners.requestError({
@@ -959,7 +959,7 @@ async function waitForDebugFlush() {
     error: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://tracker.resolution-error.example/pixel"
   });
-  assert.deepEqual([...storage.learnedDomains], ["socket-api.example"]);
+  assert.deepEqual([...storage.learnedDomains], []);
 
   tabUrls.set(42, "https://routed-app.example/");
   await send({
@@ -1160,12 +1160,12 @@ async function waitForDebugFlush() {
       url: "https://intermittent-media.example/asset"
     });
   }
-  assert.deepEqual([...storage.learnedDomains], ["intermittent-media.example"]);
+  assert.deepEqual([...storage.learnedDomains], []);
   await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "intermittent-media.example" &&
-    entry.overriddenBySignature === true), true);
+    entry.reachable === true), true);
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -1317,6 +1317,95 @@ async function waitForDebugFlush() {
   assert.equal(storage.lastIssueType, "route_failed");
   await new Promise((resolve) => setTimeout(resolve, 900));
   assert.equal(reloads.length, reloadCountBeforeTargetFailure);
+
+  // An automatically learned WebSocket route gets one direct trial when the
+  // healthy gateway cannot reach it. Main-frame 200 is not enough; the same
+  // request type that caused learning has to complete directly.
+  await chrome.storage.local.set({
+    autoRouteOrigins: {
+      "auto-socket.example": { requestType: "websocket", learnedAt: Date.now() }
+    },
+    routeHealth: {
+      "auto-socket.example": {
+        firstSeenAt: Date.now(), confirmed: false, failures: 0,
+        lastFailureAt: 0, lastFailureTab: null, requiredType: "websocket"
+      }
+    }
+  });
+  await send({
+    type: "saveSettings",
+    patch: {
+      learnedDomains: ["gateway-startup.example", "gateway-target.example", "auto-socket.example"]
+    }
+  });
+  tabUrls.set(123, "https://auto-socket.example/");
+  await listeners.requestError({
+    tabId: 123,
+    type: "main_frame",
+    error: "net::ERR_SOCKS_CONNECTION_FAILED",
+    url: "https://auto-socket.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("auto-socket.example"), false);
+  assert.equal(storage.lastIssueType, "direct_recovery");
+  await listeners.requestCompleted({
+    tabId: 123,
+    type: "main_frame",
+    url: "https://auto-socket.example/",
+    statusCode: 200,
+    fromCache: false
+  });
+  assert.equal(Object.hasOwn(storage.autoRouteOrigins, "auto-socket.example"), true);
+  await listeners.requestCompleted({
+    tabId: 123,
+    type: "websocket",
+    url: "wss://auto-socket.example/socket",
+    statusCode: 101,
+    fromCache: false
+  });
+  assert.equal(Object.hasOwn(storage.autoRouteOrigins, "auto-socket.example"), false);
+  assert.equal(Object.hasOwn(storage.routeHealth, "auto-socket.example"), false);
+
+  // If direct recovery fails, restore the automatic route once and let the
+  // cooldown prevent a route-removal/reload loop.
+  await chrome.storage.local.set({
+    autoRouteOrigins: {
+      "auto-restore.example": { requestType: "main_frame", learnedAt: Date.now() }
+    },
+    routeHealth: {
+      "auto-restore.example": {
+        firstSeenAt: Date.now(), confirmed: false, failures: 0,
+        lastFailureAt: 0, lastFailureTab: null, requiredType: "main_frame"
+      }
+    }
+  });
+  await send({
+    type: "saveSettings",
+    patch: {
+      learnedDomains: ["gateway-startup.example", "gateway-target.example", "auto-restore.example"]
+    }
+  });
+  tabUrls.set(124, "https://auto-restore.example/");
+  await listeners.requestError({
+    tabId: 124,
+    type: "main_frame",
+    error: "net::ERR_SOCKS_CONNECTION_FAILED",
+    url: "https://auto-restore.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("auto-restore.example"), false);
+  await listeners.requestError({
+    tabId: 124,
+    type: "main_frame",
+    error: "net::ERR_CONNECTION_TIMED_OUT",
+    url: "https://auto-restore.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("auto-restore.example"), true);
+  await listeners.requestError({
+    tabId: 124,
+    type: "main_frame",
+    error: "net::ERR_SOCKS_CONNECTION_FAILED",
+    url: "https://auto-restore.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("auto-restore.example"), true);
   gatewayHealthAvailable = false;
 
   tabUrls.set(121, "https://direct-page.example/");
@@ -1753,7 +1842,7 @@ async function waitForDebugFlush() {
     type: "saveSettings",
     patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
   });
-  await chrome.storage.local.set({ routeHealth: {} });
+  await chrome.storage.local.set({ routeHealth: {}, autoRouteOrigins: {} });
 
   // A newly learned route is provisional, and www shares the apex record.
   await listeners.requestError(mainFailure(101, "typo-target.example"));
@@ -1984,7 +2073,12 @@ async function waitForDebugFlush() {
     type: "saveSettings",
     patch: { learnedDomains: ["early-success.example"], ignoredDomains: [] }
   });
-  await chrome.storage.local.set({ routeHealth: {} });
+  await chrome.storage.local.set({
+    routeHealth: {},
+    autoRouteOrigins: {
+      "early-success.example": { requestType: "main_frame", learnedAt: Date.now() }
+    }
+  });
   await listeners.requestCompleted({
     tabId: 131,
     type: "main_frame",
@@ -2024,10 +2118,8 @@ async function waitForDebugFlush() {
     "two failures must not be enough however old the record is"
   );
 
-  // A TLS handshake fails before any HTTP is exchanged, and the probe opens its
-  // own connection, so a probe that answers is measuring something other than
-  // the request that failed. It used to veto the route anyway, which is how a
-  // blocked site stayed unreachable while the popup called it transient.
+  // A TLS failure can be a transient service event. A direct origin that still
+  // answers must not be routed automatically.
   await send({
     type: "saveSettings",
     patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
@@ -2044,15 +2136,14 @@ async function waitForDebugFlush() {
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(
     storage.learnedDomains.includes("tls-but-reachable.example"),
-    true,
-    "a main-frame TLS failure must be learned even when the probe answers"
+    false,
+    "a reachable origin must veto automatic routing after a TLS failure"
   );
   await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "direct-check" &&
     entry.host === "tls-but-reachable.example" &&
-    entry.reachable === true &&
-    entry.overriddenBySignature === true), true, "the override must be recorded");
+    entry.reachable === true), true, "the reachable direct result must be recorded");
   directlyReachableHosts.delete("tls-but-reachable.example");
 
   // ERR_FAILED is still never learned on a main frame, but it no longer passes
@@ -2096,11 +2187,8 @@ async function waitForDebugFlush() {
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(storage.lastIssueType, null, "an ignored target must not raise a diagnosis");
 
-  // The shape reported from a live log: the main document returns 200, so the
-  // origin is demonstrably reachable and the probe will always answer, while
-  // the page's own script dies at the protocol layer and the page hangs. The
-  // probe can only ever confirm what the 200 already showed, so it must not
-  // decide this one.
+  // A main document that returned 200 followed by transient protocol failures
+  // must stay direct when its sanitized origin still answers.
   await send({
     type: "saveSettings",
     patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
@@ -2122,18 +2210,36 @@ async function waitForDebugFlush() {
     url: "https://quic-broken.example/app.js",
     initiator: "https://quic-broken.example"
   });
+  await listeners.requestError({
+    tabId: 150,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_QUIC_PROTOCOL_ERROR",
+    url: "https://quic-broken.example/app.js",
+    initiator: "https://quic-broken.example"
+  });
   await new Promise((resolve) => setTimeout(resolve, 2_100));
   assert.equal(
     storage.learnedDomains.includes("quic-broken.example"),
-    true,
-    "a protocol-layer failure on the page's own script must be learned"
+    false,
+    "reachable origins must not be routed for transient protocol failures"
   );
   directlyReachableHosts.delete("quic-broken.example");
 
-  // The same for HTTP/2, and from a single failure.
+  // An unreachable origin with repeated HTTP/2 failures can still be learned.
   await send({
     type: "saveSettings",
     patch: { enabled: true, learnedDomains: [], ignoredDomains: [] }
+  });
+  await listeners.requestError({
+    tabId: 151,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_HTTP2_PROTOCOL_ERROR",
+    url: "https://h2-broken.example/bundle.js",
+    initiator: "https://h2-broken.example"
   });
   await listeners.requestError({
     tabId: 151,

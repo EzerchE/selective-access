@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.14.0**
+Current version: **4.15.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -56,13 +56,14 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, late page dependencies are collected in a bounded settling window even if the main document has already completed. A limited additional reload may be attempted without creating a reload loop.
-- Repeated real-time connection failures use their bounded failure threshold directly instead of waiting for an unrelated HTTP probe.
+- Repeated real-time and protocol-layer failures still require a sanitized direct-origin check. A successful direct check is never overridden by a WebSocket reset, `ERR_FAILED`, QUIC, or HTTP/2 signature alone.
 - Local gateway setup attempts are time-bounded. A loopback-only health check distinguishes a stopped local helper from a destination that remains unreachable through a working gateway, preventing misleading setup warnings and pointless reloads. Successful pages keep a stable proxy configuration while their remaining resources load.
 - Global status polling uses its full bounded time budget, allowing slow measurements to finish instead of ending early at a fixed poll count. When a user-requested multi-continent check finds a likely general outage, the removed route is not automatically relearned by the still-failing tab for fifteen minutes; the result remains visible while the temporary hold expires naturally.
 - The local gateway remains stable during long-running idle sessions.
 - Learned rules apply only to the exact hostname that produced the error.
-- A newly learned route is provisional until a main page actually loads through the gateway; that confirms it, and a confirmed route is never removed automatically. A provisional route that never succeeded and failed three separate navigations is removed after a full day of observation, with a notification saying it was never verified, and it can be learned again on a later visit. Local gateway failures and the extension's own recovery reloads are excluded from that count, and `www` shares one health record with the apex domain. No external check is involved.
-- A successful routed page keeps its learned route until the user removes or ignores it, avoiding disruptive browser-wide proxy changes during page loading.
+- A newly learned automatic route is provisional until the same request type that triggered learning succeeds through the gateway. Main-page HTTP success therefore cannot confirm a WebSocket route. An unconfirmed route that fails three separate matching navigations is removed after a full day of observation; gateway failures and recovery reloads are excluded, and `www` shares one health record with the apex domain.
+- When a healthy local gateway cannot reach a target on an automatically learned route, the extension performs one bounded direct-path trial. A matching direct success removes the automatic route; failure restores it. A ten-minute cooldown prevents route/reload loops.
+- Routes explicitly selected by the user are never removed by automatic direct recovery. Routes created by older versions have no trustworthy provenance and are conservatively treated the same way until the user removes or re-adds them.
 - Private, local, and link-local IPv4/IPv6 addresses are excluded from routing.
 - Learned and ignored domains are stored only in `chrome.storage.local`.
 - The extension and helper do not change the browser, adapter, system, or router DNS configuration.

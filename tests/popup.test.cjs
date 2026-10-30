@@ -325,6 +325,7 @@ function lastSavePatch(sent) {
     siteAction.dispatch("click");
     await settle();
     assert.deepEqual(lastSavePatch(sent).learnedDomains, ["blocked.example"]);
+    assert.deepEqual(lastSavePatch(sent).manualRouteDomains, []);
   }
 
   // An unrouted tab offers to route it.
@@ -340,6 +341,7 @@ function lastSavePatch(sent) {
       lastSavePatch(sent).learnedDomains,
       ["blocked.example", "portal.example"]
     );
+    assert.deepEqual(lastSavePatch(sent).manualRouteDomains, ["portal.example"]);
   }
 
   // An ignored tab offers to restore it instead.
@@ -491,6 +493,18 @@ function lastSavePatch(sent) {
     assert.equal(
       document.querySelector("#diagnosticTitle").textContent,
       messages.gatewayRecoveringTitle.message
+    );
+  }
+  {
+    const { document } = createContext({
+      state: baseState({ lastIssueType: "direct_recovery", lastIssueDomain: "portal.example" })
+    });
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden, false);
+    assert.equal(document.querySelector("#checkStatus").hidden, true);
+    assert.equal(
+      document.querySelector("#diagnosticTitle").textContent,
+      messages.directRecoveryTitle.message
     );
   }
 
