@@ -277,6 +277,11 @@ function renderDiagnostic(state) {
     elements.diagnosticPrivacy.hidden = true;
     elements.diagnosticTitle.textContent = t("clientFilterTitle");
     elements.diagnosticText.textContent = t("clientFilterDetail");
+  } else if (state.lastIssueType === "direct_recovery") {
+    elements.checkStatus.hidden = true;
+    elements.diagnosticPrivacy.hidden = true;
+    elements.diagnosticTitle.textContent = t("directRecoveryTitle");
+    elements.diagnosticText.textContent = t("directRecoveryDetail");
   } else if (state.lastIssueType === "gateway_recovering") {
     elements.checkStatus.hidden = true;
     elements.diagnosticPrivacy.hidden = true;
@@ -452,7 +457,8 @@ elements.siteAction.addEventListener("click", () => {
 
   save({
     learnedDomains: nextDomains,
-    ignoredDomains: withoutCover(ignoredDomains, currentHost)
+    ignoredDomains: withoutCover(ignoredDomains, currentHost),
+    manualRouteDomains: elements.siteAction.dataset.mode === "add" ? [currentHost] : []
   });
 });
 

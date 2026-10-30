@@ -100,6 +100,12 @@
   "gatewayRecoveringTitle": {
     "message": "Yerel geçit başlatılıyor"
   },
+  "directRecoveryDetail": {
+    "message": "Bu hedef için otomatik rota başarısız oldu. Tek bir doğrudan bağlantı denemesi yapılıyor; aynı türde başarılı istek doğrudan yolu korur, başarısızlık ise yenileme döngüsü oluşturmadan rotayı geri yükler."
+  },
+  "directRecoveryTitle": {
+    "message": "Doğrudan yol deneniyor"
+  },
   "gatewayUnavailable": {
     "message": "Yerel geçit kullanılamıyor"
   },

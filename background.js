@@ -105,6 +105,8 @@ const tabRoutedHosts = new SessionMap();
 const detectionCandidates = new SessionMap();
 const reloadTimers = new Map();
 const gatewayRetryStates = new Map();
+const directRecoveryTrials = new SessionMap();
+const directRecoveryCooldowns = new SessionMap();
 const tabRecoveryStates = new SessionMap();
 const clientFilterCandidates = new SessionMap();
 const iframeRetryTimers = new Map();
@@ -138,15 +140,11 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   // An embedded failure still asks for two -- a page makes several requests to
   // the same host, so the count climbs there on its own.
   ERR_SSL_PROTOCOL_ERROR: { main: 1, embedded: 2 },
-  // A transport that breaks mid-protocol is what a middlebox rewriting the
-  // stream looks like, and Chrome surfaces it only after its own fallback has
-  // already failed. Reported from a live log: a main document returned 200
-  // while the page's own script died with a QUIC protocol error, so the page
-  // loaded and then hung. One failure is enough on both scopes because a page
-  // usually asks for such a script once; the route is provisional, so a wrong
-  // call is removed after a day.
-  ERR_QUIC_PROTOCOL_ERROR: { main: 1, embedded: 1 },
-  ERR_HTTP2_PROTOCOL_ERROR: { main: 1, embedded: 1 },
+  // Protocol failures can also be a transient server or network event. Two
+  // observations are required and a successful direct-origin probe always
+  // vetoes automatic routing.
+  ERR_QUIC_PROTOCOL_ERROR: { main: 2, embedded: 2 },
+  ERR_HTTP2_PROTOCOL_ERROR: { main: 2, embedded: 2 },
   // This can indicate a genuinely invalid certificate, so it never bypasses
   // certificate validation. Repeated failures only allow the already-existing
   // selective route to retry resolution through the authenticated gateway.
@@ -183,13 +181,6 @@ const DEBUG_BATCH_SIZE = 20;
 const MAX_CONCURRENT_PROBES = 3;
 const DIRECT_PROBE_CACHE_MS = 2_000;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
-// Failures settled on the connection itself rather than by anything the server
-// sent back, so a separate probe connection cannot speak to them.
-const PROTOCOL_LAYER_ERRORS = new Set([
-  "ERR_SSL_PROTOCOL_ERROR",
-  "ERR_QUIC_PROTOCOL_ERROR",
-  "ERR_HTTP2_PROTOCOL_ERROR"
-]);
 const RECOVERY_WINDOW_MS = 90_000;
 const RECOVERY_SETTLE_DELAY_MS = 1_500;
 const MAX_SETTLED_RECOVERY_RELOADS = 3;
@@ -199,6 +190,8 @@ const GLOBAL_CHECK_REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_CHECK_TOTAL_TIMEOUT_MS = 25_000;
 const GLOBAL_CHECK_POLL_DELAY_MS = 600;
 const GLOBAL_OUTAGE_HOLD_MS = 15 * 60_000;
+const DIRECT_RECOVERY_COOLDOWN_MS = 10 * 60_000;
+const AUTO_ROUTE_ORIGINS_KEY = "autoRouteOrigins";
 let debugEnabledCache = null;
 let debugBuffer = [];
 let debugFlushTimer = null;
@@ -228,7 +221,9 @@ const SESSION_MAPS = Object.freeze({
   tabRoutedHosts,
   detectionCandidates,
   tabRecoveryStates,
-  clientFilterCandidates
+  clientFilterCandidates,
+  directRecoveryTrials,
+  directRecoveryCooldowns
 });
 // tabRoutedHosts holds a Set per tab; the rest hold plain values.
 const SESSION_SET_MAPS = new Set(["tabRoutedHosts"]);
@@ -239,13 +234,15 @@ const SESSION_SET_MAPS = new Set(["tabRoutedHosts"]);
 const SESSION_TTL_MS = Object.freeze({
   detectionCandidates: CANDIDATE_WINDOW_MS,
   retryCooldowns: 60_000,
-  clientFilterCandidates: CLIENT_FILTER_CANDIDATE_WINDOW_MS
+  clientFilterCandidates: CLIENT_FILTER_CANDIDATE_WINDOW_MS,
+  directRecoveryCooldowns: DIRECT_RECOVERY_COOLDOWN_MS
 });
 
 function sessionEntryExpired(name, value, now) {
   if (name === "tabRecoveryStates") {
     return !Number.isFinite(value?.expiresAt) || now > value.expiresAt;
   }
+  if (name === "directRecoveryTrials") return false;
   const ttl = SESSION_TTL_MS[name];
   if (!ttl) return false;
   const at = name === "retryCooldowns" ? value : (value?.lastAt ?? value?.at);
@@ -1069,6 +1066,96 @@ function scheduleGatewayRetry(details, host) {
   return true;
 }
 
+async function startAutoDirectRecovery(details, host, settings) {
+  const origin = await autoRouteOrigin(host);
+  if (!origin) return false;
+  const family = routeFamily(host);
+  const cooldown = directRecoveryCooldowns.get(family);
+  if (cooldown && Date.now() - cooldown.at < DIRECT_RECOVERY_COOLDOWN_MS) return false;
+  if (directRecoveryTrials.has(details.tabId)) return true;
+
+  const previousDomains = settings.learnedDomains.filter((domain) => routeFamily(domain) === family);
+  if (previousDomains.length === 0) return false;
+  await saveSettings({
+    learnedDomains: settings.learnedDomains.filter((domain) => routeFamily(domain) !== family)
+  });
+  directRecoveryTrials.set(details.tabId, {
+    host,
+    family,
+    requestType: origin.requestType,
+    previousDomains,
+    startedAt: Date.now()
+  });
+  directRecoveryCooldowns.set(family, { at: Date.now() });
+  await chrome.storage.local.set({
+    lastIssueType: "direct_recovery",
+    lastIssueDomain: host,
+    lastIssueError: matchingGatewayConnectionError(details),
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("auto-route-direct-trial-started", {
+    tabId: details.tabId,
+    host,
+    requestType: origin.requestType
+  });
+  await setIssueBadge(true, "direct_recovery", details.tabId);
+  scheduleTabReload(details.tabId, 300, "direct-recovery");
+  return true;
+}
+
+async function settleDirectRecoverySuccess(details) {
+  const trial = directRecoveryTrials.get(details.tabId);
+  const host = getRequestHost(details);
+  if (!trial || routeFamily(host) !== trial.family || details.type !== trial.requestType) return false;
+  directRecoveryTrials.delete(details.tabId);
+  cancelTabReload(details.tabId, "direct-recovery-succeeded", "direct-recovery");
+  await clearAutoRouteOrigin(host);
+  await chrome.storage.local.set({
+    lastProxyError: null,
+    lastIssueType: "transient_reachable",
+    lastIssueDomain: host,
+    lastIssueError: null,
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("auto-route-removed-after-direct-success", {
+    tabId: details.tabId,
+    host,
+    requestType: details.type
+  });
+  await setIssueBadge(true, "transient_reachable", details.tabId);
+  return true;
+}
+
+async function settleDirectRecoveryFailure(details) {
+  const trial = directRecoveryTrials.get(details.tabId);
+  const host = getRequestHost(details);
+  const matchesTrial = trial && routeFamily(host) === trial.family &&
+    (details.type === trial.requestType || details.type === "main_frame");
+  if (!matchesTrial) return false;
+  directRecoveryTrials.delete(details.tabId);
+  cancelTabReload(details.tabId, "direct-recovery-failed", "direct-recovery");
+  const settings = await getSettings();
+  await saveSettings({
+    learnedDomains: normalizeDomains([...settings.learnedDomains, ...trial.previousDomains])
+  });
+  await chrome.storage.local.set({
+    lastIssueType: "route_failed",
+    lastIssueDomain: host,
+    lastIssueError: matchingError(details, RETRYABLE_ERRORS) || details.error || null,
+    lastIssueAt: new Date().toISOString(),
+    lastGlobalCheck: null
+  });
+  await appendDebug("auto-route-direct-trial-failed", {
+    tabId: details.tabId,
+    host,
+    requestType: details.type
+  });
+  await setIssueBadge(true, "route_failed", details.tabId);
+  return true;
+}
+
 async function recoverTransientGatewayFailure(details) {
   if (details.type !== "main_frame") return false;
   const error = matchingGatewayConnectionError(details);
@@ -1078,9 +1165,13 @@ async function recoverTransientGatewayFailure(details) {
   const settings = await getSettings();
   if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
   const gatewayAvailable = await localGatewayAvailable();
+  const directRecovery = gatewayAvailable
+    ? await startAutoDirectRecovery(details, host, settings)
+    : false;
   const scheduled = gatewayAvailable ? false : scheduleGatewayRetry(details, host);
-  const issueType = gatewayAvailable
-    ? "route_failed"
+  const issueType = directRecovery
+    ? "direct_recovery"
+    : gatewayAvailable ? "route_failed"
     : scheduled ? "gateway_recovering" : "gateway_unavailable";
   await chrome.storage.local.set({
     lastProxyError: error,
@@ -1095,6 +1186,7 @@ async function recoverTransientGatewayFailure(details) {
     host,
     error,
     gatewayAvailable,
+    directRecovery,
     retryScheduled: scheduled
   });
   await setIssueBadge(true, issueType, details.tabId);
@@ -1504,7 +1596,43 @@ async function readRouteHealth() {
   return health && typeof health === "object" && !Array.isArray(health) ? health : {};
 }
 
-function markRouteProvisional(host, now) {
+async function readAutoRouteOrigins() {
+  const stored = await chrome.storage.local.get({ [AUTO_ROUTE_ORIGINS_KEY]: {} });
+  const origins = stored[AUTO_ROUTE_ORIGINS_KEY];
+  return origins && typeof origins === "object" && !Array.isArray(origins) ? origins : {};
+}
+
+function markAutoRouteOrigin(host, requestType, now = Date.now()) {
+  return queueRouteHealth(async () => {
+    const origins = await readAutoRouteOrigins();
+    origins[routeFamily(host)] = { requestType, learnedAt: now };
+    await chrome.storage.local.set({ [AUTO_ROUTE_ORIGINS_KEY]: origins });
+  });
+}
+
+function clearAutoRouteOrigin(host) {
+  return queueRouteHealth(async () => {
+    const family = routeFamily(host);
+    const [origins, health] = await Promise.all([readAutoRouteOrigins(), readRouteHealth()]);
+    const changed = Object.hasOwn(origins, family) || Object.hasOwn(health, family);
+    delete origins[family];
+    delete health[family];
+    if (changed) {
+      await chrome.storage.local.set({
+        [AUTO_ROUTE_ORIGINS_KEY]: origins,
+        [ROUTE_HEALTH_KEY]: health
+      });
+    }
+    return changed;
+  });
+}
+
+async function autoRouteOrigin(host) {
+  const origins = await readAutoRouteOrigins();
+  return origins[routeFamily(host)] || null;
+}
+
+function markRouteProvisional(host, now, requestType) {
   return queueRouteHealth(async () => {
     const health = await readRouteHealth();
     const family = routeFamily(host);
@@ -1516,23 +1644,26 @@ function markRouteProvisional(host, now) {
       confirmed: false,
       failures: 0,
       lastFailureAt: 0,
-      lastFailureTab: null
+      lastFailureTab: null,
+      requiredType: requestType
     };
     await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
     return true;
   });
 }
 
-function confirmRoute(host) {
+function confirmRoute(host, requestType) {
   return queueRouteHealth(async () => {
-    const health = await readRouteHealth();
+    const [health, origins] = await Promise.all([readRouteHealth(), readAutoRouteOrigins()]);
     const family = routeFamily(host);
+    const origin = origins[family];
     const record = health[family];
+    // New automatic routes carry explicit provenance. A legacy health record
+    // can still be confirmed as a main-frame route for migration compatibility,
+    // but it never qualifies for automatic direct recovery without provenance.
+    const requiredType = origin?.requestType || record?.requiredType || "main_frame";
+    if ((!origin && !record) || requiredType !== requestType) return false;
     if (record?.confirmed) return false;
-    // The record may not exist yet: the route reaches the settings before
-    // markRouteProvisional runs, so a success in another tab can land in
-    // between. Recording it directly keeps that success instead of letting the
-    // route be created provisional a moment later as if it had never loaded.
     health[family] = record
       ? { ...record, confirmed: true, failures: 0 }
       : {
@@ -1540,7 +1671,8 @@ function confirmRoute(host) {
           confirmed: true,
           failures: 0,
           lastFailureAt: 0,
-          lastFailureTab: null
+          lastFailureTab: null,
+          requiredType: requestType
         };
     await chrome.storage.local.set({ [ROUTE_HEALTH_KEY]: health });
     return true;
@@ -1735,13 +1867,22 @@ async function learnAndRetry(details) {
   }
 
   if (isLearned(host, settings.learnedDomains)) {
-    if (details.type === "main_frame") {
+    const origin = await autoRouteOrigin(host);
+    const matchesAutomaticEvidence = origin?.requestType === details.type;
+    if (matchesAutomaticEvidence) {
+      const recoveryCandidate = registerDetectionCandidate(host, details, error);
+      if (recoveryCandidate.ready && await localGatewayAvailable() &&
+          await startAutoDirectRecovery(details, host, settings)) {
+        return;
+      }
+    }
+    if (details.type === "main_frame" || matchesAutomaticEvidence) {
       // A sick gateway is not the target failing, and a tab the extension is
       // itself reloading is the same navigation seen again.
       const blamesTarget = !settings.lastProxyError &&
         !matchingGatewayConnectionError(details) &&
         !tabRecoveryStates.has(details.tabId);
-      const counted = blamesTarget
+      const counted = blamesTarget && matchesAutomaticEvidence
         ? await recordProvisionalFailure(host, details.tabId, Date.now())
         : false;
       if (counted) await pruneUnverifiedRoutes().catch(console.error);
@@ -1794,56 +1935,20 @@ async function learnAndRetry(details) {
     return;
   }
 
-  const repeatedMainReset = details.type === "main_frame" &&
-    ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
-    candidate.count >= candidate.required;
-  const repeatedEmbeddedReset = details.type !== "main_frame" &&
-    ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error) &&
-    candidate.count >= 2;
-  const repeatedWebSocketFailure = details.type === "websocket" &&
-    error === "ERR_FAILED" &&
-    candidate.count >= candidate.required;
-  // Decided during the TLS handshake, before any HTTP is exchanged. The probe
-  // opens its own connection, possibly to a different address and certainly at
-  // a different moment, so it measures something other than the request that
-  // failed. Reported from a live log: on a profile with nothing learned, where
-  // both therefore went direct, the navigation failed and the probe succeeded
-  // against the same host seconds apart.
-  //
-  // A probe that succeeds is also evidence against what the veto was there to
-  // catch. A genuinely misconfigured server fails both; only interference
-  // fails one. The route is still provisional either way, so a wrong call is
-  // removed after a day rather than kept.
-  // A handshake or protocol failure is decided on the connection that carried
-  // the request. The probe opens its own, possibly to a different address and
-  // certainly at a different moment, so it answers a different question. The
-  // clearest case is a page whose main document returned 200 while one of its
-  // own scripts died at the protocol layer: the origin is demonstrably
-  // reachable, which is all the probe can ever report, and the route is
-  // needed anyway. A misconfigured server fails both; only interference fails
-  // one. The route stays provisional, so a wrong call is removed after a day.
-  const protocolLayerFailure = PROTOCOL_LAYER_ERRORS.has(error) &&
-    candidate.count >= candidate.required;
-  const signatureBeatsProbe = repeatedMainReset || repeatedEmbeddedReset ||
-    repeatedWebSocketFailure || protocolLayerFailure;
-  // An HTTP origin probe cannot validate a failed WebSocket handshake either.
-  // Once the bounded repeated-failure threshold is met, waiting for that
-  // unrelated probe only delays applying the route.
-  const directlyReachable = repeatedWebSocketFailure
-    ? false
-    : await directRequestResponds(details.url);
+  // A reset, generic WebSocket failure or protocol error can be caused by a
+  // short service restart just as easily as by access interference. None of
+  // those signatures may overrule a successful direct-origin check. The safe
+  // default is to leave a working direct route alone; a person can still force
+  // a manual route from the popup when the failure is application-specific.
+  const directlyReachable = await directRequestResponds(details.url);
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,
     requestType: details.type,
-    reachable: directlyReachable,
-    skippedForRepeatedWebSocket: repeatedWebSocketFailure,
-    overriddenBySignature: directlyReachable && signatureBeatsProbe
+    reachable: directlyReachable
   });
-  if (directlyReachable && !signatureBeatsProbe) {
-    const keepForRepeatedEmbeddedReset = details.type !== "main_frame" &&
-      ["ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED"].includes(error);
-    if (!keepForRepeatedEmbeddedReset) detectionCandidates.delete(candidate.key);
+  if (directlyReachable) {
+    detectionCandidates.delete(candidate.key);
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
         lastIssueType: "transient_reachable",
@@ -1864,7 +1969,8 @@ async function learnAndRetry(details) {
   // Deliberately outside commitLearnedRoute: that runs on the settings queue,
   // and a settings-queue task awaiting the health queue would close a cycle
   // with pruneUnverifiedRoutes, which holds the health queue while it saves.
-  await markRouteProvisional(host, now);
+  await markAutoRouteOrigin(host, details.type, now);
+  await markRouteProvisional(host, now, details.type);
   await appendDebug("learned", {
     tabId: details.tabId,
     host,
@@ -2043,11 +2149,6 @@ async function clearIssueAfterSuccess(details) {
   if (details.tabId < 0 || details.type !== "main_frame") return;
   const host = getRequestHost(details);
   let settings = await getSettings();
-  // A document served from cache never traversed the gateway, so it is not
-  // evidence that the route works.
-  if (host && !details.fromCache && isLearned(host, settings.learnedDomains)) {
-    await confirmRoute(host);
-  }
   if (host && isLearned(host, settings.learnedDomains) && settings.lastProxyError) {
     await chrome.storage.local.set({ lastProxyError: null });
     settings = { ...settings, lastProxyError: null };
@@ -2065,6 +2166,11 @@ async function clearIssueAfterSuccess(details) {
     settings.lastIssueDomain === host &&
     Number.isFinite(issueTime) &&
     Date.now() - issueTime < SLOW_PAGE_ISSUE_HOLD_MS;
+
+  if (directRecoveryTrials.has(details.tabId)) {
+    await setIssueBadge(settings.enabled, "direct_recovery", details.tabId);
+    return;
+  }
 
   if (recentClientFilterIssue) {
     await setIssueBadge(settings.enabled, "client_filter_blocked", details.tabId);
@@ -2158,6 +2264,7 @@ chrome.webRequest.onErrorOccurred.addListener(
       initiatorHost: details.initiator ? getRequestHost({ url: details.initiator }) : null
     });
     return enqueueHostTask(details, async () => {
+      if (await settleDirectRecoveryFailure(details)) return;
       if (await recoverTransientGatewayFailure(details)) return;
       if (details.type === "main_frame") {
         const settings = await getSettings();
@@ -2172,7 +2279,13 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 chrome.webRequest.onCompleted.addListener(
   async (details) => {
+    if (await settleDirectRecoverySuccess(details)) return;
     const routeChanged = await trackCompletedRoute(details);
+    const completedHost = getRequestHost(details);
+    if (!details.fromCache && completedHost &&
+        isLearned(completedHost, routingSnapshot.learnedDomains)) {
+      await confirmRoute(completedHost, details.type);
+    }
     if (details.type !== "main_frame") {
       if (routeChanged) return refreshTabBadge(details.tabId).catch(console.error);
       return;
@@ -2244,6 +2357,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabRoutedHosts.delete(tabId);
   tabRecoveryStates.delete(tabId);
   clientFilterCandidates.delete(tabId);
+  directRecoveryTrials.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {
     if (key.startsWith(`${tabId}:`)) {
@@ -2264,7 +2378,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "getTabContext":
         return { ok: true, ...(await getTabContext(message.tabId)) };
       case "saveSettings":
-        return { ok: true, state: await saveSettings(message.patch || {}) };
+      {
+        const patch = message.patch || {};
+        const state = await saveSettings(patch);
+        const manualDomains = normalizeDomains(patch.manualRouteDomains || []);
+        await Promise.all(manualDomains.map((host) => clearAutoRouteOrigin(host)));
+        return { ok: true, state };
+      }
       case "reapply":
         return { ok: true, result: await applyProxy(), state: await getPublicState() };
       case "checkGlobalStatus":
