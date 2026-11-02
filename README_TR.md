@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.15.0**
+Güncel sürüm: **4.16.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -77,7 +77,9 @@ Açılır pencere, üzerinde açıldığı sekmeye göre kurgulanmıştır. Tek 
 
 İki hedef listesi tek bir segment denetimini paylaşır; böylece uzun bir yönlendirme listesi yoksayılanları ekrandan itmez. Satır eylemleri kendi erişilebilir adlarını taşıyan simge düğmeleridir: eğik çizgili daire hedefi yoksayılanlara taşır, çarpı şimdilik kaldırır, ok ise yoksayılan bir hedefi geri getirir.
 
-Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: sabit geçit adresi, kurulu sürüm, yeniden uygulama ve bildirim testi eylemleri ile debug kaydı.
+Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: geçit seçimi, kurulu sürüm, kurtarma eylemleri ve debug kaydı. Paketle gelen yerel SOCKS5 geçidi varsayılan kalır; kullanıcı isterse kendi kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP veya HTTPS proxy'sini seçebilir. Seçilen proxy yine yalnız öğrenilen alan adlarında kullanılır; normal trafik doğrudan kalır.
+
+Alt bölüm kaynak depoya ve en yeni GitHub sürümüne bağlantı verir. Yerel klasörden yapılan güncellemede Chrome kısa süre eski service worker'ı tutarsa **Eklentiyi yeniden yükle** eylemi, eklentiyi kaldırmadan ve listeleri kaybetmeden yeni kodu etkinleştirir.
 
 Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim klavye odak halkası çizer, aç/kapa anahtarı erişilebilir bir ad taşır ve durum mesajları canlı bölge üzerinden duyurulur.
 
@@ -96,7 +98,7 @@ Yönetici izni yalnız Windows hizmetinin kurulması ve kaldırılması için ge
 ## Güncelleme
 
 1. Depo dosyalarını güncelleyin.
-2. `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
+2. Popup içindeki Gelişmiş bölümünden **Eklentiyi yeniden yükle** seçeneğini kullanın veya `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
 3. `helper/` içeriği değişmişse `helper/install.cmd` dosyasını yeniden çalıştırın. Kurucu, güncel hizmeti yenilemeden önce yalnız projeye ait eski ağ bileşenlerini güvenle temizler.
 
 ## Kaldırma
@@ -109,7 +111,7 @@ Kaldırıcı yalnız bu projeye ait yerel bileşenleri kaldırır; adaptör DNS 
 ## İzinler
 
 - `webRequest` ve HTTP/HTTPS/WS/WSS erişimi: desteklenen bağlantı hatalarını ve başarılı ana sayfa yanıtlarını algılamak.
-- `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
+- `proxy`: yalnız öğrenilen alan adlarına, paketle gelen yerel geçit veya kullanıcının seçtiği özel proxy üzerinden PAC yönlendirmesi uygulamak.
 - `storage`: ayarlar ile öğrenilen, yoksayılan ve isteğe bağlı teşhis kayıtlarını cihazda saklamak.
 - `activeTab`: popup açıldığında etkin sekmenin alan adını göstermek ve kullanıcı işlemini o sekmeyle ilişkilendirmek.
 - `notifications`: yeni öğrenilen hedefi ve kullanıcı tarafından başlatılan durum kontrolü sonucunu bildirmek.
@@ -119,7 +121,7 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Kullanıma açık yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. Bu portu kurulan Windows hizmeti belirler; bu yüzden açılır pencere portu değiştirilebilir bir alan olarak sunmaz, yalnızca gösterir. Aksi hâlde öğrenilmiş tüm rotalar sessizce bozulurdu. Eklentinin açıkça yönlendirdiği alan adlarında kimliği doğrulanan şifreli DNS cevabını öncelikli kullanır; şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri döner. Doğrudan IP istekleri değişmez. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS doğrulaması Chrome ile hedef arasında uçtan uca kalır ve hiçbir zaman kapatılmaz. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Normal ve yönlendirilmemiş trafik cihazın mevcut DNS'ini ve doğrudan yolunu kullanmayı sürdürür. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
+Paketle gelen yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler ve varsayılan olarak seçilidir. Uyumlu bir proxy işleten kullanıcı Gelişmiş ayarlardan kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP veya HTTPS uç noktası seçebilir; özel proxy bilgileri `chrome.storage.local` içinde kalır ve doğrudan trafik bu uç noktaya gönderilmez. Yerel yardımcının yönlendirdiği alan adlarında kimliği doğrulanan şifreli DNS cevabı önceliklidir; her sağlayıcı ayrı süre sınırıyla denenir ve biri engellendiğinde bağlantı bütçesinin tamamını tüketmeden sıradakine geçilir. Şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri dönülür. Doğrudan IP istekleri değişmez. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS doğrulaması Chrome ile hedef arasında uçtan uca kalır ve hiçbir zaman kapatılmaz. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Normal ve yönlendirilmemiş trafik cihazın mevcut DNS'ini ve doğrudan yolunu kullanmayı sürdürür. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
 - paketlenen iki ikilinin SHA-256 değerlerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;

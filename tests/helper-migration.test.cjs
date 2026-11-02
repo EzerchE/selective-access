@@ -72,6 +72,16 @@ assert.ok(
 );
 assert.match(
   gatewaySource,
+  /DohProviderTimeoutMs\s*=\s*\d+[\s\S]*?foreach\s*\(DohProvider provider[\s\S]*?CreateLinkedTokenSource\(token\)[\s\S]*?CancelAfter\(DohProviderTimeoutMs\)/,
+  "Each encrypted-DNS provider must have its own timeout so one blocked provider cannot consume the whole setup budget"
+);
+assert.match(
+  gatewaySource,
+  /cloudflare-dns\.com[\s\S]*?\/dns-query[\s\S]*?dns\.google[\s\S]*?\/resolve[\s\S]*?provider\.JsonPath/,
+  "Encrypted-DNS providers must use their own JSON endpoint instead of sharing an incompatible path"
+);
+assert.match(
+  gatewaySource,
   /IPAddress\.TryParse\(host,\s*out parsed\)[\s\S]*?TryBackendAddressesAsync\(new\[\]\s*\{\s*parsed\s*\}/i,
   "Gateway must leave literal IP requests unchanged"
 );

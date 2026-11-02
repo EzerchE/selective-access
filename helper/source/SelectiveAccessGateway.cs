@@ -19,7 +19,8 @@ internal static class SelectiveAccessGateway
     private static int ListenPort = 1080;
     private static int BackendPort = 1081;
     private const int SystemDnsTimeoutMs = 1200;
-    private const int ConnectionSetupTimeoutMs = 5000;
+    private const int DohProviderTimeoutMs = 1800;
+    private const int ConnectionSetupTimeoutMs = 7000;
     private static bool ConsoleMode;
     private static readonly CancellationTokenSource StopSource = new CancellationTokenSource();
     private static ServiceStatusHandle statusHandle;
@@ -30,15 +31,21 @@ internal static class SelectiveAccessGateway
     {
         public string Host;
         public string Address;
-        public DohProvider(string host, string address) { Host = host; Address = address; }
+        public string JsonPath;
+        public DohProvider(string host, string address, string jsonPath)
+        {
+            Host = host;
+            Address = address;
+            JsonPath = jsonPath;
+        }
     }
 
     // Fixed bootstrap addresses avoid depending on the system resolver. TLS still
     // authenticates the provider hostname. DNS transport stays separate from the
     // target DPI path so a backend strategy failure cannot deadlock resolution.
     private static readonly DohProvider[] DohProviders = {
-        new DohProvider("cloudflare-dns.com", "1.1.1.1"),
-        new DohProvider("dns.google", "8.8.8.8")
+        new DohProvider("cloudflare-dns.com", "1.1.1.1", "/dns-query"),
+        new DohProvider("dns.google", "8.8.8.8", "/resolve")
     };
 
     public static int Main(string[] args)
@@ -194,10 +201,19 @@ internal static class SelectiveAccessGateway
     private static async Task<IPAddress[]> ResolveEncryptedAsync(string host, CancellationToken token)
     {
         foreach (DohProvider provider in DohProviders) {
-            try {
-                IPAddress[] result = await ResolveDohAsync(provider, host, token).ConfigureAwait(false);
-                if (result.Length > 0) return result;
-            } catch (Exception error) { Log("doh " + provider.Host + ": " + error.Message); }
+            using (CancellationTokenSource providerSource =
+                CancellationTokenSource.CreateLinkedTokenSource(token)) {
+                providerSource.CancelAfter(DohProviderTimeoutMs);
+                try {
+                    IPAddress[] result = await ResolveDohAsync(
+                        provider,
+                        host,
+                        providerSource.Token).ConfigureAwait(false);
+                    if (result.Length > 0) return result;
+                } catch (Exception error) {
+                    Log("doh " + provider.Host + ": " + error.Message);
+                }
+            }
         }
         return new IPAddress[0];
     }
@@ -220,7 +236,7 @@ internal static class SelectiveAccessGateway
             await WithCancellation(
                 tls.AuthenticateAsClientAsync(provider.Host, null, SslProtocols.Tls12, true),
                 token).ConfigureAwait(false);
-            string path = "/dns-query?name=" + Uri.EscapeDataString(host) + "&type=A";
+            string path = provider.JsonPath + "?name=" + Uri.EscapeDataString(host) + "&type=A";
             string request = "GET " + path + " HTTP/1.1\r\nHost: " + provider.Host +
                 "\r\nAccept: application/dns-json\r\nConnection: close\r\nUser-Agent: SelectiveAccessGateway/1\r\n\r\n";
             byte[] bytes = Encoding.ASCII.GetBytes(request);

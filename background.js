@@ -2,15 +2,24 @@ function t(key, substitutions) {
   return chrome.i18n?.getMessage?.(key, substitutions) || key;
 }
 
+function reportAsyncError(error) {
+  const message = error?.message || String(error || "");
+  // Network events can finish after their tab has been closed. Chrome reports
+  // that normal race as an extension error if it reaches console.error, which
+  // makes unpacked updates look broken even though no state was lost.
+  if (/No tab with id/i.test(message)) return;
+  console.error(error);
+}
+
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 8,
+  schemaVersion: 9,
   enabled: false,
   learnedDomains: [],
   ignoredDomains: [],
   proxyHost: "127.0.0.1",
-  // The bundled Windows service listens on a fixed loopback port. A different
-  // value would silently break every learned route, so it is not configurable.
   proxyPort: 1080,
+  proxyMode: "local",
+  proxyType: "socks5",
   lastDetectedDomain: null,
   lastDetectedAt: null,
   lastProxyError: null,
@@ -434,6 +443,7 @@ function isLocalHost(host) {
 
 async function getSettings() {
   const saved = await chrome.storage.local.get(PERSISTED_DEFAULTS);
+  const proxyMode = saved.proxyMode === "custom" ? "custom" : "local";
   const ignoredDomains = normalizeDomains(saved.ignoredDomains);
   const learnedDomains = normalizeDomains(saved.learnedDomains)
     .filter((domain) => !isCovered(domain, ignoredDomains));
@@ -445,8 +455,14 @@ async function getSettings() {
     debugEnabled: Boolean(saved.debugEnabled),
     learnedDomains,
     ignoredDomains,
-    proxyHost: DEFAULT_SETTINGS.proxyHost,
-    proxyPort: DEFAULT_SETTINGS.proxyPort
+    proxyMode,
+    proxyType: proxyMode === "custom" ? normalizeProxyType(saved.proxyType) : DEFAULT_SETTINGS.proxyType,
+    proxyHost: proxyMode === "custom"
+      ? normalizeProxyHost(saved.proxyHost) || DEFAULT_SETTINGS.proxyHost
+      : DEFAULT_SETTINGS.proxyHost,
+    proxyPort: proxyMode === "custom"
+      ? normalizeProxyPort(saved.proxyPort) || DEFAULT_SETTINGS.proxyPort
+      : DEFAULT_SETTINGS.proxyPort
   };
   routingSnapshot = {
     enabled: settings.enabled,
@@ -455,13 +471,41 @@ async function getSettings() {
   return settings;
 }
 
+const PROXY_DIRECTIVES = Object.freeze({
+  socks5: "SOCKS5",
+  socks4: "SOCKS",
+  http: "PROXY",
+  https: "HTTPS"
+});
+
+function normalizeProxyType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  return Object.hasOwn(PROXY_DIRECTIVES, type) ? type : DEFAULT_SETTINGS.proxyType;
+}
+
+function normalizeProxyHost(value) {
+  const host = String(value || "").trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host.length > 253 || /[\s/\\?#@]/.test(host)) return null;
+  if (host.includes(":")) return /^[0-9a-f:.]+$/i.test(host) ? host : null;
+  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(host)
+    ? host
+    : null;
+}
+
+function normalizeProxyPort(value) {
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
+}
+
 routingSnapshotReady = getSettings().catch((error) => {
   console.debug("Otomatik Erişim ayarları hazırlanamadı", error);
 });
 
 function buildPacScript(settings) {
   const learnedDomains = JSON.stringify(settings.learnedDomains);
-  const proxy = `SOCKS5 ${settings.proxyHost}:${settings.proxyPort}`;
+  const directive = PROXY_DIRECTIVES[settings.proxyType] || PROXY_DIRECTIVES.socks5;
+  const proxyHost = settings.proxyHost.includes(":") ? `[${settings.proxyHost}]` : settings.proxyHost;
+  const proxy = `${directive} ${proxyHost}:${settings.proxyPort}`;
 
   return `
 function FindProxyForURL(url, host) {
@@ -532,9 +576,22 @@ const BADGE_STATES = Object.freeze({
 
 async function setConnectionBadge(stateName, tabId = null) {
   const state = BADGE_STATES[stateName] || BADGE_STATES.direct;
-  await chrome.action.setBadgeText(actionTarget(tabId, { text: state.text }));
-  await chrome.action.setBadgeBackgroundColor(actionTarget(tabId, { color: state.color }));
-  await chrome.action.setTitle(actionTarget(tabId, { title: t(state.titleKey) }));
+  try {
+    await chrome.action.setBadgeText(actionTarget(tabId, { text: state.text }));
+    await chrome.action.setBadgeBackgroundColor(actionTarget(tabId, { color: state.color }));
+    await chrome.action.setTitle(actionTarget(tabId, { title: t(state.titleKey) }));
+  } catch (error) {
+    if (!Number.isInteger(tabId) || !/No tab with id/i.test(error?.message || "")) throw error;
+    // A request can finish after its tab closes. Remove every tab-scoped trace
+    // and treat the late badge update as a normal lifecycle race, not an
+    // extension error that forces the user to reinstall after an update.
+    tabMainHosts.delete(tabId);
+    tabIssues.delete(tabId);
+    tabConnectionResults.delete(tabId);
+    tabRoutedHosts.delete(tabId);
+    return false;
+  }
+  return true;
 }
 
 function connectionStateForTab(settings, tabId) {
@@ -605,7 +662,7 @@ function startSlowLoadWatchdog(tabId, url) {
 
   const startedAt = Date.now();
   const timer = setTimeout(() => {
-    reportSlowPage(tabId, host, startedAt).catch(console.error);
+    reportSlowPage(tabId, host, startedAt).catch(reportAsyncError);
   }, SLOW_PAGE_THRESHOLD_MS);
   if (typeof timer?.unref === "function") timer.unref();
   slowLoadWatchdogs.set(tabId, { host, startedAt, timer });
@@ -704,7 +761,14 @@ async function refreshTabBadge(tabId) {
     try {
       const tab = await chrome.tabs.get(tabId);
       updateTabMainHost(tabId, firstHttpUrl(tab?.pendingUrl, tab?.url));
-    } catch {}
+    } catch (error) {
+      if (!/No tab with id/i.test(error?.message || "")) throw error;
+      tabMainHosts.delete(tabId);
+      tabIssues.delete(tabId);
+      tabConnectionResults.delete(tabId);
+      tabRoutedHosts.delete(tabId);
+      return;
+    }
   }
   const issueType = tabIssues.get(tabId);
   const settings = await getSettings();
@@ -752,11 +816,25 @@ async function saveSettingsUnlocked(patch) {
     ? current.learnedDomains
     : normalizeDomains(patch.learnedDomains))
     .filter((domain) => !isCovered(domain, ignoredDomains));
-  // Only these four fields are settable from a patch. Every other stored value
+  // Only the explicitly listed fields are settable from a patch. Every other stored value
   // is carried over from the current settings or fixed, so a caller cannot write
   // a key it does not own -- the debug log above all, which belongs to the
   // batching queue. A new setting has to be added here deliberately; the tests
   // assert this object's key set against PERSISTED_DEFAULTS.
+  const requestedProxyMode = patch.proxyMode === undefined ? current.proxyMode : patch.proxyMode;
+  const proxyMode = requestedProxyMode === "custom" ? "custom" : "local";
+  const requestedProxyType = patch.proxyType === undefined ? current.proxyType : patch.proxyType;
+  const requestedProxyHost = patch.proxyHost === undefined ? current.proxyHost : patch.proxyHost;
+  const requestedProxyPort = patch.proxyPort === undefined ? current.proxyPort : patch.proxyPort;
+  const proxyType = proxyMode === "local" ? DEFAULT_SETTINGS.proxyType : normalizeProxyType(requestedProxyType);
+  const proxyHost = proxyMode === "local"
+    ? DEFAULT_SETTINGS.proxyHost
+    : normalizeProxyHost(requestedProxyHost);
+  const proxyPort = proxyMode === "local"
+    ? DEFAULT_SETTINGS.proxyPort
+    : normalizeProxyPort(requestedProxyPort);
+  if (!proxyHost || !proxyPort) throw new Error(t("invalidProxySettings"));
+
   const next = {
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     enabled: patch.enabled === undefined ? current.enabled : Boolean(patch.enabled),
@@ -765,8 +843,10 @@ async function saveSettingsUnlocked(patch) {
       : Boolean(patch.debugEnabled),
     learnedDomains,
     ignoredDomains,
-    proxyHost: DEFAULT_SETTINGS.proxyHost,
-    proxyPort: DEFAULT_SETTINGS.proxyPort,
+    proxyMode,
+    proxyType,
+    proxyHost,
+    proxyPort,
     lastDetectedDomain: current.lastDetectedDomain && isCovered(current.lastDetectedDomain, ignoredDomains)
       ? null
       : current.lastDetectedDomain,
@@ -848,6 +928,14 @@ async function localGatewayAvailable() {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function selectedProxyAvailable(settings) {
+  // Chrome exposes connection failure but not a safe generic health endpoint
+  // for an arbitrary user-supplied proxy. Treat it as configured and use the
+  // bounded direct-recovery path; only the bundled loopback helper has a health
+  // URL and startup retry contract.
+  return settings.proxyMode === "custom" ? true : localGatewayAvailable();
 }
 
 function registerDetectionCandidate(host, details, error) {
@@ -959,7 +1047,7 @@ function enqueueHostTask(details, task) {
   const current = previous
     .catch(() => {})
     .then(task)
-    .catch(console.error)
+    .catch(reportAsyncError)
     .finally(() => {
       if (learningQueues.get(host) === current) learningQueues.delete(host);
     });
@@ -1164,7 +1252,7 @@ async function recoverTransientGatewayFailure(details) {
 
   const settings = await getSettings();
   if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
-  const gatewayAvailable = await localGatewayAvailable();
+  const gatewayAvailable = await selectedProxyAvailable(settings);
   const directRecovery = gatewayAvailable
     ? await startAutoDirectRecovery(details, host, settings)
     : false;
@@ -1307,7 +1395,7 @@ function notifyLearnedDomain(domain) {
   pendingLearnedNotifications.add(domain);
   if (learnedNotificationTimer) clearTimeout(learnedNotificationTimer);
   learnedNotificationTimer = setTimeout(() => {
-    flushLearnedNotifications().catch(console.error);
+    flushLearnedNotifications().catch(reportAsyncError);
   }, 2_000);
   return Promise.resolve({ ok: true, scheduled: true });
 }
@@ -1744,7 +1832,7 @@ function pruneUnverifiedRoutes(now = Date.now()) {
     // entirely from what this browser already observed. The notice counts
     // families rather than stored entries, because www and the apex are one site
     // to the person reading it even though two entries were removed.
-    if (removed.length > 0) await notifyUnverifiedRemoval([...doomed]).catch(console.error);
+    if (removed.length > 0) await notifyUnverifiedRemoval([...doomed]).catch(reportAsyncError);
     return removed;
   });
 }
@@ -1871,7 +1959,7 @@ async function learnAndRetry(details) {
     const matchesAutomaticEvidence = origin?.requestType === details.type;
     if (matchesAutomaticEvidence) {
       const recoveryCandidate = registerDetectionCandidate(host, details, error);
-      if (recoveryCandidate.ready && await localGatewayAvailable() &&
+      if (recoveryCandidate.ready && await selectedProxyAvailable(settings) &&
           await startAutoDirectRecovery(details, host, settings)) {
         return;
       }
@@ -1885,7 +1973,7 @@ async function learnAndRetry(details) {
       const counted = blamesTarget && matchesAutomaticEvidence
         ? await recordProvisionalFailure(host, details.tabId, Date.now())
         : false;
-      if (counted) await pruneUnverifiedRoutes().catch(console.error);
+      if (counted) await pruneUnverifiedRoutes().catch(reportAsyncError);
       await appendDebug("learned-route-failed", {
         tabId: details.tabId,
         host,
@@ -1981,7 +2069,7 @@ async function learnAndRetry(details) {
   });
   if (!applied.ok) return;
   await setConnectionBadge("learned", details.tabId);
-  await notifyLearnedDomain(host).catch(console.error);
+  await notifyLearnedDomain(host).catch(reportAsyncError);
   retryLearnedIframe(details, host);
   scheduleInitiatorIframeRetry(details, learnedDomains);
 
@@ -2130,7 +2218,7 @@ async function checkGlobalStatus(value, tabId = null) {
       });
     }
     await setIssueBadge(settings.enabled, "globally_down", tabId);
-    await notifyLikelyGlobalOutage(domain).catch(console.error);
+    await notifyLikelyGlobalOutage(domain).catch(reportAsyncError);
   } else {
     if (settings.lastIssueDomain === domain) {
       await chrome.storage.local.set({
@@ -2204,8 +2292,10 @@ async function initialize() {
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
       enabled: Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
-      proxyHost: DEFAULT_SETTINGS.proxyHost,
-      proxyPort: DEFAULT_SETTINGS.proxyPort,
+      proxyMode: existing.proxyMode === "custom" ? "custom" : "local",
+      proxyType: normalizeProxyType(existing.proxyType),
+      proxyHost: normalizeProxyHost(existing.proxyHost) || DEFAULT_SETTINGS.proxyHost,
+      proxyPort: normalizeProxyPort(existing.proxyPort) || DEFAULT_SETTINGS.proxyPort,
       lastDetectedDomain: existing.lastDetectedDomain || null,
       lastDetectedAt: existing.lastDetectedAt || null,
       lastProxyError: null,
@@ -2225,12 +2315,31 @@ async function initialize() {
   await applyProxy();
 }
 
-chrome.runtime.onInstalled.addListener(() => initialize().catch(console.error));
+let initializationPromise = null;
+function ensureInitialized() {
+  if (!initializationPromise) {
+    initializationPromise = initialize().catch(async (error) => {
+      initializationPromise = null;
+      const message = error?.message || String(error);
+      try { await chrome.storage.local.set({ lastProxyError: message }); } catch {}
+      console.error("Automatic Access initialization failed", error);
+      throw error;
+    });
+  }
+  return initializationPromise;
+}
+
+// Run migration on every worker generation, not only in the short onInstalled
+// event. This avoids a mixed popup/worker version leaving an unpacked update in
+// Chrome's Errors state until the extension is removed and installed again.
+ensureInitialized().catch(() => {});
+
+chrome.runtime.onInstalled.addListener(() => ensureInitialized().catch(() => {}));
 
 chrome.runtime.onStartup.addListener(() => {
-  applyProxy()
+  ensureInitialized()
     .then(() => pruneUnverifiedRoutes())
-    .catch(console.error);
+    .catch(() => {});
 });
 
 chrome.proxy.onProxyError.addListener(async (details) => {
@@ -2287,7 +2396,7 @@ chrome.webRequest.onCompleted.addListener(
       await confirmRoute(completedHost, details.type);
     }
     if (details.type !== "main_frame") {
-      if (routeChanged) return refreshTabBadge(details.tabId).catch(console.error);
+      if (routeChanged) return refreshTabBadge(details.tabId).catch(reportAsyncError);
       return;
     }
     updateTabMainHost(details.tabId, details.url);
@@ -2308,7 +2417,7 @@ chrome.webRequest.onCompleted.addListener(
       statusCode: details.statusCode || null,
       fromCache: Boolean(details.fromCache)
     });
-    const clearIssue = clearIssueAfterSuccess(details).catch(console.error);
+    const clearIssue = clearIssueAfterSuccess(details).catch(reportAsyncError);
     return Promise.all([debugWrite, clearIssue]);
   },
   { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
@@ -2323,13 +2432,13 @@ chrome.webRequest.onBeforeRequest.addListener(
     updateTabMainHost(details.tabId, details.url);
     markTabLoading(details.tabId);
     trackMainNavigation(details);
-    return clearTabIssue(details.tabId).catch(console.error);
+    return clearTabIssue(details.tabId).catch(reportAsyncError);
   },
   { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
 );
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
-  refreshTabBadge(tabId).catch(console.error);
+  refreshTabBadge(tabId).catch(reportAsyncError);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -2345,7 +2454,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     cancelSlowLoadWatchdog(tabId);
   }
   if (!url && !changeInfo?.status) return;
-  refreshTabBadge(tabId).catch(console.error);
+  refreshTabBadge(tabId).catch(reportAsyncError);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -2372,6 +2481,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
+    await ensureInitialized();
     switch (message?.type) {
       case "getState":
         return { ok: true, state: await getPublicState() };

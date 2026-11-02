@@ -374,5 +374,19 @@
   "versionLabel": {
     "message": "Version",
     "description": "Label for the installed extension version."
-  }
+  },
+  "proxySettings": { "message": "Proxy settings" },
+  "proxyModeLabel": { "message": "Connection" },
+  "proxyModeLocal": { "message": "Bundled local gateway" },
+  "proxyModeCustom": { "message": "Custom proxy" },
+  "proxyTypeLabel": { "message": "Type" },
+  "proxyHostLabel": { "message": "Server" },
+  "proxyPortLabel": { "message": "Port" },
+  "proxyPrivacy": { "message": "Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials." },
+  "saveProxy": { "message": "Save proxy" },
+  "invalidProxySettings": { "message": "Enter a valid proxy server and a port from 1 to 65535." },
+  "reloadExtension": { "message": "Reload extension" },
+  "projectLinks": { "message": "Project links" },
+  "sourceCode": { "message": "GitHub" },
+  "checkUpdates": { "message": "Check updates" }
 }

@@ -12,6 +12,12 @@ const elements = {
   ignoredList: document.querySelector("#ignoredList"),
   ignoredCount: document.querySelector("#ignoredCount"),
   proxyPort: document.querySelector("#proxyPort"),
+  proxyMode: document.querySelector("#proxyMode"),
+  proxyType: document.querySelector("#proxyType"),
+  proxyHost: document.querySelector("#proxyHost"),
+  proxyPortInput: document.querySelector("#proxyPortInput"),
+  customProxyFields: document.querySelector("#customProxyFields"),
+  saveProxy: document.querySelector("#saveProxy"),
   notice: document.querySelector("#notice"),
   retry: document.querySelector("#retry"),
   appVersion: document.querySelector("#appVersion"),
@@ -21,6 +27,7 @@ const elements = {
   checkStatus: document.querySelector("#checkStatus"),
   diagnosticPrivacy: document.querySelector("#diagnosticPrivacy"),
   testNotification: document.querySelector("#testNotification"),
+  reloadExtension: document.querySelector("#reloadExtension"),
   debugEnabled: document.querySelector("#debugEnabled"),
   debugControls: document.querySelector("#debugControls"),
   debugLog: document.querySelector("#debugLog"),
@@ -28,7 +35,7 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
-const EXPECTED_SCHEMA_VERSION = 8;
+const EXPECTED_SCHEMA_VERSION = 9;
 
 let currentHost = null;
 let currentTabId = null;
@@ -202,6 +209,11 @@ function render(state) {
   renderIgnoredList();
   setActiveList(activeList);
   elements.proxyPort.textContent = `${state.proxyHost || "127.0.0.1"}:${state.proxyPort}`;
+  elements.proxyMode.value = state.proxyMode === "custom" ? "custom" : "local";
+  elements.proxyType.value = state.proxyType || "socks5";
+  elements.proxyHost.value = state.proxyHost || "127.0.0.1";
+  elements.proxyPortInput.value = String(state.proxyPort || 1080);
+  elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
   elements.debugEnabled.checked = Boolean(state.debugEnabled);
   elements.debugControls.hidden = !state.debugEnabled;
   elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
@@ -413,6 +425,25 @@ elements.enabled.addEventListener("change", () => {
   save({ enabled: elements.enabled.checked });
 });
 
+elements.proxyMode.addEventListener("change", () => {
+  elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
+  if (elements.proxyMode.value === "custom" && elements.proxyHost.value === "127.0.0.1") {
+    elements.proxyHost.value = "";
+  }
+});
+
+elements.saveProxy.addEventListener("click", () => {
+  const custom = elements.proxyMode.value === "custom";
+  save({
+    proxyMode: custom ? "custom" : "local",
+    proxyType: custom ? elements.proxyType.value : "socks5",
+    proxyHost: custom ? elements.proxyHost.value : "127.0.0.1",
+    proxyPort: custom ? Number(elements.proxyPortInput.value) : 1080
+  });
+});
+
+elements.reloadExtension.addEventListener("click", () => chrome.runtime.reload());
+
 // The background learns targets on its own while the popup is open, and the
 // popup used to show whatever it read when it opened. These are the stored keys
 // that change what it renders; debugLog is left out because it is written in
@@ -427,7 +458,11 @@ const LIVE_KEYS = [
   "lastIssueDomain",
   "lastGlobalCheck",
   "lastNotificationStatus",
-  "debugEnabled"
+  "debugEnabled",
+  "proxyMode",
+  "proxyType",
+  "proxyHost",
+  "proxyPort"
 ];
 
 chrome.storage?.onChanged?.addListener((changes, areaName) => {

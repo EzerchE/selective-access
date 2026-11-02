@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.15.0**
+Current version: **4.16.0**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -77,7 +77,9 @@ The popup is built around the tab it was opened over. One card names that host, 
 
 Both target lists share one segmented control, so a long routed list never pushes the ignored list off screen. Row actions are icon buttons that carry their own accessible names: the slashed circle moves a target to the ignored list, the cross removes it for now, and the arrow restores an ignored target.
 
-Everything outside that daily loop sits in a single collapsed **Advanced** section: the fixed gateway address, the installed version, the reapply and test-notification actions, and debug logging.
+Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. The bundled local SOCKS5 gateway remains the default, while users may select their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy is still used only for learned hostnames; normal traffic remains direct.
+
+The footer links to the source repository and latest GitHub release. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
 
 The popup follows the browser light or dark theme. Every control draws a keyboard focus ring, the on/off switch carries an accessible name, and status messages are announced through a live region.
 
@@ -96,7 +98,7 @@ Administrator permission is required only to install or remove the Windows servi
 ## Updating
 
 1. Update the repository files.
-2. Select the reload icon on the extension card at `chrome://extensions`.
+2. Select **Reload extension** in the popup's Advanced section, or use the reload icon on the extension card at `chrome://extensions`.
 3. If the contents of `helper/` changed, run `helper/install.cmd` again as administrator. The installer safely removes obsolete project-owned network components before updating the current service.
 
 ## Uninstalling
@@ -109,7 +111,7 @@ The uninstaller removes only this project's local components. It does not change
 ## Permissions
 
 - `webRequest` and HTTP/HTTPS/WS/WSS access: detect supported connection errors and successful main-page responses.
-- `proxy`: apply local PAC/SOCKS5 routing only to learned domains.
+- `proxy`: apply PAC routing only to learned domains, using either the bundled local gateway or the user-selected custom proxy.
 - `storage`: keep settings, learned and ignored domains, and optional diagnostic records on the device.
 - `activeTab`: show the active tab's domain and associate user actions with that tab.
 - `notifications`: report newly learned targets and user-requested status-check results.
@@ -119,7 +121,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The public local gateway listens only on `127.0.0.1:1080`. That port is fixed by the installed Windows service, so the popup reports it instead of offering an edit that would silently break every learned route. For hostnames explicitly routed by the extension, it prefers an authenticated encrypted-DNS answer and falls back to the existing system resolver only when encrypted resolution produces no usable address. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The bundled local gateway listens only on `127.0.0.1:1080` and remains the default. Users who already operate a compatible proxy may instead select an unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS endpoint in Advanced settings; custom proxy details stay in `chrome.storage.local`, and the extension never sends direct traffic through that endpoint. For hostnames explicitly routed through the bundled helper, it prefers an authenticated encrypted-DNS answer and falls back to the next provider within a per-provider deadline, then to the existing system resolver only when encrypted resolution produces no usable address. A blocked provider therefore cannot consume the entire connection budget. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
