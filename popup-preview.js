@@ -53,7 +53,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
   })();
 
   let previewState = {
-    schemaVersion: 9,
+    schemaVersion: 10,
     enabled: true,
     learnedDomains: [],
     ignoredDomains: [],

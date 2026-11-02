@@ -35,7 +35,7 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
-const EXPECTED_SCHEMA_VERSION = 9;
+const EXPECTED_SCHEMA_VERSION = 10;
 
 let currentHost = null;
 let currentTabId = null;
@@ -171,6 +171,9 @@ function describeTab(state, { versionMismatch, hasControlError, hasGatewayError,
   if (versionMismatch) {
     return { tone: "is-error", title: t("reloadRequired"), detail: t("reloadInstruction") };
   }
+  if (state.proxyMode === "unset") {
+    return { tone: "is-error", title: t("proxySetupRequired"), detail: t("proxySetupRequiredDetail") };
+  }
   if (hasControlError) {
     return { tone: "is-error", title: t("gatewayUnavailable"), detail: t("proxyControlled") };
   }
@@ -203,13 +206,14 @@ function render(state) {
   protocolReady = !versionMismatch;
   elements.enabled.checked = state.enabled;
   elements.enabled.disabled = versionMismatch;
-  elements.siteAction.disabled = versionMismatch || !currentHost;
+  const proxyConfigured = state.proxyMode !== "unset";
+  elements.siteAction.disabled = versionMismatch || !proxyConfigured || !currentHost;
   elements.retry.disabled = versionMismatch;
   renderDomainList();
   renderIgnoredList();
   setActiveList(activeList);
   elements.proxyPort.textContent = `${state.proxyHost || "127.0.0.1"}:${state.proxyPort}`;
-  elements.proxyMode.value = state.proxyMode === "custom" ? "custom" : "local";
+  elements.proxyMode.value = ["local", "custom"].includes(state.proxyMode) ? state.proxyMode : "unset";
   elements.proxyType.value = state.proxyType || "socks5";
   elements.proxyHost.value = state.proxyHost || "127.0.0.1";
   elements.proxyPortInput.value = String(state.proxyPort || 1080);
@@ -243,6 +247,7 @@ function render(state) {
   }
 
   updateSiteAction();
+  elements.siteAction.disabled = !proxyConfigured || !currentHost;
   renderDiagnostic(state);
   if (["denied", "failed"].includes(state.lastNotificationStatus)) {
     showNotice(
@@ -373,7 +378,7 @@ async function loadCurrentTab() {
 
 function setBusy(busy) {
   saving = busy;
-  elements.siteAction.disabled = busy || !protocolReady || !currentHost;
+  elements.siteAction.disabled = busy || !protocolReady || currentState?.proxyMode === "unset" || !currentHost;
   elements.retry.disabled = busy || !protocolReady;
   elements.enabled.disabled = busy || !protocolReady;
 }
@@ -433,6 +438,10 @@ elements.proxyMode.addEventListener("change", () => {
 });
 
 elements.saveProxy.addEventListener("click", () => {
+  if (elements.proxyMode.value === "unset") {
+    showNotice(t("proxyChoiceRequired"), true);
+    return;
+  }
   const custom = elements.proxyMode.value === "custom";
   save({
     proxyMode: custom ? "custom" : "local",
@@ -599,6 +608,7 @@ const previewMode = new URLSearchParams(location.search).get("preview");
       ? {
           schemaVersion: EXPECTED_SCHEMA_VERSION - 1,
           enabled: false,
+          proxyMode: "local",
           domains: ["legacy-target.example"],
           proxyPort: 1080,
           lastProxyError: null,
@@ -607,6 +617,7 @@ const previewMode = new URLSearchParams(location.search).get("preview");
       : {
           schemaVersion: EXPECTED_SCHEMA_VERSION,
           enabled: true,
+          proxyMode: "local",
           learnedDomains: [],
           ignoredDomains: [],
           lastDetectedDomain: null,

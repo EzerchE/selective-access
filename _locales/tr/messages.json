@@ -377,6 +377,7 @@
   },
   "proxySettings": { "message": "Proxy ayarları" },
   "proxyModeLabel": { "message": "Bağlantı" },
+  "proxyModeUnset": { "message": "Bir proxy seçin..." },
   "proxyModeLocal": { "message": "Paketle gelen yerel geçit" },
   "proxyModeCustom": { "message": "Özel proxy" },
   "proxyTypeLabel": { "message": "Tür" },
@@ -388,5 +389,9 @@
   "reloadExtension": { "message": "Eklentiyi yeniden yükle" },
   "projectLinks": { "message": "Proje bağlantıları" },
   "sourceCode": { "message": "GitHub" },
-  "checkUpdates": { "message": "Güncellemeleri kontrol et" }
+  "checkUpdates": { "message": "Güncellemeleri kontrol et" },
+  "proxySetupRequired": { "message": "Proxy kurulumu gerekli" },
+  "proxySetupRequiredDetail": { "message": "Otomatik Erişim açık, ancak kendi proxy'nizi seçene veya paketle gelen yerel geçidi kurup seçene kadar yönlendirme etkinleşmez." },
+  "proxyChoiceRequired": { "message": "Önce paketle gelen yerel geçidi veya özel bir proxy seçin." },
+  "installGateway": { "message": "Paketle gelen geçidi GitHub'dan kur" }
 }

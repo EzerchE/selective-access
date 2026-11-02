@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
 
-Current version: **4.16.0**
+Current version: **4.16.1**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
 
@@ -77,7 +77,9 @@ The popup is built around the tab it was opened over. One card names that host, 
 
 Both target lists share one segmented control, so a long routed list never pushes the ignored list off screen. Row actions are icon buttons that carry their own accessible names: the slashed circle moves a target to the ignored list, the cross removes it for now, and the arrow restores an ignored target.
 
-Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. The bundled local SOCKS5 gateway remains the default, while users may select their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy is still used only for learned hostnames; normal traffic remains direct.
+Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. Users may select the project's bundled local SOCKS5 gateway or their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy is still used only for learned hostnames; normal traffic remains direct.
+
+On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. The popup explains this requirement and links directly to the simple GitHub gateway installation instructions.
 
 The footer links to the source repository and latest GitHub release. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
 

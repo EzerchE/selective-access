@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız bu alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.16.0**
+Güncel sürüm: **4.16.1**
 
 <img src="assets/screenshots/popup-v4-12-en.png" alt="Otomatik Erişim açılır penceresinin açık ve koyu teması" width="620">
 
@@ -77,7 +77,9 @@ Açılır pencere, üzerinde açıldığı sekmeye göre kurgulanmıştır. Tek 
 
 İki hedef listesi tek bir segment denetimini paylaşır; böylece uzun bir yönlendirme listesi yoksayılanları ekrandan itmez. Satır eylemleri kendi erişilebilir adlarını taşıyan simge düğmeleridir: eğik çizgili daire hedefi yoksayılanlara taşır, çarpı şimdilik kaldırır, ok ise yoksayılan bir hedefi geri getirir.
 
-Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: geçit seçimi, kurulu sürüm, kurtarma eylemleri ve debug kaydı. Paketle gelen yerel SOCKS5 geçidi varsayılan kalır; kullanıcı isterse kendi kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP veya HTTPS proxy'sini seçebilir. Seçilen proxy yine yalnız öğrenilen alan adlarında kullanılır; normal trafik doğrudan kalır.
+Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: geçit seçimi, kurulu sürüm, kurtarma eylemleri ve debug kaydı. Kullanıcı projenin paketle gelen yerel SOCKS5 geçidini veya kendi kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP ya da HTTPS proxy'sini seçebilir. Seçilen proxy yine yalnız öğrenilen alan adlarında kullanılır; normal trafik doğrudan kalır.
+
+Yeni kurulumda eklenti anahtarı açık gelir; ancak kullanıcı paketle gelen yerel geçidi veya özel bir proxy'yi açıkça seçene kadar yönlendirme ve otomatik öğrenme güvenli biçimde bekler. Popup bu gerekliliği açıklar ve GitHub'daki basit geçit kurulumuna doğrudan bağlantı verir.
 
 Alt bölüm kaynak depoya ve en yeni GitHub sürümüne bağlantı verir. Yerel klasörden yapılan güncellemede Chrome kısa süre eski service worker'ı tutarsa **Eklentiyi yeniden yükle** eylemi, eklentiyi kaldırmadan ve listeleri kaybetmeden yeni kodu etkinleştirir.
 
