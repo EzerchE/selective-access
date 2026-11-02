@@ -12,13 +12,13 @@ function reportAsyncError(error) {
 }
 
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 9,
-  enabled: false,
+  schemaVersion: 10,
+  enabled: true,
   learnedDomains: [],
   ignoredDomains: [],
   proxyHost: "127.0.0.1",
   proxyPort: 1080,
-  proxyMode: "local",
+  proxyMode: "unset",
   proxyType: "socks5",
   lastDetectedDomain: null,
   lastDetectedAt: null,
@@ -443,7 +443,7 @@ function isLocalHost(host) {
 
 async function getSettings() {
   const saved = await chrome.storage.local.get(PERSISTED_DEFAULTS);
-  const proxyMode = saved.proxyMode === "custom" ? "custom" : "local";
+  const proxyMode = normalizeProxyMode(saved.proxyMode);
   const ignoredDomains = normalizeDomains(saved.ignoredDomains);
   const learnedDomains = normalizeDomains(saved.learnedDomains)
     .filter((domain) => !isCovered(domain, ignoredDomains));
@@ -481,6 +481,14 @@ const PROXY_DIRECTIVES = Object.freeze({
 function normalizeProxyType(value) {
   const type = String(value || "").trim().toLowerCase();
   return Object.hasOwn(PROXY_DIRECTIVES, type) ? type : DEFAULT_SETTINGS.proxyType;
+}
+
+function normalizeProxyMode(value) {
+  return ["local", "custom"].includes(value) ? value : "unset";
+}
+
+function hasConfiguredProxy(settings) {
+  return ["local", "custom"].includes(settings.proxyMode);
 }
 
 function normalizeProxyHost(value) {
@@ -779,7 +787,7 @@ async function refreshTabBadge(tabId) {
 async function applyProxy() {
   const settings = await getSettings();
 
-  if (!settings.enabled || settings.learnedDomains.length === 0) {
+  if (!settings.enabled || !hasConfiguredProxy(settings) || settings.learnedDomains.length === 0) {
     await chrome.proxy.settings.clear({ scope: "regular" });
     await refreshTrackedBadges(settings);
     return { ok: true, enabled: settings.enabled };
@@ -822,15 +830,15 @@ async function saveSettingsUnlocked(patch) {
   // batching queue. A new setting has to be added here deliberately; the tests
   // assert this object's key set against PERSISTED_DEFAULTS.
   const requestedProxyMode = patch.proxyMode === undefined ? current.proxyMode : patch.proxyMode;
-  const proxyMode = requestedProxyMode === "custom" ? "custom" : "local";
+  const proxyMode = normalizeProxyMode(requestedProxyMode);
   const requestedProxyType = patch.proxyType === undefined ? current.proxyType : patch.proxyType;
   const requestedProxyHost = patch.proxyHost === undefined ? current.proxyHost : patch.proxyHost;
   const requestedProxyPort = patch.proxyPort === undefined ? current.proxyPort : patch.proxyPort;
-  const proxyType = proxyMode === "local" ? DEFAULT_SETTINGS.proxyType : normalizeProxyType(requestedProxyType);
-  const proxyHost = proxyMode === "local"
+  const proxyType = proxyMode !== "custom" ? DEFAULT_SETTINGS.proxyType : normalizeProxyType(requestedProxyType);
+  const proxyHost = proxyMode !== "custom"
     ? DEFAULT_SETTINGS.proxyHost
     : normalizeProxyHost(requestedProxyHost);
-  const proxyPort = proxyMode === "local"
+  const proxyPort = proxyMode !== "custom"
     ? DEFAULT_SETTINGS.proxyPort
     : normalizeProxyPort(requestedProxyPort);
   if (!proxyHost || !proxyPort) throw new Error(t("invalidProxySettings"));
@@ -1877,7 +1885,7 @@ function commitLearnedRoute(host, details, error) {
 // and the popup explained nothing, which reads as the extension having no
 // opinion. Naming the failure hands the choice back to the person.
 async function reportGenericMainFrameFailure(details, settings) {
-  if (!settings.enabled) return false;
+  if (!settings.enabled || !hasConfiguredProxy(settings)) return false;
   if (matchingError(details, RETRYABLE_ERRORS) !== "ERR_FAILED") return false;
   const host = getRequestHost(details);
   if (!host || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return false;
@@ -1900,7 +1908,7 @@ async function learnAndRetry(details) {
   // and after a worker restart they live in session storage until this settles.
   await sessionReady;
   const settings = await getSettings();
-  if (!settings.enabled) return;
+  if (!settings.enabled || !hasConfiguredProxy(settings)) return;
 
   const host = getRequestHost(details);
   const error = matchingError(details, RETRYABLE_ERRORS);
@@ -2284,15 +2292,18 @@ async function clearIssueAfterSuccess(details) {
 
 async function initialize() {
   const existing = await chrome.storage.local.get(null);
+  const freshInstall = !Object.hasOwn(existing, "schemaVersion");
   debugEnabledCache = Boolean(existing.debugEnabled);
   if (existing.schemaVersion !== DEFAULT_SETTINGS.schemaVersion) {
     await chrome.storage.local.set({
       schemaVersion: DEFAULT_SETTINGS.schemaVersion,
       learnedDomains: normalizeDomains(existing.learnedDomains),
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
-      enabled: Boolean(existing.enabled),
+      enabled: freshInstall ? true : Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
-      proxyMode: existing.proxyMode === "custom" ? "custom" : "local",
+      proxyMode: freshInstall ? "unset" : normalizeProxyMode(existing.proxyMode) === "unset"
+        ? "local"
+        : normalizeProxyMode(existing.proxyMode),
       proxyType: normalizeProxyType(existing.proxyType),
       proxyHost: normalizeProxyHost(existing.proxyHost) || DEFAULT_SETTINGS.proxyHost,
       proxyPort: normalizeProxyPort(existing.proxyPort) || DEFAULT_SETTINGS.proxyPort,

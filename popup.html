@@ -72,6 +72,7 @@
           <label class="field">
             <span data-i18n="proxyModeLabel">Connection</span>
             <select id="proxyMode">
+              <option value="unset" data-i18n="proxyModeUnset">Choose a proxy…</option>
               <option value="local" data-i18n="proxyModeLocal">Bundled local gateway</option>
               <option value="custom" data-i18n="proxyModeCustom">Custom proxy</option>
             </select>
@@ -96,6 +97,7 @@
             </label>
           </div>
           <p class="fineprint" data-i18n="proxyPrivacy">Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials.</p>
+          <a class="setup-link" href="https://github.com/EzerchE/selective-access#installation" target="_blank" rel="noopener noreferrer" data-i18n="installGateway">Install the bundled gateway from GitHub</a>
           <button id="saveProxy" class="btn quiet" type="button" data-i18n="saveProxy">Save proxy</button>
         </fieldset>
         <p class="fineprint" data-i18n="privacyShort">The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.</p>

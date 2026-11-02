@@ -212,7 +212,7 @@ function previewBanner(document) {
 
 function baseState(overrides = {}) {
   return {
-    schemaVersion: 9,
+    schemaVersion: 10,
     enabled: true,
     learnedDomains: ["blocked.example", "portal.example"],
     ignoredDomains: ["ignored.example"],
@@ -288,6 +288,22 @@ function lastSavePatch(sent) {
     const rows = document.querySelector("#domainList").children;
     assert.equal(rows.length, 2);
     assert.equal(rows[0].children[0].textContent, "blocked.example");
+  }
+
+  // A fresh install is switched on but cannot learn or route until the person
+  // explicitly chooses the bundled gateway or a custom proxy.
+  {
+    const { document } = createContext({ state: baseState({
+      enabled: true,
+      proxyMode: "unset",
+      learnedDomains: [],
+      lastDetectedDomain: null
+    }) });
+    await settle();
+    assert.equal(document.querySelector("#enabled").checked, true);
+    assert.equal(document.querySelector("#siteAction").disabled, true);
+    assert.equal(document.querySelector("#statusTitle").textContent, messages.proxySetupRequired.message);
+    assert.equal(document.querySelector("#proxyMode").value, "unset");
   }
 
   // A stale background schema locks every control and keeps it locked on save.

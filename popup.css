@@ -557,6 +557,15 @@ main {
   gap: 7px;
 }
 
+.setup-link {
+  color: var(--accent-text);
+  font-size: 10.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.setup-link:hover { text-decoration: underline; }
+
 .row-actions {
   display: flex;
   gap: 8px;

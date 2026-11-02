@@ -377,6 +377,7 @@
   },
   "proxySettings": { "message": "Proxy settings" },
   "proxyModeLabel": { "message": "Connection" },
+  "proxyModeUnset": { "message": "Choose a proxy..." },
   "proxyModeLocal": { "message": "Bundled local gateway" },
   "proxyModeCustom": { "message": "Custom proxy" },
   "proxyTypeLabel": { "message": "Type" },
@@ -388,5 +389,9 @@
   "reloadExtension": { "message": "Reload extension" },
   "projectLinks": { "message": "Project links" },
   "sourceCode": { "message": "GitHub" },
-  "checkUpdates": { "message": "Check updates" }
+  "checkUpdates": { "message": "Check updates" },
+  "proxySetupRequired": { "message": "Proxy setup required" },
+  "proxySetupRequiredDetail": { "message": "Automatic Access is on, but routing will remain inactive until you choose your own proxy or install and select the bundled local gateway." },
+  "proxyChoiceRequired": { "message": "Choose the bundled local gateway or a custom proxy first." },
+  "installGateway": { "message": "Install the bundled gateway from GitHub" }
 }

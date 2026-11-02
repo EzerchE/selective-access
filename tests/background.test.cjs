@@ -414,8 +414,9 @@ async function waitForDebugFlush() {
 
 (async () => {
   await listeners.installed();
-  assert.equal(storage.enabled, false);
-  assert.equal(storage.schemaVersion, 9);
+  assert.equal(storage.enabled, true);
+  assert.equal(storage.schemaVersion, 10);
+  assert.equal(storage.proxyMode, "unset");
   assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
@@ -435,6 +436,7 @@ async function waitForDebugFlush() {
     type: "saveSettings",
     patch: {
       enabled: true,
+      proxyMode: "local",
       debugEnabled: true,
       proxyPort: 1080,
       learnedDomains: ["https://Example.com/path", "example.com", "10.media.example.com"]
@@ -1501,7 +1503,7 @@ async function waitForDebugFlush() {
   assert.equal(injected.ok, true);
   const settingsWrite = storageWrites.find((keys) => keys.includes("learnedDomains"));
   assert.deepEqual([...settingsWrite].sort(), expectedPersistedKeys);
-  assert.equal(storage.schemaVersion, 9);
+  assert.equal(storage.schemaVersion, 10);
   assert.equal(storage.proxyHost, "127.0.0.1");
   assert.equal(Object.hasOwn(storage, "unexpectedField"), false);
   assert.deepEqual([...storage.debugLog], []);
