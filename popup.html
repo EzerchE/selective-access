@@ -67,10 +67,42 @@
             <dd id="appVersion">v…</dd>
           </div>
         </dl>
+        <fieldset class="proxy-settings">
+          <legend data-i18n="proxySettings">Proxy settings</legend>
+          <label class="field">
+            <span data-i18n="proxyModeLabel">Connection</span>
+            <select id="proxyMode">
+              <option value="local" data-i18n="proxyModeLocal">Bundled local gateway</option>
+              <option value="custom" data-i18n="proxyModeCustom">Custom proxy</option>
+            </select>
+          </label>
+          <div id="customProxyFields" class="proxy-grid" hidden>
+            <label class="field">
+              <span data-i18n="proxyTypeLabel">Type</span>
+              <select id="proxyType">
+                <option value="socks5">SOCKS5</option>
+                <option value="socks4">SOCKS4</option>
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+              </select>
+            </label>
+            <label class="field proxy-host">
+              <span data-i18n="proxyHostLabel">Server</span>
+              <input id="proxyHost" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="proxy.example">
+            </label>
+            <label class="field proxy-port">
+              <span data-i18n="proxyPortLabel">Port</span>
+              <input id="proxyPortInput" type="number" inputmode="numeric" min="1" max="65535" placeholder="1080">
+            </label>
+          </div>
+          <p class="fineprint" data-i18n="proxyPrivacy">Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials.</p>
+          <button id="saveProxy" class="btn quiet" type="button" data-i18n="saveProxy">Save proxy</button>
+        </fieldset>
         <p class="fineprint" data-i18n="privacyShort">The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.</p>
         <div class="row-actions">
           <button id="retry" class="btn quiet" type="button" data-i18n="reapply">Reapply</button>
           <button id="testNotification" class="btn quiet" type="button" data-i18n="testNotification">Test notification</button>
+          <button id="reloadExtension" class="btn quiet" type="button" data-i18n="reloadExtension">Reload extension</button>
         </div>
         <label class="check">
           <input id="debugEnabled" type="checkbox">
@@ -89,6 +121,10 @@
     </main>
 
     <footer class="foot">
+      <nav class="project-links" aria-label="Project links" data-i18n-aria-label="projectLinks">
+        <a href="https://github.com/EzerchE/selective-access" target="_blank" rel="noopener noreferrer" data-i18n="sourceCode">GitHub</a>
+        <a href="https://github.com/EzerchE/selective-access/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="checkUpdates">Check updates</a>
+      </nav>
       <a class="support" href="https://buymeacoffee.com/ezerche" target="_blank" rel="noopener noreferrer">
         <span class="cup" aria-hidden="true">☕</span>
         <span data-i18n="supportButton">Buy me a coffee</span>

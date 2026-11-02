@@ -212,11 +212,14 @@ function previewBanner(document) {
 
 function baseState(overrides = {}) {
   return {
-    schemaVersion: 8,
+    schemaVersion: 9,
     enabled: true,
     learnedDomains: ["blocked.example", "portal.example"],
     ignoredDomains: ["ignored.example"],
     lastDetectedDomain: "blocked.example",
+    proxyMode: "local",
+    proxyType: "socks5",
+    proxyHost: "127.0.0.1",
     proxyPort: 1080,
     lastProxyError: null,
     lastIssueType: null,
@@ -251,6 +254,23 @@ function lastSavePatch(sent) {
     const { document } = createContext({ state: baseState() });
     await settle();
     assert.equal(document.byId.has("proxyPort"), true);
+    assert.equal(document.byId.has("saveProxy"), true);
+  }
+
+  // A custom proxy is saved explicitly and normal domain lists are preserved.
+  {
+    const { document, sent } = createContext({ state: baseState() });
+    await settle();
+    document.querySelector("#proxyMode").value = "custom";
+    document.querySelector("#proxyType").value = "socks5";
+    document.querySelector("#proxyHost").value = "proxy.example";
+    document.querySelector("#proxyPortInput").value = "1088";
+    document.querySelector("#saveProxy").dispatch("click");
+    await settle();
+    const patch = lastSavePatch(sent);
+    assert.equal(patch.proxyMode, "custom");
+    assert.equal(patch.proxyHost, "proxy.example");
+    assert.equal(patch.proxyPort, 1088);
   }
 
   // A matching schema renders both lists and leaves the controls usable.

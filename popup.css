@@ -511,6 +511,52 @@ main {
   font-size: 11px;
 }
 
+.proxy-settings {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.proxy-settings legend {
+  padding: 0 5px;
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.proxy-grid {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 72px;
+  gap: 7px;
+}
+
 .row-actions {
   display: flex;
   gap: 8px;
@@ -568,6 +614,22 @@ main {
   padding: 2px 14px 16px;
   text-align: center;
 }
+
+.project-links {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.project-links a {
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.project-links a:hover { color: var(--accent); }
 
 /* Buy Me a Coffee brand colours, deliberately fixed in both themes: a themed
    version of this button stops reading as the one people recognise. The card

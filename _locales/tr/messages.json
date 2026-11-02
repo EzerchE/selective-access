@@ -374,5 +374,19 @@
   "versionLabel": {
     "message": "Sürüm",
     "description": "Kurulu eklenti sürümünün etiketi."
-  }
+  },
+  "proxySettings": { "message": "Proxy ayarları" },
+  "proxyModeLabel": { "message": "Bağlantı" },
+  "proxyModeLocal": { "message": "Paketle gelen yerel geçit" },
+  "proxyModeCustom": { "message": "Özel proxy" },
+  "proxyTypeLabel": { "message": "Tür" },
+  "proxyHostLabel": { "message": "Sunucu" },
+  "proxyPortLabel": { "message": "Port" },
+  "proxyPrivacy": { "message": "Proxy ayarları yalnız bu cihazda kalır. Kimlik bilgisi saklanmaz; tarayıcı kullanıcı adı ve parolası istemeden bağlantınızı kabul eden bir proxy kullanın." },
+  "saveProxy": { "message": "Proxy'yi kaydet" },
+  "invalidProxySettings": { "message": "Geçerli bir proxy sunucusu ve 1-65535 arasında port girin." },
+  "reloadExtension": { "message": "Eklentiyi yeniden yükle" },
+  "projectLinks": { "message": "Proje bağlantıları" },
+  "sourceCode": { "message": "GitHub" },
+  "checkUpdates": { "message": "Güncellemeleri kontrol et" }
 }

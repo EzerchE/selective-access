@@ -81,6 +81,7 @@ const reloads = [];
 const badgeTexts = [];
 const badgeColors = [];
 const actionTitles = [];
+const missingActionTabIds = new Set();
 const notifications = [];
 const scriptExecutions = [];
 const scriptExecutionResults = [0, 1];
@@ -161,9 +162,18 @@ const chrome = {
     }
   },
   action: {
-    async setBadgeText(details) { badgeTexts.push(details); },
-    async setBadgeBackgroundColor(details) { badgeColors.push(details); },
-    async setTitle(details) { actionTitles.push(details); }
+    async setBadgeText(details) {
+      if (missingActionTabIds.has(details.tabId)) throw new Error(`No tab with id: ${details.tabId}.`);
+      badgeTexts.push(details);
+    },
+    async setBadgeBackgroundColor(details) {
+      if (missingActionTabIds.has(details.tabId)) throw new Error(`No tab with id: ${details.tabId}.`);
+      badgeColors.push(details);
+    },
+    async setTitle(details) {
+      if (missingActionTabIds.has(details.tabId)) throw new Error(`No tab with id: ${details.tabId}.`);
+      actionTitles.push(details);
+    }
   },
   notifications: {
     async getPermissionLevel() { return notificationPermission; },
@@ -405,11 +415,17 @@ async function waitForDebugFlush() {
 (async () => {
   await listeners.installed();
   assert.equal(storage.enabled, false);
-  assert.equal(storage.schemaVersion, 8);
+  assert.equal(storage.schemaVersion, 9);
   assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
   assert.equal(Object.hasOwn(storage, "dnsFallbackDomains"), false);
+  // A late network event after a tab closes must not reject or create Chrome's
+  // persistent Errors badge. This was the reason users had to remove and load
+  // the unpacked extension again after otherwise valid updates.
+  missingActionTabIds.add(404);
+  assert.equal(await workerGlobal.setConnectionBadge("direct", 404), false);
+  missingActionTabIds.delete(404);
   assert.deepEqual(
     [...listeners.requestFilter.urls],
     ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"]
@@ -438,6 +454,23 @@ async function waitForDebugFlush() {
   );
   assert.equal(findProxy("https://cdn.example.com/video", "cdn.example.com"), "DIRECT");
   assert.equal(findProxy("https://portal.example/article", "portal.example"), "DIRECT");
+
+  const customProxy = await send({
+    type: "saveSettings",
+    patch: {
+      proxyMode: "custom",
+      proxyType: "https",
+      proxyHost: "proxy.example",
+      proxyPort: 8443
+    }
+  });
+  assert.equal(customProxy.state.proxyMode, "custom");
+  assert.equal(customProxy.state.proxyType, "https");
+  assert.equal(
+    evaluatePac(proxyConfig.pacScript.data)("https://example.com/", "example.com"),
+    "HTTPS proxy.example:8443"
+  );
+  await send({ type: "saveSettings", patch: { proxyMode: "local" } });
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
   const private172Host = [172, 20, 1, 2].join(".");
   assert.equal(findProxy(`http://${private172Host}/`, private172Host), "DIRECT");
@@ -1448,7 +1481,7 @@ async function waitForDebugFlush() {
   // caller supplied, and no persisted field silently dropped.
   const expectedPersistedKeys = [
     "schemaVersion", "enabled", "learnedDomains", "ignoredDomains",
-    "proxyHost", "proxyPort", "lastDetectedDomain", "lastDetectedAt",
+    "proxyMode", "proxyType", "proxyHost", "proxyPort", "lastDetectedDomain", "lastDetectedAt",
     "lastProxyError", "lastIssueType", "lastIssueDomain", "lastIssueError",
     "lastIssueAt", "lastGlobalCheck", "lastNotificationStatus",
     "lastNotificationDomain", "lastNotificationAt", "lastNotificationError",
@@ -1468,7 +1501,7 @@ async function waitForDebugFlush() {
   assert.equal(injected.ok, true);
   const settingsWrite = storageWrites.find((keys) => keys.includes("learnedDomains"));
   assert.deepEqual([...settingsWrite].sort(), expectedPersistedKeys);
-  assert.equal(storage.schemaVersion, 8);
+  assert.equal(storage.schemaVersion, 9);
   assert.equal(storage.proxyHost, "127.0.0.1");
   assert.equal(Object.hasOwn(storage, "unexpectedField"), false);
   assert.deepEqual([...storage.debugLog], []);
@@ -1489,6 +1522,13 @@ async function waitForDebugFlush() {
   storage.proxyPort = 9050;
   const portAfterStaleValue = await send({ type: "getState" });
   assert.equal(portAfterStaleValue.state.proxyPort, 1080);
+
+  const invalidCustomProxy = await send({
+    type: "saveSettings",
+    patch: { proxyMode: "custom", proxyHost: "bad host/", proxyPort: 70000 }
+  });
+  assert.equal(invalidCustomProxy.ok, false);
+  assert.match(invalidCustomProxy.error, /proxy|sunucu|port/i);
 
   const disabled = await send({ type: "saveSettings", patch: { enabled: false } });
   assert.equal(disabled.ok, true);
