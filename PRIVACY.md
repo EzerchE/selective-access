@@ -1,51 +1,46 @@
-# Gizlilik bildirimi
+# Privacy policy — Automatic Access
 
-Son güncelleme: 4 Eylül 2026
+Updated: 11 November 2026 · Version 4.17.0
 
-Otomatik Erişim, bağlantı hatası yaşayan alan adlarını kullanıcının kendi bilgisayarındaki yerel SOCKS5 geçidine seçici yönlendirir. Geliştiriciye ait telemetri, analiz, reklam veya uzaktan günlük sunucusu yoktur.
+[Türkçe](PRIVACY_TR.md)
 
-## Cihazda işlenen veriler
+Automatic Access observes Chrome connection failures and routes explicitly listed hostnames through a proxy chosen by the user. The developer operates no telemetry, analytics, advertising, traffic relay or remote logging server.
 
-Eklenti HTTP/HTTPS/WS/WSS isteklerinde Chrome'un bildirdiği bağlantı hata türünü, istek türünü ve alan adını geçici olarak işler. Chrome tam istek adresini olay içinde sağlayabilir; eklenti bundan yalnız alan adını türetir ve tam adresi depolamaz.
+## Local processing and storage
 
-Otomatik doğrulama sırasında kullanıcı bilgisi, yol, sorgu ve fragment kaldırılır. Yalnız hedef origin'in kökü; çerezsiz, kimlik bilgisi olmadan ve sınırlı içerik isteğiyle doğrudan sınanır. Otomatik öğrenilen bir rota, sağlıklı yerel geçit hedefe erişemediğinde tek ve süre sınırlı bir doğrudan bağlantı denemesinden sonra kaldırılabilir; yalnız öğrenmeyi tetikleyen istek türündeki başarı bu kararı doğrular. Kullanıcının elle seçtiği ve eski sürümlerden kaynağı belirsiz rotalar sessizce kaldırılmaz. Kullanıcı **Genel durumu kontrol et** ile genel kesinti doğrularsa eşleşen öğrenilmiş rota da kaldırılabilir.
+Chrome supplies request URLs, errors, types and tab/frame identifiers. The extension derives hostnames; it does not persist full URLs, paths, queries, fragments, credentials, cookies, forms or page content. Affected iframe URLs may be inspected in the page DOM to retry an embedded frame. History and cookie permissions are not requested.
 
-Şunlar `chrome.storage.local` içinde yalnız cihazda tutulabilir:
+Local storage holds enabled state, proxy type/address/port, learned and ignored hosts, route provenance/health and recent status results. Session storage keeps bounded recovery state until the browser session ends. Debug starts off; if enabled, at most 150 local events contain hostnames, error classes, request types, timings and routing decisions. Clear them in Advanced settings.
 
-- etkinlik ve yerel geçit ayarı;
-- öğrenilen ve yoksayılan alan adları;
-- son bağlantı durumu ve bildirim sonucu;
-- kullanıcı özellikle açarsa son 150 sınırlı teşhis olayı.
+Rules match exact listed hostnames. Main-page learning also records the conventional www/non-www alias; this never enables wildcard routing. Ignored targets and their subdomains stay direct. Automatic routes can be removed by bounded direct recovery; manual routes are preserved.
 
-Teşhis kayıtları tam URL, sorgu parametresi, çerez, form verisi, sayfa içeriği veya kullanıcı hesabı bilgisi içermez. Kayıtlar kullanıcı tarafından temizlenebilir.
+## Requests and recipients
 
-## Üçüncü tarafa aktarım
+- Destination servers receive sanitized origin-root checks without cookies or credentials. They see the source IP and normal request metadata. Paths, queries, fragments and user information are removed before checks.
+- Your selected proxy receives routed destination hostnames/IPs, ports, source connection information and traffic needed to provide the connection. Its operator may read HTTP content. HTTPS/WSS content remains protected by end-to-end TLS; certificate validation is never disabled. HTTP/SOCKS proxy transport does not encrypt connection metadata. HTTPS proxy transport encrypts the hop to the proxy, whose operator still sees destinations. Choose an operator you trust; its retention/privacy terms apply. Settings stay local; username/password proxy login is not supported.
+- The optional bundled Windows helper listens on loopback only. Routed hostname queries go sequentially to Cloudflare and/or Google over HTTPS, falling back to the system resolver if no usable answer is returned. Resolvers receive the hostname and connection IP under their own terms. DNS does not include page paths, cookies or content. Normal traffic retains existing DNS settings. The helper does not decrypt HTTPS or replace certificates.
+- Globalping receives the hostname only when you click Check global status, for external measurements from three continents. Its infrastructure and probe operators receive the target and measurement request. Do not submit private service names. Literal private/local targets are rejected; the extension cannot recognize every private service behind a public hostname. No automatic global check runs.
+- GitHub and the optional Buy Me a Coffee link open only on a click under those websites' privacy terms. No remote payment script is loaded.
 
-Kullanıcı **Genel durumu kontrol et** düğmesine özellikle basarsa yalnız kontrol edilen alan adı Globalping API'sine gönderilir. Bu işlem otomatik değildir. Sağlayıcının kendi kayıt ve saklama koşulları geçerlidir.
+Browsing data is not sent to the developer, sold, used for ads, credit scoring or unrelated profiling. The developer cannot access your local settings or logs during normal operation. Diagnostic sharing for support is your explicit choice; remove sensitive targets before sharing.
 
-Yerel geçit yalnız otomatik yönlendirmeye alınmış alan adını kimliği doğrulanan şifreli DNS sağlayıcısına gönderir. Sağlayıcılar sırayla denenir; sorgu iki sağlayıcıya aynı anda yayılmaz. Şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri dönülebilir. Doğrudan IP istekleri değişmez. Yol, sorgu parametreleri, çerezler ve sayfa içeriği gönderilmez. Bu işlem normal ve yönlendirilmemiş bağlantıların DNS davranışını değiştirmez; TLS sertifika doğrulaması hiçbir zaman kapatılmaz.
+## Retention and removal
 
-Bunun dışında geliştiriciye veya başka bir dış hizmete gezinme verisi gönderilmez. Yerel yardımcı yalnız kullanıcının bilgisayarında çalışır; yönlendirilen HTTPS içeriği şifreli kalır ve yerel geçit tarafından çözülmez.
+Local settings remain until removed by you, cleared by Chrome or the extension is uninstalled. Session data ends with the browser session. Remove targets using row actions and clear logs in Advanced settings. A user-selected proxy is not installed or removed by the extension.
 
-Popup ve README içindeki isteğe bağlı destek bağlantısı yalnız kullanıcı tıkladığında Buy Me a Coffee sayfasını yeni sekmede açar. Eklenti üçüncü taraf destek betiği yüklemez ve bu platforma otomatik veri göndermez; açılan sayfanın kendi gizlilik koşulları geçerlidir.
+If you installed the bundled Windows services, separately run helper/uninstall.cmd as administrator. Removing the extension does not remove these services. The uninstaller does not change adapter DNS or other system network settings.
 
-## Saklama ve silme
+## Permissions
 
-Yerel ayarlar kullanıcı silene, Chrome eklenti verilerini temizleyene veya eklentiyi kaldırana kadar cihazda kalabilir. Windows hizmeti ve program dosyaları ayrıca `helper/uninstall.cmd` ile kaldırılır. Kaldırıcı DNS veya başka ağ ayarlarını değiştirmez.
+- `webRequest` and HTTP/HTTPS/WS/WSS host access observe connection outcomes across sites.
+- `proxy` applies selective PAC routing.
+- `storage` keeps local settings and diagnostics.
+- `activeTab` shows the current target.
+- `scripting` retries affected embedded frames, including open shadow roots.
+- `notifications` shows setup, bounded waiting/learning notices and requested status results.
 
-## İzinlerin amacı
+## Limited Use and contact
 
-- `webRequest` ve HTTP/HTTPS/WS/WSS erişimi: desteklenen ağ hatalarını ve başarılı ana sayfa yanıtlarını algılamak.
-- `proxy`: yalnız öğrenilen alan adları için yerel PAC/SOCKS5 yönlendirmesi uygulamak.
-- `storage`: yerel ayar, alan adı listesi ve isteğe bağlı teşhis verisini saklamak.
-- `activeTab`: popup açıldığında etkin sekmenin alan adını göstermek ve kullanıcı işlemini ilgili sekmeye uygulamak.
-- `notifications`: yerel durum bildirimleri göstermek.
-- `scripting`: yalnız öğrenilen harici iframe'i üst sayfayı yenilemeden yeniden yüklemek.
+Our use of information received from Google APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. Data is used only for the disclosed selective-routing functionality and related troubleshooting. Human access to user-shared diagnostics is limited to explicit support consent, security investigation or legal obligations.
 
-## Veri kullanımı taahhüdü
-
-Veriler satılmaz, reklam hedefleme veya kredi değerlendirmesi için kullanılmaz ve ürünün tek amacının dışına aktarılmaz. İnsanların verileri görmesine yalnız güvenlik, yasal zorunluluk veya kullanıcının açık destek talebi kapsamında ihtiyaç duyulabilir; ürün normal çalışırken geliştirici cihazdaki verilere erişemez.
-
-Ürünün veri kullanımı Chrome Web Store Limited Use şartlarına uygun tutulmak üzere tasarlanmıştır. Mağaza beyanı, bu belge ve gerçek ürün davranışı her sürümden önce birlikte doğrulanmalıdır.
-
-Gizlilik soruları GitHub Issues üzerinden, güvenlik bildirimleri `SECURITY.md` içindeki kanal üzerinden iletilebilir. Destek taleplerine gezinme günlükleri veya başka hassas bilgiler eklenmemelidir.
+For privacy questions use GitHub Issues without private browsing logs. For confidential security reports use Security → Report a vulnerability as described in SECURITY.md.

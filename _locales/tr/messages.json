@@ -227,7 +227,7 @@
     "description": "Geliştirme önizleme katmanının uygulamadığı bir istek için döndürdüğü hata."
   },
   "privacyShort": {
-    "message": "Öğrenilen liste bu cihazda kalır ve hiçbir DNS ayarı değiştirilmez. Alan adı cihazdan yalnız genel durumu kontrol ettiğinizde çıkar.",
+    "message": "Alan adları ve hatalar cihazda işlenir. Seçilen proxy yönlendirilen hedefleri alır; yerel yardımcı şifreli DNS sağlayıcılarını kullanır. Globalping'e yalnız genel kontrol istediğinizde alan adı gönderilir.",
     "description": "Gelişmiş bölümünde gösterilen kısaltılmış gizlilik açıklaması."
   },
   "proxyControlled": {
@@ -296,11 +296,13 @@
     "message": "$1 Site dış noktalardan erişilebilir; sorun yerel ağ veya bölgesel erişim yolunda olabilir."
   },
   "slowLoadingDetail": {
-    "message": "Sayfa veya gerekli kaynaklarından biri yüklenmeyi tamamlamadı. Bağlantı değiştirilmedi; yeniden deneyin veya genel durumu kontrol edin."
+    "message": "Doğrudan bağlantı hâlâ sonuçlanmadı. Otomatik Erişim Chrome'un sonucunu bekliyor; desteklenen bir engel doğrulanırsa seçilen geçit otomatik olarak denenecek."
   },
   "slowLoadingTitle": {
     "message": "Sayfanın yüklenmesi olağandan uzun sürüyor"
   },
+  "slowWaitNotificationTitle": { "message": "Bağlantı denetimi devam ediyor" },
+  "slowWaitNotificationMessage": { "message": "$1 beklenenden uzun sürüyor. Otomatik Erişim çalışmayı sürdürüyor; desteklenen bir engel doğrulanırsa seçilen geçit denenecek." },
   "stateIgnored": {
     "message": "Yoksayılıyor",
     "description": "Açık site yoksayılan listedeyken sekme kartı başlığı."
@@ -314,7 +316,7 @@
     "description": "Açık site öğrenilen listedeyken sekme kartı başlığı."
   },
   "stateRoutedDetail": {
-    "message": "Chrome bu siteye doğrudan bağlanmak yerine yerel geçide gönderiyor.",
+    "message": "Chrome bu siteyi seçtiğiniz proxy üzerinden açıyor.",
     "description": "Yönlendirilen site için sekme kartı açıklaması."
   },
   "statusInconclusive": {
@@ -376,6 +378,7 @@
     "description": "Kurulu eklenti sürümünün etiketi."
   },
   "proxySettings": { "message": "Proxy ayarları" },
+  "privacyPolicyLink": { "message": "Gizlilik ve veri kullanımı" },
   "proxyModeLabel": { "message": "Bağlantı" },
   "proxyModeUnset": { "message": "Bir proxy seçin..." },
   "proxyModeLocal": { "message": "Paketle gelen yerel geçit" },
@@ -383,15 +386,43 @@
   "proxyTypeLabel": { "message": "Tür" },
   "proxyHostLabel": { "message": "Sunucu" },
   "proxyPortLabel": { "message": "Port" },
-  "proxyPrivacy": { "message": "Proxy ayarları yalnız bu cihazda kalır. Kimlik bilgisi saklanmaz; tarayıcı kullanıcı adı ve parolası istemeden bağlantınızı kabul eden bir proxy kullanın." },
-  "saveProxy": { "message": "Proxy'yi kaydet" },
+  "proxyPrivacy": { "message": "Güvendiğiniz bir proxy seçin: işletmecisi yönlendirilen hedefleri ve bağlantı bilgilerini alır. HTTP içeriği okunabilir; HTTPS içeriği TLS ile korunur. HTTP/SOCKS proxy bağlantıları üst veriyi şifrelemez. Ayarlar cihazda kalır; proxy oturumu desteklenmez." },
+  "saveProxy": { "message": "Kabul et ve proxy'yi kaydet" },
   "invalidProxySettings": { "message": "Geçerli bir proxy sunucusu ve 1-65535 arasında port girin." },
   "reloadExtension": { "message": "Eklentiyi yeniden yükle" },
   "projectLinks": { "message": "Proje bağlantıları" },
   "sourceCode": { "message": "GitHub" },
   "checkUpdates": { "message": "Güncellemeleri kontrol et" },
   "proxySetupRequired": { "message": "Proxy kurulumu gerekli" },
+  "proxySetupNotificationTitle": { "message": "Otomatik Erişim bağlantı yöntemini seçin" },
+  "proxySetupNotificationInstallMessage": { "message": "Eklenti açık, ancak erişilemeyen siteleri yönlendirebilmesi için bir proxy gerekir. Paketle gelen geçidi veya kendi proxy'nizi seçin." },
+  "proxySetupNotificationFailureMessage": { "message": "Bu sayfaya ulaşılamadı ve henüz proxy ayarlanmadı. Seçici yönlendirmeyi etkinleştirmek için paketle gelen geçidi veya kendi proxy'nizi seçin." },
+  "proxySetupNotificationButton": { "message": "Proxy ayarla" },
+  "onboardingKicker": { "message": "TEK SEFERLİK KURULUM" },
+  "onboardingTitle": { "message": "Otomatik Erişim nasıl bağlansın?" },
+  "onboardingText": { "message": "Çalışan bir proxy gerekir. Kendi proxy'nizi kullanabilir veya GitHub'dan hazır ByeDPI yardımcımızı indirip kurabilirsiniz. Aşağıdan seçip kaydedin. Normal gezinme doğrudan kalır." },
+  "gatewayInstallSteps": { "message": "GitHub proje ZIP'ini indirip çıkarın. helper/install.cmd dosyasını yönetici olarak çalıştırın. Yerel geçit seçeneğini kaydedin ve hazır durumu görünene kadar yeniden denetleyin." },
+  "gatewayRemoveSteps": { "message": "Yardımcıyı kaldırmadan önce eklentiyi kapatın veya başka proxy seçin. Çıkardığınız proje klasöründeki helper/uninstall.cmd dosyasını yönetici olarak çalıştırın. Chrome eklentisini kaldırmak Windows hizmetlerini kaldırmaz. Klasör silindiyse projeyi yeniden indirip çıkarın." },
+  "proxyStatusChecking": { "message": "Bağlantı kurulumu denetleniyor…" },
+  "proxyStatusCheckingText": { "message": "Seçilen bağlantı yöntemi doğrulanıyor." },
+  "proxyStatusUnconfigured": { "message": "Proxy kurulumu tamamlanmadı" },
+  "proxyStatusUnconfiguredText": { "message": "Paketle gelen geçidi veya kendi proxy'nizi seçip kaydedin." },
+  "proxyStatusLocalReady": { "message": "Paketle gelen geçit kurulu ve çalışıyor" },
+  "proxyStatusLocalReadyText": { "message": "Kurulum tamamlandı. Otomatik Erişim hazır; bu sekmeyi kapatabilirsiniz." },
+  "proxyStatusLocalUnavailable": { "message": "Paketle gelen geçit algılanamadı" },
+  "proxyStatusLocalUnavailableText": { "message": "GitHub kurucusunu yönetici olarak çalıştırın veya kurulu hizmetin çalıştığını kontrol edin, ardından yeniden denetleyin." },
+  "proxyStatusCustomConfigured": { "message": "Özel proxy ayarları kaydedildi" },
+  "proxyStatusCustomConfiguredText": { "message": "Chrome yapılandırmayı kabul etti. Proxy'nin kendisi ilk yönlendirilen hedef bağlandığında doğrulanacaktır." },
+  "proxyStatusControlError": { "message": "Chrome proxy denetimini vermedi" },
+  "proxyStatusControlErrorText": { "message": "Proxy ayarını başka bir eklenti veya yönetici denetliyor. Devam etmeden önce bu çakışmayı çözün." },
+  "proxyStatusDisabled": { "message": "Otomatik Erişim kapalı" },
+  "proxyStatusDisabledText": { "message": "Bağlantı yöntemi kayıtlı; ancak ana anahtar açılana kadar seçici yönlendirme devre dışı kalır." },
+  "proxyStatusCheckFailed": { "message": "Bağlantı durumu denetlenemedi" },
+  "proxyStatusCheckFailedText": { "message": "Yeniden deneyin. Bu denetim hiçbir yönlendirme ayarını değiştirmedi." },
+  "checkAgain": { "message": "Yeniden denetle" },
+  "uninstallGateway": { "message": "Paketle gelen geçidi kaldır" },
+  "finishSetup": { "message": "Kurulumu bitir ve bu sekmeyi kapat" },
   "proxySetupRequiredDetail": { "message": "Otomatik Erişim açık, ancak kendi proxy'nizi seçene veya paketle gelen yerel geçidi kurup seçene kadar yönlendirme etkinleşmez." },
   "proxyChoiceRequired": { "message": "Önce paketle gelen yerel geçidi veya özel bir proxy seçin." },
-  "installGateway": { "message": "Paketle gelen geçidi GitHub'dan kur" }
+  "installGateway": { "message": "Hazır ByeDPI yardımcısını indir" }
 }

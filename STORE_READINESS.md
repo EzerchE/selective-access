@@ -1,27 +1,36 @@
-# Chrome Web Store hazırlık durumu
+# Chrome Web Store preparation — 4.17.0
 
-## Teknik durum
+Prepared 11 November 2026. This document records submission materials, not Google approval.
 
-- Manifest V3 kullanılır ve uzaktan JavaScript çalıştırılmaz.
-- Tek amaç, bağlantı hatası doğrulanan alan adlarını yerel geçide seçici yönlendirmektir.
-- Varsayılan durum kapalıdır.
-- `activeTab`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest` ve HTTP/HTTPS/WS/WSS erişimleri README ile gizlilik bildiriminde açıklanır.
-- Tam URL depolanmaz veya dış hizmete gönderilmez; otomatik probe yalnız temizlenmiş origin kökünü sınar.
-- Yalnız otomatik yönlendirilmiş bir hedefin alan adı, sistem çözümünü doğrulamak veya tamamlamak için yerel geçit tarafından sırayla denenen şifreli DNS sağlayıcılarından birine gönderilebilir. Yol, sorgu, çerez ve içerik aktarılmaz; sistem DNS yapılandırması değiştirilmez.
-- İsteğe bağlı dış durum kontrolü yalnız kullanıcı eylemiyle alan adı gönderir.
+## Included
 
-## Gönderimden önce zorunlu işler
+- Manifest V3; local packaged JavaScript only.
+- Permissions: `activeTab`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest` and HTTP/HTTPS/WS/WSS host access; per-permission reasons are in STORE_LISTING.md.
+- The switch starts on. First install uses proxyMode=unset; automatic routing waits for the user's explicit choice.
+- Exact-host PAC routing with ignored-target precedence and local/private address exclusions. A www alias is listed separately, never inferred as a wildcard.
+- English/Turkish UI, privacy notices, visible proxy recipient disclosure before Save proxy, and a privacy-policy link.
+- Bundled Windows gateway is optional. Users can instead select their own unauthenticated SOCKS5/SOCKS4/HTTP/HTTPS proxy.
+- Setup differentiates saved settings from local helper health; custom endpoint connectivity is not falsely claimed as verified.
+- Install/remove links; removing Chrome alone does not remove the optional Windows services.
+- Runtime-only store ZIP, current 1280×800 screenshots, 440×280 promo image and 128px icon.
+- STORE_LISTING.md supplies listing text, permission reasons, data-flow declarations and reviewer steps.
+- No public target-specific routing rules or real browsing history in public examples.
 
-- Mağaza ZIP'ine yardımcı ikili, testler, geliştirme betikleri ve depo belgeleri dahil edilmemelidir.
-- Yerel yardımcı ayrı, hash doğrulamalı ve tercihen kod imzalı masaüstü paketi olarak dağıtılmalıdır.
-- Mağaza açıklaması yerel yardımcının gerekli olduğunu açıkça belirtmelidir.
-- Yayıncı kimliği, destek URL'si, herkese açık gizlilik politikası URL'si, mağaza ikonu ve ekran görüntüleri tamamlanmalıdır.
-- Developer Dashboard veri kullanımı formu `PRIVACY.md` ve gerçek izinlerle birebir eşleşmelidir.
-- Paket, temiz Chrome profilinde inceleme ekibinin uygulayabileceği kurulum ve kaldırma adımlarıyla sınanmalıdır.
-- İsteğe bağlı Buy Me a Coffee bağlantısı mağaza açıklamasında belirtilmeli; bağlantının yalnız kullanıcı eylemiyle açıldığı ve eklentide uzak ödeme/destek betiği çalışmadığı doğrulanmalıdır.
+## Required verification gates
 
-Bu maddeler tamamlanmadan Chrome Web Store gönderimi yapılmamalıdır.
+Run node --check on runtime files; background, popup and helper-migration tests; repository-audit.cjs --history; build-store-zip.cjs. Verify ZIP manifest and assets and review screenshots in both themes. These checks do not prove success on every network or constitute a Google review.
 
-## Gelir modeli
+## Publisher-only actions in Developer Dashboard
 
-Sayfalara reklam, affiliate kodu veya izleme bileşeni enjekte edilmez. Uygun seçenekler; açıkça belirtilen lisans, isteğe bağlı abonelik, bağış veya ayrı destek planıdır. Gezinme verileri hiçbir gelir modelinde reklam hedefleme amacıyla kullanılamaz.
+The account owner must provide verified contact details, enable two-step verification, choose applicable account/trader declarations, supply the public privacy/support URLs, review the actual data-use form, and upload the store ZIP and listing graphics. Do not certify that the product handles no user data: hostnames and connection metadata are processed locally and sent to selected recipients as described in PRIVACY.md.
+
+Upload only automatic-access-4.17.0.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
+
+## Official references
+
+- https://developer.chrome.com/docs/webstore/program-policies/policies
+- https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
+- https://developer.chrome.com/docs/webstore/cws-dashboard-listing
+- https://developer.chrome.com/docs/webstore/publish
+
+Code signing the optional Windows helper is recommended for distribution trust but is not represented here as a universal Chrome Extensions policy requirement. The product must be independently reviewable with a user-supplied proxy; reviewer instructions disclose all optional native dependencies.

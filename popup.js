@@ -18,6 +18,12 @@ const elements = {
   proxyPortInput: document.querySelector("#proxyPortInput"),
   customProxyFields: document.querySelector("#customProxyFields"),
   saveProxy: document.querySelector("#saveProxy"),
+  proxyStatus: document.querySelector("#proxyStatus"),
+  proxyStatusTitle: document.querySelector("#proxyStatusTitle"),
+  proxyStatusText: document.querySelector("#proxyStatusText"),
+  refreshProxyStatus: document.querySelector("#refreshProxyStatus"),
+  gatewayHelpLinks: document.querySelector("#gatewayHelpLinks"),
+  finishSetup: document.querySelector("#finishSetup"),
   notice: document.querySelector("#notice"),
   retry: document.querySelector("#retry"),
   appVersion: document.querySelector("#appVersion"),
@@ -35,7 +41,7 @@ const elements = {
   clearDebugLog: document.querySelector("#clearDebugLog")
 };
 
-const EXPECTED_SCHEMA_VERSION = 10;
+const EXPECTED_SCHEMA_VERSION = 11;
 
 let currentHost = null;
 let currentTabId = null;
@@ -43,6 +49,7 @@ let currentState = null;
 let protocolReady = true;
 let saving = false;
 let checkingGlobalStatus = false;
+let checkingProxyStatus = false;
 let learnedDomains = [];
 let ignoredDomains = [];
 let activeList = "routed";
@@ -218,6 +225,7 @@ function render(state) {
   elements.proxyHost.value = state.proxyHost || "127.0.0.1";
   elements.proxyPortInput.value = String(state.proxyPort || 1080);
   elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
+  elements.gatewayHelpLinks.hidden = elements.proxyMode.value !== "local";
   elements.debugEnabled.checked = Boolean(state.debugEnabled);
   elements.debugControls.hidden = !state.debugEnabled;
   elements.debugLog.textContent = Array.isArray(state.debugLog) && state.debugLog.length
@@ -254,6 +262,42 @@ function render(state) {
       t("notificationFailed", state.lastNotificationError || t("notificationSettingsHint")),
       true
     );
+  }
+}
+
+function renderProxyStatus(result) {
+  const status = result?.status || "error";
+  const views = {
+    unconfigured: ["is-warning", "proxyStatusUnconfigured", "proxyStatusUnconfiguredText"],
+    local_ready: ["is-ready", "proxyStatusLocalReady", "proxyStatusLocalReadyText"],
+    local_unavailable: ["is-error", "proxyStatusLocalUnavailable", "proxyStatusLocalUnavailableText"],
+    custom_configured: ["is-ready", "proxyStatusCustomConfigured", "proxyStatusCustomConfiguredText"],
+    control_error: ["is-error", "proxyStatusControlError", "proxyStatusControlErrorText"],
+    disabled: ["is-warning", "proxyStatusDisabled", "proxyStatusDisabledText"]
+  };
+  const [tone, titleKey, textKey] = views[status] || ["is-error", "proxyStatusCheckFailed", "proxyStatusCheckFailedText"];
+  elements.proxyStatus.className = `proxy-health ${tone}`;
+  elements.proxyStatusTitle.textContent = t(titleKey);
+  elements.proxyStatusText.textContent = t(textKey);
+  elements.gatewayHelpLinks.hidden = result?.mode !== "local";
+  elements.finishSetup.hidden = !onboardingMode || !["local_ready", "custom_configured"].includes(status);
+}
+
+async function refreshProxyStatus() {
+  if (checkingProxyStatus) return;
+  checkingProxyStatus = true;
+  elements.refreshProxyStatus.disabled = true;
+  elements.proxyStatus.className = "proxy-health is-checking";
+  elements.proxyStatusTitle.textContent = t("proxyStatusChecking");
+  elements.proxyStatusText.textContent = t("proxyStatusCheckingText");
+  try {
+    const response = await sendMessage({ type: "checkProxyStatus" });
+    renderProxyStatus(response.result);
+  } catch (_error) {
+    renderProxyStatus({ status: "error", mode: currentState?.proxyMode });
+  } finally {
+    checkingProxyStatus = false;
+    elements.refreshProxyStatus.disabled = false;
   }
 }
 
@@ -410,6 +454,7 @@ async function save(patch = {}) {
     });
     const stateResponse = await sendMessage({ type: "getState" });
     render(stateResponse.state);
+    await refreshProxyStatus();
 
     if (response.state.applyResult?.ok === false) {
       showNotice(response.state.applyResult.error, true);
@@ -432,6 +477,8 @@ elements.enabled.addEventListener("change", () => {
 
 elements.proxyMode.addEventListener("change", () => {
   elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
+  elements.gatewayHelpLinks.hidden = elements.proxyMode.value !== "local";
+  renderProxyStatus({ status: "unconfigured", mode: elements.proxyMode.value });
   if (elements.proxyMode.value === "custom" && elements.proxyHost.value === "127.0.0.1") {
     elements.proxyHost.value = "";
   }
@@ -450,6 +497,12 @@ elements.saveProxy.addEventListener("click", () => {
     proxyPort: custom ? Number(elements.proxyPortInput.value) : 1080
   });
 });
+
+elements.refreshProxyStatus.addEventListener("click", () => {
+  refreshProxyStatus();
+});
+
+elements.finishSetup.addEventListener("click", () => window.close());
 
 elements.reloadExtension.addEventListener("click", () => chrome.runtime.reload());
 
@@ -590,7 +643,10 @@ elements.checkStatus.addEventListener("click", async () => {
   }
 });
 
-const previewMode = new URLSearchParams(location.search).get("preview");
+const pageParams = new URLSearchParams(location.search);
+const previewMode = pageParams.get("preview");
+const onboardingMode = pageParams.get("onboarding") === "1";
+if (onboardingMode) document.body.classList.add("onboarding");
 (async () => {
   // In the extension i18nReady is already resolved, so this changes nothing
   // there. The development preview loads its message catalogue over fetch and
@@ -601,6 +657,18 @@ const previewMode = new URLSearchParams(location.search).get("preview");
   elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
 
   if (previewMode) {
+    if (previewMode === "store" || previewMode === "setup") {
+      const response = await sendMessage({ type: "getState" });
+      currentHost = previewMode === "store" ? "portal.example" : null;
+      elements.currentDomain.textContent = currentHost || t("pageUnavailable");
+      render(response.state);
+      await refreshProxyStatus();
+      if (onboardingMode) {
+        document.querySelector("#onboardingIntro").hidden = false;
+        document.querySelector(".adv").open = true;
+      }
+      return;
+    }
     currentHost = null;
     elements.currentDomain.textContent = t("pageUnavailable");
     elements.siteAction.disabled = true;
@@ -632,6 +700,13 @@ const previewMode = new URLSearchParams(location.search).get("preview");
     await loadCurrentTab();
     const response = await sendMessage({ type: "getState" });
     render(response.state);
+    await refreshProxyStatus();
+    if (onboardingMode) {
+      document.querySelector("#onboardingIntro").hidden = false;
+      const advanced = document.querySelector(".adv");
+      if (advanced) advanced.open = true;
+      document.querySelector(".proxy-settings")?.scrollIntoView?.({ block: "start" });
+    }
   } catch (error) {
     showNotice(error.message, true);
   }

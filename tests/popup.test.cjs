@@ -124,6 +124,12 @@ function createContext(options = {}) {
           return { ok: true, state: currentState };
         }
         if (message.type === "getState") return { ok: true, state: currentState };
+        if (message.type === "checkProxyStatus") {
+          const status = options.proxyStatus || (currentState.proxyMode === "unset"
+            ? "unconfigured"
+            : currentState.proxyMode === "custom" ? "custom_configured" : "local_ready");
+          return { ok: true, result: { status, mode: currentState.proxyMode } };
+        }
         if (message.type === "reapply") {
           return { ok: true, result: { ok: true }, state: currentState };
         }
@@ -212,7 +218,7 @@ function previewBanner(document) {
 
 function baseState(overrides = {}) {
   return {
-    schemaVersion: 10,
+    schemaVersion: 11,
     enabled: true,
     learnedDomains: ["blocked.example", "portal.example"],
     ignoredDomains: ["ignored.example"],
@@ -255,6 +261,7 @@ function lastSavePatch(sent) {
     await settle();
     assert.equal(document.byId.has("proxyPort"), true);
     assert.equal(document.byId.has("saveProxy"), true);
+    assert.equal(document.byId.has("proxyStatus"), true);
   }
 
   // A custom proxy is saved explicitly and normal domain lists are preserved.
@@ -304,6 +311,24 @@ function lastSavePatch(sent) {
     assert.equal(document.querySelector("#siteAction").disabled, true);
     assert.equal(document.querySelector("#statusTitle").textContent, messages.proxySetupRequired.message);
     assert.equal(document.querySelector("#proxyMode").value, "unset");
+    assert.equal(document.querySelector("#proxyStatusTitle").textContent, messages.proxyStatusUnconfigured.message);
+  }
+
+  // A healthy bundled gateway makes completion explicit; a missing service
+  // instead keeps the user on the setup screen with install/remove guidance.
+  {
+    const ready = createContext({ search: "?onboarding=1", state: baseState(), proxyStatus: "local_ready" });
+    await settle();
+    await settle();
+    assert.equal(ready.document.querySelector("#proxyStatusTitle").textContent, messages.proxyStatusLocalReady.message);
+    assert.equal(ready.document.querySelector("#finishSetup").hidden, false);
+
+    const missing = createContext({ search: "?onboarding=1", state: baseState(), proxyStatus: "local_unavailable" });
+    await settle();
+    await settle();
+    assert.equal(missing.document.querySelector("#proxyStatusTitle").textContent, messages.proxyStatusLocalUnavailable.message);
+    assert.equal(missing.document.querySelector("#finishSetup").hidden, true);
+    assert.equal(missing.document.querySelector("#gatewayHelpLinks").hidden, false);
   }
 
   // A stale background schema locks every control and keeps it locked on save.

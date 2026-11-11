@@ -20,6 +20,11 @@
     </header>
 
     <main>
+      <section id="onboardingIntro" class="onboarding-intro" hidden>
+        <span class="onboarding-kicker" data-i18n="onboardingKicker">ONE-TIME SETUP</span>
+        <h2 data-i18n="onboardingTitle">Choose how Automatic Access connects</h2>
+        <p data-i18n="onboardingText">Normal sites always stay on your direct connection. Select the bundled local gateway or your own proxy for sites that need selective routing.</p>
+      </section>
       <!-- The tab this popup was opened over. Almost every visit is about that
            one site, so this card carries its state, the reason and the only
            primary action; the switch above carries the global one. -->
@@ -69,6 +74,14 @@
         </dl>
         <fieldset class="proxy-settings">
           <legend data-i18n="proxySettings">Proxy settings</legend>
+          <div id="proxyStatus" class="proxy-health is-checking" role="status" aria-live="polite">
+            <span class="proxy-health-dot" aria-hidden="true"></span>
+            <div>
+              <strong id="proxyStatusTitle" data-i18n="proxyStatusChecking">Checking connection setup…</strong>
+              <p id="proxyStatusText" data-i18n="proxyStatusCheckingText">Verifying the selected connection method.</p>
+            </div>
+            <button id="refreshProxyStatus" class="btn quiet" type="button" data-i18n="checkAgain">Check again</button>
+          </div>
           <label class="field">
             <span data-i18n="proxyModeLabel">Connection</span>
             <select id="proxyMode">
@@ -97,8 +110,15 @@
             </label>
           </div>
           <p class="fineprint" data-i18n="proxyPrivacy">Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials.</p>
-          <a class="setup-link" href="https://github.com/EzerchE/selective-access#installation" target="_blank" rel="noopener noreferrer" data-i18n="installGateway">Install the bundled gateway from GitHub</a>
+          <a class="setup-link" href="https://github.com/EzerchE/selective-access/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer" data-i18n="privacyPolicyLink">Privacy and data use</a>
+          <div id="gatewayHelpLinks" class="gateway-help-links">
+            <p class="fineprint" data-i18n="gatewayInstallSteps">Download the GitHub project ZIP and extract it. Run helper/install.cmd as administrator, then save this option and check again.</p>
+            <a class="setup-link" href="https://github.com/EzerchE/selective-access#installation" target="_blank" rel="noopener noreferrer" data-i18n="installGateway">Install the bundled gateway from GitHub</a>
+            <p class="fineprint" data-i18n="gatewayRemoveSteps">To remove the helper, first turn this extension off or select another proxy. Run helper/uninstall.cmd as administrator from the extracted folder. Removing Chrome's extension alone does not remove the Windows services.</p>
+            <a class="setup-link danger-link" href="https://github.com/EzerchE/selective-access#uninstalling" target="_blank" rel="noopener noreferrer" data-i18n="uninstallGateway">Remove the bundled gateway</a>
+          </div>
           <button id="saveProxy" class="btn quiet" type="button" data-i18n="saveProxy">Save proxy</button>
+          <button id="finishSetup" class="btn primary" type="button" hidden data-i18n="finishSetup">Finish and close this tab</button>
         </fieldset>
         <p class="fineprint" data-i18n="privacyShort">The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.</p>
         <div class="row-actions">

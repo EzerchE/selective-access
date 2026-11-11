@@ -227,7 +227,7 @@
     "description": "Error returned by the development preview shim for a message it does not implement."
   },
   "privacyShort": {
-    "message": "The learned list stays on this device and no DNS setting is changed. A domain leaves the device only when you check global status.",
+    "message": "Hostnames and errors are processed on this device. Selected proxies receive routed destinations; the bundled helper uses encrypted DNS providers. Globalping receives a hostname only when you request a global check.",
     "description": "Condensed privacy statement shown in the advanced section."
   },
   "proxyControlled": {
@@ -296,11 +296,13 @@
     "message": "$1 The site is reachable externally; the issue may be on the local network or regional route."
   },
   "slowLoadingDetail": {
-    "message": "The page or one of its required resources has not finished loading. The connection was not changed; retry or check global status."
+    "message": "The direct connection is still pending. Automatic Access is waiting for Chrome's result; if a supported block is confirmed, the selected gateway will be tried automatically."
   },
   "slowLoadingTitle": {
     "message": "Page loading is taking unusually long"
   },
+  "slowWaitNotificationTitle": { "message": "Connection check is still in progress" },
+  "slowWaitNotificationMessage": { "message": "$1 is taking longer than expected. Automatic Access is still working and will try the selected gateway if a supported block is confirmed." },
   "stateIgnored": {
     "message": "Ignored",
     "description": "Tab card headline when the open site is on the ignored list."
@@ -314,7 +316,7 @@
     "description": "Tab card headline when the open site is on the learned list."
   },
   "stateRoutedDetail": {
-    "message": "Chrome sends this site to the local gateway instead of connecting directly.",
+    "message": "Chrome sends this site through your selected proxy.",
     "description": "Tab card detail for a routed site."
   },
   "statusInconclusive": {
@@ -376,6 +378,7 @@
     "description": "Label for the installed extension version."
   },
   "proxySettings": { "message": "Proxy settings" },
+  "privacyPolicyLink": { "message": "Privacy and data use" },
   "proxyModeLabel": { "message": "Connection" },
   "proxyModeUnset": { "message": "Choose a proxy..." },
   "proxyModeLocal": { "message": "Bundled local gateway" },
@@ -383,15 +386,43 @@
   "proxyTypeLabel": { "message": "Type" },
   "proxyHostLabel": { "message": "Server" },
   "proxyPortLabel": { "message": "Port" },
-  "proxyPrivacy": { "message": "Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials." },
-  "saveProxy": { "message": "Save proxy" },
+  "proxyPrivacy": { "message": "Choose a proxy you trust: its operator receives routed destinations and connection metadata. HTTP content can be read; HTTPS content stays protected by TLS. HTTP/SOCKS proxy links do not encrypt metadata. Settings stay on this device; proxy login is not supported." },
+  "saveProxy": { "message": "Agree and save proxy" },
   "invalidProxySettings": { "message": "Enter a valid proxy server and a port from 1 to 65535." },
   "reloadExtension": { "message": "Reload extension" },
   "projectLinks": { "message": "Project links" },
   "sourceCode": { "message": "GitHub" },
   "checkUpdates": { "message": "Check updates" },
   "proxySetupRequired": { "message": "Proxy setup required" },
+  "proxySetupNotificationTitle": { "message": "Choose how Automatic Access connects" },
+  "proxySetupNotificationInstallMessage": { "message": "The extension is on, but it needs a proxy before it can route unavailable sites. Choose the bundled gateway or your own proxy." },
+  "proxySetupNotificationFailureMessage": { "message": "This page could not be reached and no proxy is configured. Choose the bundled gateway or your own proxy to enable selective routing." },
+  "proxySetupNotificationButton": { "message": "Set up proxy" },
+  "onboardingKicker": { "message": "ONE-TIME SETUP" },
+  "onboardingTitle": { "message": "Choose how Automatic Access connects" },
+  "onboardingText": { "message": "A working proxy is required. Use one you already operate, or download our ready-to-install ByeDPI helper from GitHub. Choose and save below. Ordinary browsing stays direct." },
+  "gatewayInstallSteps": { "message": "Download the GitHub project ZIP and extract it. Run helper/install.cmd as administrator. Save the bundled gateway option, then check again until the status is ready." },
+  "gatewayRemoveSteps": { "message": "To remove the helper, first turn the extension off or select another proxy. From the extracted project folder, run helper/uninstall.cmd as administrator. Removing the Chrome extension alone does not remove Windows services. If the folder is gone, download and extract the project again." },
+  "proxyStatusChecking": { "message": "Checking connection setup…" },
+  "proxyStatusCheckingText": { "message": "Verifying the selected connection method." },
+  "proxyStatusUnconfigured": { "message": "Proxy setup is not complete" },
+  "proxyStatusUnconfiguredText": { "message": "Choose and save the bundled gateway or your own proxy." },
+  "proxyStatusLocalReady": { "message": "Bundled gateway is installed and running" },
+  "proxyStatusLocalReadyText": { "message": "Setup is complete. Automatic Access is ready; you may close this tab." },
+  "proxyStatusLocalUnavailable": { "message": "Bundled gateway was not detected" },
+  "proxyStatusLocalUnavailableText": { "message": "Run the GitHub installer as administrator, or check that the installed service is running, then check again." },
+  "proxyStatusCustomConfigured": { "message": "Custom proxy settings are saved" },
+  "proxyStatusCustomConfiguredText": { "message": "Chrome accepted the configuration. The proxy itself will be verified when the first routed target connects." },
+  "proxyStatusControlError": { "message": "Chrome did not grant proxy control" },
+  "proxyStatusControlErrorText": { "message": "Another extension or an administrator controls the proxy setting. Resolve that conflict before continuing." },
+  "proxyStatusDisabled": { "message": "Automatic Access is turned off" },
+  "proxyStatusDisabledText": { "message": "The connection method is saved, but selective routing remains inactive until the main switch is enabled." },
+  "proxyStatusCheckFailed": { "message": "Connection status could not be checked" },
+  "proxyStatusCheckFailedText": { "message": "Try again. No routing setting was changed by this check." },
+  "checkAgain": { "message": "Check again" },
+  "uninstallGateway": { "message": "Remove the bundled gateway" },
+  "finishSetup": { "message": "Finish and close this tab" },
   "proxySetupRequiredDetail": { "message": "Automatic Access is on, but routing will remain inactive until you choose your own proxy or install and select the bundled local gateway." },
   "proxyChoiceRequired": { "message": "Choose the bundled local gateway or a custom proxy first." },
-  "installGateway": { "message": "Install the bundled gateway from GitHub" }
+  "installGateway": { "message": "Download ready-to-install ByeDPI helper" }
 }
