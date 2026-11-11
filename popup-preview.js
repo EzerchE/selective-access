@@ -1,7 +1,7 @@
 // Development support for the ?preview= view opened as a normal web page.
 // A real chrome API exists inside the extension, so this file changes nothing
 // there and must stay inert.
-if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("preview")) {
+if (location.protocol !== "chrome-extension:" && new URLSearchParams(location.search).has("preview")) {
   // The popup reads every label through chrome.i18n, so the preview needs a
   // real catalogue rather than a stub that returns keys. It is fetched before
   // anything renders and exposed through globalThis.__i18nReady.
@@ -53,7 +53,7 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
   })();
 
   let previewState = {
-    schemaVersion: 10,
+    schemaVersion: 11,
     enabled: true,
     learnedDomains: [],
     ignoredDomains: [],
@@ -67,6 +67,17 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
     debugLog: [],
     levelOfControl: "controlled_by_this_extension"
   };
+  const previewScenario = new URLSearchParams(location.search).get("preview");
+  if (previewScenario === "store") {
+    Object.assign(previewState, {
+      proxyMode: "custom", proxyType: "https", proxyHost: "proxy.example", proxyPort: 8443,
+      learnedDomains: ["media.example", "portal.example"],
+      ignoredDomains: ["ignored.example"]
+    });
+  } else {
+    previewState.proxyMode = "unset";
+    previewState.proxyHost = "127.0.0.1";
+  }
 
   globalThis.chrome = {
     i18n: {
@@ -95,6 +106,13 @@ if (!globalThis.chrome?.runtime && new URLSearchParams(location.search).has("pre
           return { ok: true, state: { ...previewState, applyResult: { ok: true } } };
         }
         if (message?.type === "getState") return { ok: true, state: previewState };
+        if (message?.type === "checkProxyStatus") {
+          return { ok: true, result: {
+            status: previewState.proxyMode === "custom" ? "custom_configured"
+              : previewState.proxyMode === "local" ? "local_unavailable" : "unconfigured",
+            mode: previewState.proxyMode
+          } };
+        }
         if (message?.type === "reapply") {
           return { ok: true, result: { ok: true }, state: previewState };
         }

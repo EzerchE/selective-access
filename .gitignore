@@ -1,6 +1,7 @@
 # Local-only development material
 ops/
 docs/agent-work/
+agent-work/
 .env
 .env.*
 !.env.example

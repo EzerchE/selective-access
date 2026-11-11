@@ -2,11 +2,11 @@
 
 # Automatic Access
 
-A Manifest V3 Chrome extension that learns targets experiencing connection errors and routes only those exact domains through a local SOCKS5 compatibility gateway.
+A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.16.1**
+Current version: **4.17.0**
 
-<img src="assets/screenshots/popup-v4-12-en.png" alt="The Automatic Access popup in its light and dark themes" width="620">
+<img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
 
 ## Why this project matters
 
@@ -38,7 +38,7 @@ The extension is the decision layer; the local helper is the transport layer. Th
 
 | Approach | Typical scope | What it changes | Automatic failure-based selection |
 | --- | --- | --- | --- |
-| **Automatic Access** | Exact learned hostnames in Chrome | Per-host PAC routing to a local compatibility path | Yes, with thresholds and a sanitized direct-origin check |
+| **Automatic Access** | Explicitly listed hostnames in Chrome | Narrow PAC routing to a local compatibility path | Yes, with thresholds and a sanitized direct-origin check |
 | **Traditional VPN** | Usually all device or selected-app traffic | Network route and often the visible exit IP/location | No; traffic follows the VPN policy whether the target needs it or not |
 | **Custom DNS / encrypted DNS** | Name resolution for many or all domains | Which resolver answers DNS queries | No; DNS alone cannot repair transport-level DPI interference |
 | **Standalone ByeDPI** | Traffic manually sent to its local proxy or covered by external configuration | Packet-level connection behavior | Not by itself; target selection and browser recovery must be configured separately |
@@ -48,7 +48,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 ## Core behavior
 
 - Connections that work normally remain direct.
-- A single temporary error does not automatically route a target.
+- Error thresholds depend on the failure class; a DNS failure can qualify after one observation and a bounded origin check.
 - Main pages and external frames affected by DNS resolution errors can be learned. Repeated certificate-authority failures may also trigger a selective retry, but certificate validation is never bypassed.
 - A timed-out main page is learned and retried only when a sanitized direct-origin probe also fails; a slow but reachable page remains direct.
 - If the browser tab remains loading unusually long without a network error, the extension reports a slow-page diagnosis and offers the optional global status check without changing the route.
@@ -56,8 +56,12 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.
 - Checks are isolated by domain. A slow target does not block other domains, and no more than three validations run concurrently.
 - During main-target recovery, late page dependencies are collected in a bounded settling window even if the main document has already completed. A limited additional reload may be attempted without creating a reload loop.
-- Repeated real-time and protocol-layer failures still require a sanitized direct-origin check. A successful direct check is never overridden by a WebSocket reset, `ERR_FAILED`, QUIC, or HTTP/2 signature alone.
+- Protocol failures use bounded origin checks. On an already routed page, repeated generic WebSocket failures can create a provisional dependency route; HTTP success does not confirm WebSocket success.
 - Local gateway setup attempts are time-bounded. A loopback-only health check distinguishes a stopped local helper from a destination that remains unreachable through a working gateway, preventing misleading setup warnings and pointless reloads. Successful pages keep a stable proxy configuration while their remaining resources load.
+- If a first direct connection remains pending for twelve seconds, the toolbar badge and one auto-dismissing notification explain that detection is still in progress. The message disappears when the page completes or Chrome reports an error; it does not route or learn the hostname by itself.
+- Routes match exact listed hostnames. A main-page route also lists its conventional `www`/non-`www` alias; this never enables a wildcard. Every other subdomain needs its own failure evidence or manual selection. Ignored targets and their subdomains stay direct.
+- Direct-origin probes are bounded to 2.5 seconds, or 1.5 seconds after Chrome has already reported a DNS-resolution failure. A routed page's dependency DNS failure and threshold-confirmed WebSocket failure do not repeat an unrelated HTTP-root probe. These routes remain provisional and subject to the existing recovery rules.
+- PAC application is awaited before recovery. Main-page reload hand-off is therefore 250 ms instead of 1.5 seconds, while dependency discoveries settle for 500 ms so simultaneous failures are batched. A newly learned route receives a 60-second grace period before direct recovery can remove it, preventing concurrent failures from immediately undoing the route.
 - Global status polling uses its full bounded time budget, allowing slow measurements to finish instead of ending early at a fixed poll count. When a user-requested multi-continent check finds a likely general outage, the removed route is not automatically relearned by the still-failing tab for fifteen minutes; the result remains visible while the temporary hold expires naturally.
 - The local gateway remains stable during long-running idle sessions.
 - Learned rules apply only to the exact hostname that produced the error.
@@ -69,7 +73,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - The extension and helper do not change the browser, adapter, system, or router DNS configuration.
 - The toolbar icon stays unobstructed after a successful direct connection. It shows a blue `↗` when the local gateway is used, cyan `+` for a newly learned route, amber `?` while an issue is being checked, red `!` for an access or gateway failure, and gray `×` when disabled. These compact marks reflect both the main-page result and routed dependencies used by the tab.
 
-This tool is not a VPN. It does not change your IP address or country. Use it only for targets you are authorized to access and in accordance with applicable rules.
+The bundled local gateway is not a VPN and does not change your public exit IP or country. A user-selected remote proxy may change the exit IP and location. Use it only for targets you are authorized to access and in accordance with applicable rules.
 
 ## Interface
 
@@ -79,7 +83,7 @@ Both target lists share one segmented control, so a long routed list never pushe
 
 Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. Users may select the project's bundled local SOCKS5 gateway or their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy is still used only for learned hostnames; normal traffic remains direct.
 
-On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. The popup explains this requirement and links directly to the simple GitHub gateway installation instructions.
+On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. A one-time setup tab and a Chrome notification make this requirement visible without requiring the user to discover the popup. The setup screen and Advanced settings distinguish an unconfigured proxy, a running bundled gateway, a missing/stopped bundled gateway, a saved custom proxy, and a Chrome proxy-control conflict. A successful local health check explicitly says setup is complete and offers to close the tab; install and removal instructions remain visible beside the bundled option. Custom endpoints are honestly marked as saved but verified only by their first routed connection. If onboarding is dismissed, the first meaningful main-page connection failure shows one more setup reminder; subsequent reminders are limited by a six-hour cooldown.
 
 The footer links to the source repository and latest GitHub release. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
 
@@ -106,7 +110,9 @@ Administrator permission is required only to install or remove the Windows servi
 ## Uninstalling
 
 1. Remove the extension from Chrome.
-2. Run `helper/uninstall.cmd` as administrator.
+2. If you installed the bundled Windows gateway, run `helper/uninstall.cmd` as administrator. Removing the Chrome extension alone does not remove Windows services. If you use your own proxy, this step is unnecessary.
+
+To keep the extension and only remove the helper, turn the switch off or save another proxy first. If you deleted the extracted project folder, download and extract the current GitHub source/helper package again to obtain the uninstaller. Do not manually delete service files.
 
 The uninstaller removes only this project's local components. It does not change adapter DNS or other network settings, and it reports an error instead of success when removal cannot be verified.
 
@@ -123,7 +129,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The bundled local gateway listens only on `127.0.0.1:1080` and remains the default. Users who already operate a compatible proxy may instead select an unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS endpoint in Advanced settings; custom proxy details stay in `chrome.storage.local`, and the extension never sends direct traffic through that endpoint. For hostnames explicitly routed through the bundled helper, it prefers an authenticated encrypted-DNS answer and falls back to the next provider within a per-provider deadline, then to the existing system resolver only when encrypted resolution produces no usable address. A blocked provider therefore cannot consume the entire connection budget. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The bundled local gateway listens only on `127.0.0.1:1080`. First installation requires an explicit local/custom choice. Users who already operate a compatible proxy may instead select an unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS endpoint in Advanced settings; custom proxy details stay in `chrome.storage.local`, and the extension never sends direct traffic through that endpoint. For hostnames explicitly routed through the bundled helper, it prefers an authenticated encrypted-DNS answer and falls back to the next provider within a per-provider deadline, then to the existing system resolver only when encrypted resolution produces no usable address. A blocked provider therefore cannot consume the entire connection budget. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
@@ -184,3 +190,7 @@ Original project code is licensed under the MIT License. Bundled third-party com
     <img src="assets/support-button.svg" alt="Buy me a coffee" width="220">
   </a>
 </p>
+
+## Privacy and store submission
+
+See [Privacy and data use](PRIVACY.md), [Türkçe gizlilik](PRIVACY_TR.md), [store listing and reviewer instructions](STORE_LISTING.md), and [verified preparation status](STORE_READINESS.md). Target hostnames reach the selected proxy, and the bundled helper uses encrypted DNS providers. Unencrypted HTTP traffic is readable by a proxy operator; HTTPS stays end-to-end encrypted. The extension has no developer telemetry or remote executable code. Optional support links open only after a click.

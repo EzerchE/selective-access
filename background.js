@@ -12,7 +12,7 @@ function reportAsyncError(error) {
 }
 
 const DEFAULT_SETTINGS = Object.freeze({
-  schemaVersion: 10,
+  schemaVersion: 11,
   enabled: true,
   learnedDomains: [],
   ignoredDomains: [],
@@ -32,6 +32,9 @@ const DEFAULT_SETTINGS = Object.freeze({
   lastNotificationDomain: null,
   lastNotificationAt: null,
   lastNotificationError: null,
+  proxySetupReminderAt: null,
+  proxySetupFailureReminderAt: null,
+  proxySetupReminderCount: 0,
   debugEnabled: false,
   debugLog: []
 });
@@ -65,6 +68,8 @@ const GATEWAY_CONNECTION_ERRORS = Object.freeze([
   "ERR_PROXY_CONNECTION_FAILED",
   "ERR_SOCKS_CONNECTION_FAILED"
 ]);
+const PROXY_SETUP_NOTIFICATION_ID = "proxy-setup-required";
+const PROXY_SETUP_REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const DNS_RESOLUTION_ERRORS = new Set([
   "ERR_NAME_NOT_RESOLVED",
   "ERR_NAME_RESOLUTION_FAILED",
@@ -183,15 +188,18 @@ const CLIENT_FILTER_CANDIDATE_WINDOW_MS = 10_000;
 const CLIENT_FILTER_WARNING_THRESHOLD = 2;
 const SLOW_PAGE_THRESHOLD_MS = 12_000;
 const SLOW_PAGE_ISSUE_HOLD_MS = 5 * 60_000;
+const SLOW_WAIT_NOTIFICATION_PREFIX = "slow-wait:";
 const CANDIDATE_WINDOW_MS = 30_000;
 const DEBUG_LOG_LIMIT = 150;
 const DEBUG_FLUSH_DELAY_MS = 150;
 const DEBUG_BATCH_SIZE = 20;
 const MAX_CONCURRENT_PROBES = 3;
 const DIRECT_PROBE_CACHE_MS = 2_000;
+const DIRECT_PROBE_TIMEOUT_MS = 2_500;
+const DNS_DIRECT_PROBE_TIMEOUT_MS = 1_500;
 const SAME_ORIGIN_ONLY_TYPES = new Set(["script", "stylesheet"]);
 const RECOVERY_WINDOW_MS = 90_000;
-const RECOVERY_SETTLE_DELAY_MS = 1_500;
+const RECOVERY_SETTLE_DELAY_MS = 500;
 const MAX_SETTLED_RECOVERY_RELOADS = 3;
 const GATEWAY_RETRY_DELAYS_MS = Object.freeze([500, 1_500]);
 const GATEWAY_HEALTH_TIMEOUT_MS = 750;
@@ -200,6 +208,8 @@ const GLOBAL_CHECK_TOTAL_TIMEOUT_MS = 25_000;
 const GLOBAL_CHECK_POLL_DELAY_MS = 600;
 const GLOBAL_OUTAGE_HOLD_MS = 15 * 60_000;
 const DIRECT_RECOVERY_COOLDOWN_MS = 10 * 60_000;
+const AUTO_ROUTE_RECOVERY_GRACE_MS = 60_000;
+const MAIN_ROUTE_RELOAD_DELAY_MS = 250;
 const AUTO_ROUTE_ORIGINS_KEY = "autoRouteOrigins";
 let debugEnabledCache = null;
 let debugBuffer = [];
@@ -511,6 +521,7 @@ routingSnapshotReady = getSettings().catch((error) => {
 
 function buildPacScript(settings) {
   const learnedDomains = JSON.stringify(settings.learnedDomains);
+  const ignoredDomains = JSON.stringify(settings.ignoredDomains);
   const directive = PROXY_DIRECTIVES[settings.proxyType] || PROXY_DIRECTIVES.socks5;
   const proxyHost = settings.proxyHost.includes(":") ? `[${settings.proxyHost}]` : settings.proxyHost;
   const proxy = `${directive} ${proxyHost}:${settings.proxyPort}`;
@@ -519,6 +530,7 @@ function buildPacScript(settings) {
 function FindProxyForURL(url, host) {
   host = host.toLowerCase().replace(/\\.$/, "");
   var learnedDomains = ${learnedDomains};
+  var ignoredDomains = ${ignoredDomains};
   var address = host.replace(/^\\[|\\]$/g, "");
   var ipv4 = address.split(".");
   var isPrivateIpv4 = false;
@@ -556,6 +568,13 @@ function FindProxyForURL(url, host) {
       isPrivateIpv4 ||
       isPrivateIpv6) {
     return "DIRECT";
+  }
+
+  for (var ignoredIndex = 0; ignoredIndex < ignoredDomains.length; ignoredIndex++) {
+    var ignored = ignoredDomains[ignoredIndex];
+    if (host === ignored || dnsDomainIs(host, "." + ignored)) {
+      return "DIRECT";
+    }
   }
 
   for (var i = 0; i < learnedDomains.length; i++) {
@@ -627,9 +646,35 @@ function markTabLoading(tabId) {
 
 function cancelSlowLoadWatchdog(tabId) {
   const watchdog = slowLoadWatchdogs.get(tabId);
-  if (!watchdog) return;
-  clearTimeout(watchdog.timer);
-  slowLoadWatchdogs.delete(tabId);
+  if (watchdog) {
+    clearTimeout(watchdog.timer);
+    slowLoadWatchdogs.delete(tabId);
+  }
+  clearSlowConnectionNotification(tabId).catch(() => {});
+}
+
+async function notifySlowConnection(tabId, host) {
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") return false;
+  try {
+    await chrome.notifications.create(`${SLOW_WAIT_NOTIFICATION_PREFIX}${tabId}`, {
+      type: "basic",
+      iconUrl: "assets/icon-128.png",
+      title: t("slowWaitNotificationTitle"),
+      message: t("slowWaitNotificationMessage", host),
+      priority: 0
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearSlowConnectionNotification(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return Promise.resolve(false);
+  return chrome.notifications.clear(`${SLOW_WAIT_NOTIFICATION_PREFIX}${tabId}`).catch(() => false);
 }
 
 async function reportSlowPage(tabId, host, startedAt) {
@@ -658,6 +703,7 @@ async function reportSlowPage(tabId, host, startedAt) {
     elapsedMs: Math.max(0, now - startedAt)
   });
   await setIssueBadge(true, "slow_loading", tabId);
+  await notifySlowConnection(tabId, host);
 }
 
 function startSlowLoadWatchdog(tabId, url) {
@@ -868,7 +914,10 @@ async function saveSettingsUnlocked(patch) {
     lastNotificationStatus: current.lastNotificationStatus,
     lastNotificationDomain: current.lastNotificationDomain,
     lastNotificationAt: current.lastNotificationAt,
-    lastNotificationError: current.lastNotificationError
+    lastNotificationError: current.lastNotificationError,
+    proxySetupReminderAt: current.proxySetupReminderAt,
+    proxySetupFailureReminderAt: current.proxySetupFailureReminderAt,
+    proxySetupReminderCount: current.proxySetupReminderCount
   };
 
   debugEnabledCache = next.debugEnabled;
@@ -881,6 +930,9 @@ async function saveSettingsUnlocked(patch) {
   }
   await chrome.storage.local.set(next);
   const result = await applyProxy();
+  if (hasConfiguredProxy(next)) {
+    await chrome.notifications.clear(PROXY_SETUP_NOTIFICATION_ID).catch(() => {});
+  }
   return { ...next, applyResult: result };
 }
 
@@ -946,6 +998,47 @@ async function selectedProxyAvailable(settings) {
   return settings.proxyMode === "custom" ? true : localGatewayAvailable();
 }
 
+async function checkProxyStatus() {
+  const settings = await getSettings();
+  if (!hasConfiguredProxy(settings)) {
+    return { status: "unconfigured", mode: "unset", configured: false, available: false };
+  }
+
+  const proxyState = await chrome.proxy.settings.get({ incognito: false });
+  if (["not_controllable", "controlled_by_other_extensions"].includes(proxyState.levelOfControl)) {
+    return {
+      status: "control_error",
+      mode: settings.proxyMode,
+      configured: true,
+      available: false
+    };
+  }
+  if (!settings.enabled) {
+    return {
+      status: "disabled",
+      mode: settings.proxyMode,
+      configured: true,
+      available: false
+    };
+  }
+  if (settings.proxyMode === "custom") {
+    return {
+      status: "custom_configured",
+      mode: "custom",
+      configured: true,
+      available: null
+    };
+  }
+
+  const available = await localGatewayAvailable();
+  return {
+    status: available ? "local_ready" : "local_unavailable",
+    mode: "local",
+    configured: true,
+    available
+  };
+}
+
 function registerDetectionCandidate(host, details, error) {
   const threshold = AUTO_LEARN_ERROR_THRESHOLDS[error];
   if (!threshold) return { ready: false, supported: false, count: 0 };
@@ -997,10 +1090,10 @@ function releaseProbeSlot() {
   activeProbeCount = Math.max(0, activeProbeCount - 1);
 }
 
-async function runDirectProbe(probeUrl) {
+async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
   await acquireProbeSlot();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4_500);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(probeUrl, {
       method: "GET",
@@ -1020,7 +1113,7 @@ async function runDirectProbe(probeUrl) {
   }
 }
 
-function directRequestResponds(url) {
+function directRequestResponds(url, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
   let probeUrl;
   try {
     probeUrl = sanitizedProbeUrl(url);
@@ -1031,21 +1124,22 @@ function directRequestResponds(url) {
   for (const [key, value] of directProbeCache) {
     if (now - value.at >= DIRECT_PROBE_CACHE_MS) directProbeCache.delete(key);
   }
-  const cached = directProbeCache.get(probeUrl);
+  const cacheKey = `${timeoutMs}:${probeUrl}`;
+  const cached = directProbeCache.get(cacheKey);
   if (cached) {
     return Promise.resolve(cached.reachable);
   }
-  const existing = directProbeInFlight.get(probeUrl);
+  const existing = directProbeInFlight.get(cacheKey);
   if (existing) return existing;
-  const request = runDirectProbe(probeUrl)
+  const request = runDirectProbe(probeUrl, timeoutMs)
     .then((reachable) => {
-      directProbeCache.set(probeUrl, { at: Date.now(), reachable });
+      directProbeCache.set(cacheKey, { at: Date.now(), reachable });
       return reachable;
     })
     .finally(() => {
-      if (directProbeInFlight.get(probeUrl) === request) directProbeInFlight.delete(probeUrl);
+      if (directProbeInFlight.get(cacheKey) === request) directProbeInFlight.delete(cacheKey);
     });
-  directProbeInFlight.set(probeUrl, request);
+  directProbeInFlight.set(cacheKey, request);
   return request;
 }
 
@@ -1165,6 +1259,10 @@ function scheduleGatewayRetry(details, host) {
 async function startAutoDirectRecovery(details, host, settings) {
   const origin = await autoRouteOrigin(host);
   if (!origin) return false;
+  // Concurrent failures from the navigation that just taught this route are
+  // not evidence that direct access recovered. Give the new PAC route time to
+  // settle before any automatic direct-path trial can remove it again.
+  if (Date.now() - Number(origin.learnedAt || 0) < AUTO_ROUTE_RECOVERY_GRACE_MS) return false;
   const family = routeFamily(host);
   const cooldown = directRecoveryCooldowns.get(family);
   if (cooldown && Date.now() - cooldown.at < DIRECT_RECOVERY_COOLDOWN_MS) return false;
@@ -1396,6 +1494,56 @@ async function flushLearnedNotifications() {
       lastNotificationError: error.message || t("notificationCreationFailed")
     });
     return { ok: false, error: error.message || t("notificationCreationFailed") };
+  }
+}
+
+async function openProxySetup() {
+  return chrome.tabs.create({
+    url: chrome.runtime.getURL("popup.html?onboarding=1"),
+    active: true
+  });
+}
+
+async function notifyProxySetupRequired(reason = "install") {
+  const permission = typeof chrome.notifications.getPermissionLevel === "function"
+    ? await chrome.notifications.getPermissionLevel()
+    : "granted";
+  if (permission !== "granted") return { ok: false, error: t("notificationPermissionDenied") };
+
+  const now = Date.now();
+  const state = await chrome.storage.local.get({
+    proxySetupReminderAt: null,
+    proxySetupFailureReminderAt: null,
+    proxySetupReminderCount: 0
+  });
+  const previousAt = Date.parse(state.proxySetupFailureReminderAt || "");
+  if (reason !== "install" && Number.isFinite(previousAt) &&
+      now - previousAt < PROXY_SETUP_REMINDER_COOLDOWN_MS) {
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    const id = await chrome.notifications.create(PROXY_SETUP_NOTIFICATION_ID, {
+      type: "basic",
+      iconUrl: "assets/icon-128.png",
+      title: t("proxySetupNotificationTitle"),
+      message: reason === "install"
+        ? t("proxySetupNotificationInstallMessage")
+        : t("proxySetupNotificationFailureMessage"),
+      buttons: [{ title: t("proxySetupNotificationButton") }],
+      priority: 1
+    });
+    await chrome.storage.local.set({
+      proxySetupReminderAt: new Date(now).toISOString(),
+      ...(reason === "install" ? {} : { proxySetupFailureReminderAt: new Date(now).toISOString() }),
+      proxySetupReminderCount: Number(state.proxySetupReminderCount || 0) + 1,
+      lastNotificationStatus: "created",
+      lastNotificationAt: new Date(now).toISOString(),
+      lastNotificationError: null
+    });
+    return { ok: true, id };
+  } catch (error) {
+    return { ok: false, error: error?.message || t("notificationCreationFailed") };
   }
 }
 
@@ -2031,17 +2179,26 @@ async function learnAndRetry(details) {
     return;
   }
 
-  // A reset, generic WebSocket failure or protocol error can be caused by a
-  // short service restart just as easily as by access interference. None of
-  // those signatures may overrule a successful direct-origin check. The safe
-  // default is to leave a working direct route alone; a person can still force
-  // a manual route from the popup when the failure is application-specific.
-  const directlyReachable = await directRequestResponds(details.url);
+  // Chrome has already attempted these dependency connections directly. Once
+  // their initiator/main page is routed, a DNS failure (or the second generic
+  // WebSocket failure required by the threshold) is sufficient evidence for a
+  // provisional dependency route. Repeating an HTTP-root fetch adds no useful
+  // evidence for a WebSocket and cost up to 4.5 seconds in real logs.
+  const strongRoutedDependencyEvidence = hasLearnedContext && details.type !== "main_frame" &&
+    (DNS_RESOLUTION_ERRORS.has(error) || (details.type === "websocket" && error === "ERR_FAILED"));
+  const probeTimeout = DNS_RESOLUTION_ERRORS.has(error)
+    ? DNS_DIRECT_PROBE_TIMEOUT_MS
+    : DIRECT_PROBE_TIMEOUT_MS;
+  const directlyReachable = strongRoutedDependencyEvidence
+    ? false
+    : await directRequestResponds(details.url, probeTimeout);
   await appendDebug("direct-check", {
     tabId: details.tabId,
     host,
     requestType: details.type,
-    reachable: directlyReachable
+    reachable: directlyReachable,
+    skipped: strongRoutedDependencyEvidence,
+    timeoutMs: strongRoutedDependencyEvidence ? 0 : probeTimeout
   });
   if (directlyReachable) {
     detectionCandidates.delete(candidate.key);
@@ -2095,7 +2252,10 @@ async function learnAndRetry(details) {
   retryCooldowns.set(retryKey, now);
 
   beginTabRecovery(details.tabId, host, now);
-  scheduleTabReload(details.tabId, 1_500, "main-route");
+  // chrome.proxy.settings.set() above has already resolved, so the PAC is
+  // active. A short hand-off is enough; the previous 1.5-second pause only
+  // made every first recovery visibly slower.
+  scheduleTabReload(details.tabId, MAIN_ROUTE_RELOAD_DELAY_MS, "main-route");
 }
 
 function summarizeGlobalMeasurement(domain, measurement) {
@@ -2301,7 +2461,7 @@ async function initialize() {
       ignoredDomains: normalizeDomains(existing.ignoredDomains),
       enabled: freshInstall ? true : Boolean(existing.enabled),
       debugEnabled: Boolean(existing.debugEnabled),
-      proxyMode: freshInstall ? "unset" : normalizeProxyMode(existing.proxyMode) === "unset"
+      proxyMode: freshInstall ? "unset" : existing.schemaVersion < 10
         ? "local"
         : normalizeProxyMode(existing.proxyMode),
       proxyType: normalizeProxyType(existing.proxyType),
@@ -2314,7 +2474,10 @@ async function initialize() {
       lastIssueDomain: existing.lastIssueDomain || null,
       lastIssueError: existing.lastIssueError || null,
       lastIssueAt: existing.lastIssueAt || null,
-      lastGlobalCheck: existing.lastGlobalCheck || null
+      lastGlobalCheck: existing.lastGlobalCheck || null,
+      proxySetupReminderAt: existing.proxySetupReminderAt || null,
+      proxySetupFailureReminderAt: existing.proxySetupFailureReminderAt || null,
+      proxySetupReminderCount: Number(existing.proxySetupReminderCount || 0)
     });
   }
   await chrome.storage.local.remove([
@@ -2345,7 +2508,27 @@ function ensureInitialized() {
 // Chrome's Errors state until the extension is removed and installed again.
 ensureInitialized().catch(() => {});
 
-chrome.runtime.onInstalled.addListener(() => ensureInitialized().catch(() => {}));
+chrome.runtime.onInstalled.addListener((details) => {
+  return ensureInitialized()
+    .then(async () => {
+      if (details?.reason !== "install") return;
+      await Promise.allSettled([
+        openProxySetup(),
+        notifyProxySetupRequired("install")
+      ]);
+    })
+    .catch(() => {});
+});
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (notificationId !== PROXY_SETUP_NOTIFICATION_ID) return;
+  openProxySetup().catch(reportAsyncError);
+});
+
+chrome.notifications.onButtonClicked.addListener((notificationId) => {
+  if (notificationId !== PROXY_SETUP_NOTIFICATION_ID) return;
+  openProxySetup().catch(reportAsyncError);
+});
 
 chrome.runtime.onStartup.addListener(() => {
   ensureInitialized()
@@ -2389,6 +2572,15 @@ chrome.webRequest.onErrorOccurred.addListener(
       if (details.type === "main_frame") {
         const settings = await getSettings();
         await setIssueBadge(settings.enabled, "unreachable", details.tabId);
+        if (settings.enabled && !hasConfiguredProxy(settings)) {
+          await appendDebug("proxy-setup-required", {
+            tabId: details.tabId,
+            host,
+            error: details.error || null
+          });
+          await notifyProxySetupRequired("connection-failure");
+          return;
+        }
         await reportGenericMainFrameFailure(details, settings);
       }
       return learnAndRetry(details);
@@ -2498,6 +2690,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return { ok: true, state: await getPublicState() };
       case "getTabContext":
         return { ok: true, ...(await getTabContext(message.tabId)) };
+      case "checkProxyStatus":
+        return { ok: true, result: await checkProxyStatus() };
       case "saveSettings":
       {
         const patch = message.patch || {};

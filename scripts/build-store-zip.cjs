@@ -29,6 +29,7 @@ const PACKAGED_FILES = Object.freeze([
   "assets/icon-128.png",
   "LICENSE",
   "PRIVACY.md",
+  "PRIVACY_TR.md",
   "RESPONSIBLE_USE.md",
   "THIRD_PARTY_NOTICES.md"
 ]);

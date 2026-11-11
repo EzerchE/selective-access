@@ -83,6 +83,7 @@ const badgeColors = [];
 const actionTitles = [];
 const missingActionTabIds = new Set();
 const notifications = [];
+const createdTabs = [];
 const scriptExecutions = [];
 const scriptExecutionResults = [0, 1];
 let proxyConfig = null;
@@ -182,6 +183,12 @@ const chrome = {
       if (notificationCreateError) throw new Error(notificationCreateError);
       notifications.push({ id, options });
       return id;
+    },
+    onClicked: {
+      addListener(listener) { listeners.notificationClicked = listener; }
+    },
+    onButtonClicked: {
+      addListener(listener) { listeners.notificationButtonClicked = listener; }
     }
   },
   proxy: {
@@ -207,6 +214,10 @@ const chrome = {
     }
   },
   tabs: {
+    async create(details) {
+      createdTabs.push(details);
+      return { id: 999, ...details };
+    },
     async get(tabId) {
       return {
         id: tabId,
@@ -260,6 +271,7 @@ const chrome = {
     }
   },
   runtime: {
+    getURL(path) { return `chrome-extension://test/${path}`; },
     onInstalled: {
       addListener(listener) {
         listeners.installed = listener;
@@ -413,10 +425,50 @@ async function waitForDebugFlush() {
 }
 
 (async () => {
-  await listeners.installed();
+  await listeners.installed({ reason: "install" });
   assert.equal(storage.enabled, true);
-  assert.equal(storage.schemaVersion, 10);
+  assert.equal(storage.schemaVersion, 11);
   assert.equal(storage.proxyMode, "unset");
+  // Updating an unconfigured installation must not silently opt it into the
+  // bundled helper when a later schema migration runs.
+  storage.schemaVersion = 10;
+  await workerGlobal.initialize();
+  assert.equal(storage.proxyMode, "unset");
+  const unsetProxyStatus = await send({ type: "checkProxyStatus" });
+  assert.equal(unsetProxyStatus.result.status, "unconfigured");
+  assert.equal(createdTabs.length, 1);
+  assert.match(createdTabs[0].url, /popup\.html\?onboarding=1$/);
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].id, "proxy-setup-required");
+  assert.match(notifications[0].options.message, /proxy/i);
+  await listeners.notificationButtonClicked("proxy-setup-required", 0);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(createdTabs.length, 2);
+  notifications.length = 0;
+  createdTabs.length = 0;
+  await listeners.requestError({
+    tabId: 21,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    url: "https://blocked-on-first-run.example/",
+    error: "net::ERR_NAME_NOT_RESOLVED"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].id, "proxy-setup-required");
+  assert.match(notifications[0].options.message, /ayarlanmadı/i);
+  await listeners.requestError({
+    tabId: 21,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "main_frame",
+    url: "https://blocked-on-first-run.example/",
+    error: "net::ERR_NAME_NOT_RESOLVED"
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(notifications.length, 1);
+  notifications.length = 0;
   assert.equal(storage.debugEnabled, false);
   assert.deepEqual([...storage.learnedDomains], []);
   assert.deepEqual([...storage.ignoredDomains], []);
@@ -468,11 +520,20 @@ async function waitForDebugFlush() {
   });
   assert.equal(customProxy.state.proxyMode, "custom");
   assert.equal(customProxy.state.proxyType, "https");
+  const customProxyStatus = await send({ type: "checkProxyStatus" });
+  assert.equal(customProxyStatus.result.status, "custom_configured");
   assert.equal(
     evaluatePac(proxyConfig.pacScript.data)("https://example.com/", "example.com"),
     "HTTPS proxy.example:8443"
   );
   await send({ type: "saveSettings", patch: { proxyMode: "local" } });
+  const missingLocalStatus = await send({ type: "checkProxyStatus" });
+  assert.equal(missingLocalStatus.result.status, "local_unavailable");
+  gatewayHealthAvailable = true;
+  const healthyLocalStatus = await send({ type: "checkProxyStatus" });
+  assert.equal(healthyLocalStatus.result.status, "local_ready");
+  gatewayHealthAvailable = false;
+
   assert.equal(findProxy("chrome-extension://abc/popup.html", "abc"), "DIRECT");
   const private172Host = [172, 20, 1, 2].join(".");
   assert.equal(findProxy(`http://${private172Host}/`, private172Host), "DIRECT");
@@ -621,6 +682,10 @@ async function waitForDebugFlush() {
     assert.equal(storage.lastIssueDomain, "slow-loading.example");
     assert.equal(storage.lastIssueError, "PAGE_LOAD_SLOW");
     assertBadge(lastForTab(badgeTexts, 60), 60, "?");
+    const slowNotificationIndex = notifications.findIndex(({ id }) => id === "slow-wait:60");
+    assert.notEqual(slowNotificationIndex, -1);
+    assert.match(notifications[slowNotificationIndex].options.message, /çalışmayı sürdürüyor/i);
+    notifications.splice(slowNotificationIndex, 1);
 
     await listeners.requestCompleted({
       tabId: 60,
@@ -651,6 +716,25 @@ async function waitForDebugFlush() {
   assert.equal(storage.learnedDomains.includes("unreachable-timeout.example"), true);
   assert.equal(storage.learnedDomains.includes("www.unreachable-timeout.example"), true);
   assert.equal(storage.lastIssueType, "route_learned");
+  let learnedSitePac = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(
+    learnedSitePac("https://api.unreachable-timeout.example/data", "api.unreachable-timeout.example"),
+    "DIRECT"
+  );
+  assert.equal(
+    learnedSitePac("https://unrelated.example/", "unrelated.example"),
+    "DIRECT"
+  );
+  await send({
+    type: "saveSettings",
+    patch: { ignoredDomains: ["assets.unreachable-timeout.example"] }
+  });
+  learnedSitePac = evaluatePac(proxyConfig.pacScript.data);
+  assert.equal(
+    learnedSitePac("https://assets.unreachable-timeout.example/app.js", "assets.unreachable-timeout.example"),
+    "DIRECT"
+  );
+  await send({ type: "saveSettings", patch: { ignoredDomains: [] } });
   await new Promise((resolve) => setTimeout(resolve, 1_600));
   assert.equal(reloads.some((entry) => entry.tabId === 59), true);
 
@@ -675,6 +759,32 @@ async function waitForDebugFlush() {
   });
   assert.equal(storage.learnedDomains.includes("slow-dependency.example"), true);
   assert.equal(new URL(directProbeUrls.at(-1)).hostname, "slow-dependency.example");
+  gatewayHealthAvailable = true;
+  await listeners.requestError({
+    tabId: 57,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "script",
+    error: "net::ERR_TIMED_OUT",
+    url: "https://slow-dependency.example/app.js",
+    initiator: "https://routed-page.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("slow-dependency.example"), true);
+  assert.notEqual(storage.lastIssueType, "direct_recovery");
+  gatewayHealthAvailable = false;
+
+  const probesBeforeRoutedDnsDependency = directProbeUrls.length;
+  await listeners.requestError({
+    tabId: 57,
+    frameId: 0,
+    parentFrameId: -1,
+    type: "image",
+    error: "net::ERR_NAME_NOT_RESOLVED",
+    url: "https://dns-dependency.example/image.png",
+    initiator: "https://routed-page.example/"
+  });
+  assert.equal(storage.learnedDomains.includes("dns-dependency.example"), true);
+  assert.equal(directProbeUrls.length, probesBeforeRoutedDnsDependency);
 
   await listeners.requestError({
     tabId: 58,
@@ -1358,7 +1468,7 @@ async function waitForDebugFlush() {
   // request type that caused learning has to complete directly.
   await chrome.storage.local.set({
     autoRouteOrigins: {
-      "auto-socket.example": { requestType: "websocket", learnedAt: Date.now() }
+      "auto-socket.example": { requestType: "websocket", learnedAt: Date.now() - 61_000 }
     },
     routeHealth: {
       "auto-socket.example": {
@@ -1404,7 +1514,7 @@ async function waitForDebugFlush() {
   // cooldown prevent a route-removal/reload loop.
   await chrome.storage.local.set({
     autoRouteOrigins: {
-      "auto-restore.example": { requestType: "main_frame", learnedAt: Date.now() }
+      "auto-restore.example": { requestType: "main_frame", learnedAt: Date.now() - 61_000 }
     },
     routeHealth: {
       "auto-restore.example": {
@@ -1487,6 +1597,7 @@ async function waitForDebugFlush() {
     "lastProxyError", "lastIssueType", "lastIssueDomain", "lastIssueError",
     "lastIssueAt", "lastGlobalCheck", "lastNotificationStatus",
     "lastNotificationDomain", "lastNotificationAt", "lastNotificationError",
+    "proxySetupReminderAt", "proxySetupFailureReminderAt", "proxySetupReminderCount",
     "debugEnabled"
   ].sort();
   storageWrites.length = 0;
@@ -1503,7 +1614,7 @@ async function waitForDebugFlush() {
   assert.equal(injected.ok, true);
   const settingsWrite = storageWrites.find((keys) => keys.includes("learnedDomains"));
   assert.deepEqual([...settingsWrite].sort(), expectedPersistedKeys);
-  assert.equal(storage.schemaVersion, 10);
+  assert.equal(storage.schemaVersion, 11);
   assert.equal(storage.proxyHost, "127.0.0.1");
   assert.equal(Object.hasOwn(storage, "unexpectedField"), false);
   assert.deepEqual([...storage.debugLog], []);
