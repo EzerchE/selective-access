@@ -344,7 +344,7 @@
     "message": "Eklentiyi aç veya kapat"
   },
   "transientDetail": {
-    "message": "Doğrudan kontrol hedeften yanıt aldı. Site yönlendirme listesine eklenmedi; sayfayı yeniden deneyebilirsiniz."
+    "message": "Origin kontrolü yanıt verdi, ancak sayfa açılamadı. Tekrarlanan gezinme hatalarında seçtiğiniz proxy üzerinden otomatik yeniden denenecek."
   },
   "transientTitle": {
     "message": "Geçici bağlantı hatası"

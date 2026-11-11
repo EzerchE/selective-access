@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.17.0**
+Güncel sürüm: **4.17.1**
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim 4.17: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -50,7 +50,7 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Normal çalışan bağlantılar doğrudan kalır.
 - Hata eşikleri hata türüne bağlıdır; DNS hatası bir gözlem ve sınırlı origin kontrolünden sonra öğrenilebilir.
 - DNS çözümleme hatası yaşayan ana sayfalar ve harici çerçeveler öğrenilebilir. Tekrarlanan sertifika otoritesi hataları da seçici yeniden denemeyi tetikleyebilir; ancak sertifika doğrulaması hiçbir zaman atlanmaz.
-- Zaman aşımına uğrayan bir ana sayfa yalnız temizlenmiş doğrudan origin probu da başarısızsa öğrenilip yeniden denenir; yavaş fakat erişilebilir sayfa doğrudan kalır.
+- Başarısız ana sayfa, temizlenmiş origin kontrolü de başarısızsa öğrenilip yeniden denenir. Ana sayfada tekrarlanan bağlantı sıfırlanması, kapanması, zaman aşımı veya taşıma protokolü hataları, küçük kontrol isteği yanıt alsa bile geçici proxy rotasını tetikleyebilir; başarılı gezinme hata kanıtını temizler. Gerçek ağ hatası vermeyen yavaş sayfa doğrudan kalır.
 - Tarayıcı sekmesi ağ hatası üretmeden olağandan uzun süre yükleniyor kalırsa eklenti rotayı değiştirmeden yavaş sayfa teşhisi gösterir ve isteğe bağlı genel durum kontrolünü sunar.
 - Bir sayfa yönlendirildikten sonra o sayfanın başlattığı ve DNS hatası ya da zaman aşımı yaşayan bağımlılıklar doğrudan origin probu da başarısızsa öğrenilebilir; ilgisiz sayfalar bu genişletilmiş bağımlılık işlemini tetikleyemez.
 - Doğrulama isteği tam adresi tekrarlamaz; kullanıcı bilgisi, yol, sorgu ve fragment kaldırılarak yalnız origin kökü çerezsiz sınanır.

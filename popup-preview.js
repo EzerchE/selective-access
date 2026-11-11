@@ -1,7 +1,8 @@
 // Development support for the ?preview= view opened as a normal web page.
 // A real chrome API exists inside the extension, so this file changes nothing
 // there and must stay inert.
-if (location.protocol !== "chrome-extension:" && new URLSearchParams(location.search).has("preview")) {
+if (!globalThis.chrome?.runtime?.getManifest && location.protocol !== "chrome-extension:" &&
+    new URLSearchParams(location.search).has("preview")) {
   // The popup reads every label through chrome.i18n, so the preview needs a
   // real catalogue rather than a stub that returns keys. It is fetched before
   // anything renders and exposed through globalThis.__i18nReady.

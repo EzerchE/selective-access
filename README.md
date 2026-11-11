@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.17.0**
+Current version: **4.17.1**
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
 
@@ -50,7 +50,7 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - Connections that work normally remain direct.
 - Error thresholds depend on the failure class; a DNS failure can qualify after one observation and a bounded origin check.
 - Main pages and external frames affected by DNS resolution errors can be learned. Repeated certificate-authority failures may also trigger a selective retry, but certificate validation is never bypassed.
-- A timed-out main page is learned and retried only when a sanitized direct-origin probe also fails; a slow but reachable page remains direct.
+- A failed main page is learned and retried after a failed sanitized origin probe. Repeated top-level connection resets, closes, timeouts or transport-protocol errors can also trigger a provisional proxy route even when that small probe answers; a successful navigation clears the failure evidence. A slow page without an actual network error remains direct.
 - If the browser tab remains loading unusually long without a network error, the extension reports a slow-page diagnosis and offers the optional global status check without changing the route.
 - Once a page is routed, dependencies initiated by that page that fail DNS resolution or time out can also be learned after a failed direct-origin probe; unrelated pages cannot cause this broader dependency handling.
 - Verification does not repeat the full address. User information, path, query, and fragment are removed, and only the origin root is tested without cookies.

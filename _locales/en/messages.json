@@ -344,7 +344,7 @@
     "message": "Enable or disable the extension"
   },
   "transientDetail": {
-    "message": "The direct check received a response. The site was not added to routing; you can retry the page."
+    "message": "The origin check responded, but this page failed. Repeated navigation failures will retry through your selected proxy automatically."
   },
   "transientTitle": {
     "message": "Temporary connection error"
