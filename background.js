@@ -155,8 +155,8 @@ const AUTO_LEARN_ERROR_THRESHOLDS = Object.freeze({
   // the same host, so the count climbs there on its own.
   ERR_SSL_PROTOCOL_ERROR: { main: 1, embedded: 2 },
   // Protocol failures can also be a transient server or network event. Two
-  // observations are required and a successful direct-origin probe always
-  // vetoes automatic routing.
+  // observations are required. Repeated top-level failures can outweigh a
+  // successful origin probe; embedded failures still require a failed probe.
   ERR_QUIC_PROTOCOL_ERROR: { main: 2, embedded: 2 },
   ERR_HTTP2_PROTOCOL_ERROR: { main: 2, embedded: 2 },
   // This can indicate a genuinely invalid certificate, so it never bypasses
@@ -1039,6 +1039,15 @@ async function checkProxyStatus() {
   };
 }
 
+// A small root fetch can succeed while Chrome's real navigation is repeatedly
+// reset or fails at the transport layer. Only failed top-level navigations may
+// outweigh that probe; generic cancellation and certificate errors cannot.
+const MAIN_NAVIGATION_RECOVERY_ERRORS = new Set([
+  "ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED", "ERR_CONNECTION_TIMED_OUT",
+  "ERR_TIMED_OUT", "ERR_EMPTY_RESPONSE", "ERR_SSL_PROTOCOL_ERROR",
+  "ERR_QUIC_PROTOCOL_ERROR", "ERR_HTTP2_PROTOCOL_ERROR"
+]);
+
 function registerDetectionCandidate(host, details, error) {
   const threshold = AUTO_LEARN_ERROR_THRESHOLDS[error];
   if (!threshold) return { ready: false, supported: false, count: 0 };
@@ -1052,9 +1061,10 @@ function registerDetectionCandidate(host, details, error) {
   const count = previous && previous.error === error && now - previous.lastAt <= CANDIDATE_WINDOW_MS
     ? previous.count + 1
     : 1;
-  detectionCandidates.set(key, { count, lastAt: now, error });
+  const record = { count, lastAt: now, error };
+  detectionCandidates.set(key, record);
   const required = details.type === "main_frame" ? threshold.main : threshold.embedded;
-  return { ready: count >= required, supported: true, count, required, key };
+  return { ready: count >= required, supported: true, count, required, key, record };
 }
 
 function sanitizedProbeUrl(url) {
@@ -2200,8 +2210,17 @@ async function learnAndRetry(details) {
     skipped: strongRoutedDependencyEvidence,
     timeoutMs: strongRoutedDependencyEvidence ? 0 : probeTimeout
   });
-  if (directlyReachable) {
-    detectionCandidates.delete(candidate.key);
+  // Completion may race this asynchronous probe. A successful real navigation
+  // clears the candidate, so an old failure must not install a route afterward.
+  if (detectionCandidates.get(candidate.key) !== candidate.record) return;
+  const mainNavigationRecovery = details.type === "main_frame" &&
+    MAIN_NAVIGATION_RECOVERY_ERRORS.has(error);
+  const repeatedNavigationFailure = mainNavigationRecovery &&
+    candidate.count >= Math.max(2, candidate.required);
+  if (directlyReachable && !repeatedNavigationFailure) {
+    // Keep the first failed navigation when the probe answers, so a second
+    // genuine failure can resolve the contradiction without a manual route.
+    if (!mainNavigationRecovery) detectionCandidates.delete(candidate.key);
     if (details.type === "main_frame") {
       await chrome.storage.local.set({
         lastIssueType: "transient_reachable",
@@ -2213,6 +2232,11 @@ async function learnAndRetry(details) {
       await setIssueBadge(true, "transient_reachable", details.tabId);
     }
     return;
+  }
+  if (directlyReachable && repeatedNavigationFailure) {
+    await appendDebug("navigation-failure-overrides-probe", {
+      tabId: details.tabId, host, error, count: candidate.count
+    });
   }
   detectionCandidates.delete(candidate.key);
 
@@ -2591,6 +2615,12 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 chrome.webRequest.onCompleted.addListener(
   async (details) => {
+    // Invalidate synchronously, before any asynchronous route bookkeeping, so
+    // a pending origin probe cannot overrule this successful main navigation.
+    if (details.type === "main_frame") {
+      const host = getRequestHost(details);
+      if (host) detectionCandidates.delete(`main:${host}`);
+    }
     if (await settleDirectRecoverySuccess(details)) return;
     const routeChanged = await trackCompletedRoute(details);
     const completedHost = getRequestHost(details);

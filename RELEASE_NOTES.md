@@ -1,3 +1,12 @@
+# Automatic Access 4.17.1
+
+- Based on 4.17.0, preserving existing settings and setup gates.
+- Repeated top-level transport failures can now trigger automatic provisional proxy routing even when a small direct-origin check responds. Single transient failures and successful navigations remain direct.
+- Successful navigation clears accumulated failure evidence, including pending checks. Existing exact-host exclusions, bounded retries, certificate validation and external-outage holds remain in effect.
+- Updated the reachable-origin diagnosis in English and Turkish to explain automatic recovery.
+
+The extension ZIP is available on GitHub. Chrome Web Store publication is separate. The optional Windows helper is unchanged from 4.17.0; existing installations do not need to reinstall it for this fix.
+
 # Automatic Access 4.17.0
 
 - Visible first-run setup: choose your own proxy or install the optional ready-to-use Windows ByeDPI helper from GitHub.

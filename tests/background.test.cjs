@@ -612,30 +612,22 @@ async function waitForDebugFlush() {
   assert.equal(sanitizedProbe.search, "");
   assert.equal(sanitizedProbe.hash, "");
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await listeners.requestError({
-      tabId: 55,
-      type: "main_frame",
-      error: "net::ERR_CONNECTION_RESET",
-      url: "https://normal-available.example/"
-    });
-    if (attempt === 0) {
-      assertBadge(lastForTab(badgeTexts, 55), 55, "?");
-      assert.equal(lastForTab(badgeColors, 55)?.color, "#d97706");
-    }
-  }
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  const transientReset = {
+    tabId: 55, type: "main_frame", error: "net::ERR_CONNECTION_RESET",
+    url: "https://normal-available.example/"
+  };
+  await listeners.requestError(transientReset);
   assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
-  assert.equal(storage.learnedDomains.includes("www.normal-available.example"), false);
-  assert.equal(storage.lastIssueType, "transient_reachable");
   assertBadge(lastForTab(badgeTexts, 55), 55, "?");
   assert.equal(notifications.length, 2);
   await listeners.requestCompleted({
-    tabId: 55,
-    type: "main_frame",
-    url: "https://normal-available.example/",
-    statusCode: 200,
-    fromCache: false
+    ...transientReset, statusCode: 200, fromCache: false
+  });
+  // A real success separates failures; it must clear the first candidate.
+  await listeners.requestError(transientReset);
+  assert.equal(storage.learnedDomains.includes("normal-available.example"), false);
+  await listeners.requestCompleted({
+    ...transientReset, statusCode: 200, fromCache: false
   });
   assertBadge(lastForTab(badgeTexts, 55), 55, "");
   assert.equal(lastForTab(badgeColors, 55)?.color, "#15803d");
@@ -2474,6 +2466,69 @@ async function waitForDebugFlush() {
     false,
     "media must stay out of the catch-all exception however often it fails"
   );
+
+  // Regression: an origin fetch answering does not prove that Chrome's real
+  // navigation works. Two failed navigations must recover automatically.
+  gatewayHealthAvailable = true;
+  for (const [index, error] of [
+    "ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED", "ERR_TIMED_OUT",
+    "ERR_SSL_PROTOCOL_ERROR", "ERR_QUIC_PROTOCOL_ERROR", "ERR_HTTP2_PROTOCOL_ERROR"
+  ].entries()) {
+    const host = `navigation-recovery-${index}.example`;
+    const tabId = 300 + index;
+    const request = { tabId, type: "main_frame", error: `net::${error}`, url: `https://${host}/page` };
+    directlyReachableHosts.add(host);
+    await send({ type: "saveSettings", patch: { enabled: true, learnedDomains: [], ignoredDomains: [] } });
+    await listeners.requestError(request);
+    assert.equal(storage.learnedDomains.includes(host), false, `${error}: one reachable-probe failure remains direct`);
+    const reloadCount = reloads.length;
+    await listeners.requestError(request);
+    assert.equal(storage.learnedDomains.includes(host), true, `${error}: repeated navigation failure overrides probe`);
+    const pac = evaluatePac(proxyConfig.pacScript.data);
+    assert.match(pac(`https://${host}/page`, host), /SOCKS5/);
+    assert.equal(pac(`https://child.${host}/`, `child.${host}`), "DIRECT", "recovery does not wildcard the hostname");
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.equal(reloads.length, reloadCount + 1, "learning triggers one automatic main-page retry");
+    // In-flight errors from the failed navigation must not remove the newly
+    // learned route or start another immediate reload loop.
+    await listeners.requestError(request);
+    await listeners.requestError(request);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.equal(storage.learnedDomains.includes(host), true);
+    assert.equal(reloads.length, reloadCount + 1, "recovery reload is bounded");
+    await listeners.requestCompleted({ ...request, statusCode: 200, fromCache: false });
+    directlyReachableHosts.delete(host);
+  }
+  await waitForDebugFlush();
+  assert.equal(storage.debugLog.some((entry) => entry.event === "navigation-failure-overrides-probe"), true);
+
+  const racingHost = "navigation-probe-race.example";
+  directlyReachableHosts.add(racingHost);
+  delayedProbeHosts.add(racingHost);
+  await send({ type: "saveSettings", patch: { enabled: true, learnedDomains: [], ignoredDomains: [] } });
+  const racingRequest = { tabId: 315, type: "main_frame", error: "net::ERR_CONNECTION_RESET", url: `https://${racingHost}/` };
+  await listeners.requestError(racingRequest);
+  const pendingProbe = listeners.requestError(racingRequest);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await listeners.requestCompleted({ ...racingRequest, statusCode: 200, fromCache: false });
+  await pendingProbe;
+  assert.equal(storage.learnedDomains.includes(racingHost), false, "real completion invalidates an in-flight failure probe");
+  directlyReachableHosts.delete(racingHost);
+  delayedProbeHosts.delete(racingHost);
+
+  for (const mode of ["disabled", "ignored", "unconfigured"]) {
+    const host = `navigation-${mode}.example`;
+    directlyReachableHosts.add(host);
+    await send({ type: "saveSettings", patch: {
+      enabled: mode !== "disabled", proxyMode: mode === "unconfigured" ? "unset" : "local",
+      learnedDomains: [], ignoredDomains: mode === "ignored" ? [host] : []
+    } });
+    const request = { tabId: 320, type: "main_frame", error: "net::ERR_CONNECTION_RESET", url: `https://${host}/` };
+    await listeners.requestError(request);
+    await listeners.requestError(request);
+    assert.equal(storage.learnedDomains.includes(host), false, `${mode} must prevent automatic recovery`);
+    directlyReachableHosts.delete(host);
+  }
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
