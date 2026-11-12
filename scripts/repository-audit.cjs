@@ -322,6 +322,29 @@ for (const document of ["README.md", "PRIVACY.md", "STORE_READINESS.md"]) {
   }
 }
 
+// Submission material must reference the release being uploaded, not a stale
+// archive or an obsolete validation gate. Historical release notes are separate.
+for (const document of ["STORE_LISTING.md", "STORE_READINESS.md", "STORE_SUBMISSION.md", "STORE_REVIEWER_GUIDE.md"]) {
+  const content = fs.readFileSync(path.join(root, document), "utf8");
+  if (!content.split(/\r?\n/)[0].includes(manifest.version)) fail(`Store document version mismatch: ${document}`);
+  const uploads = [...content.matchAll(/\bautomatic-access-(\d+\.\d+\.\d+)\.zip\b/g)];
+  if (!uploads.length || uploads.some((match) => match[1] !== manifest.version)) fail(`Stale store upload filename: ${document}`);
+  if (/\d+\.\d+\.\d+-rc\.\d|Remaining release gate:|this development shell is not elevated|preview only|not yet published/i.test(content)) {
+    fail(`Superseded submission status: ${document}`);
+  }
+}
+const listing = fs.readFileSync(path.join(root, "STORE_LISTING.md"), "utf8");
+for (const catalogue of [englishMessages, turkishMessages]) {
+  const description = catalogue.extensionDescription.message;
+  if (description.length > 132 || !listing.includes(description) || !listing.includes(catalogue.extensionName.message)) {
+    fail("Store name/short description does not match packaged metadata.");
+  }
+}
+const submission = fs.readFileSync(path.join(root, "STORE_SUBMISSION.md"), "utf8");
+for (const permission of manifest.permissions) {
+  if (!new RegExp(`^### ${permission}$`, "m").test(submission)) fail(`Missing store permission justification: ${permission}`);
+}
+
 for (const workflow of fs.readdirSync(path.join(root, ".github/workflows"))) {
   if (!/\.ya?ml$/i.test(workflow)) continue;
   const content = fs.readFileSync(path.join(root, ".github/workflows", workflow), "utf8");

@@ -1,44 +1,50 @@
-# Chrome Web Store preparation — 4.18.2
+# Chrome Web Store preparation — 4.18.3
 
-Prepared 12 November 2026. This document records submission materials, not Google approval.
+Prepared 12 November 2026. Submission materials are prepared; publisher-account actions and store review have not been completed by this work. No store approval is claimed.
 
-## Included
+## Submission bundle
 
-- Manifest V3; local packaged JavaScript only.
-- Permissions: `activeTab`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest` and HTTP/HTTPS/WS/WSS host access; per-permission reasons are in STORE_LISTING.md.
-- The switch starts on. First install uses proxyMode=unset; automatic routing waits for the user's explicit choice.
-- Exact-host PAC routing with ignored-target precedence and local/private address exclusions. A www alias is listed separately, never inferred as a wildcard.
-- English/Turkish UI, privacy notices, visible proxy recipient disclosure before Save proxy, and a privacy-policy link.
-- Bundled Windows gateway is optional. Users can instead select their own unauthenticated SOCKS5/SOCKS4/HTTP/HTTPS proxy.
-- Setup differentiates saved settings from local helper health; custom endpoint connectivity is not falsely claimed as verified.
-- Install/remove links; removing Chrome alone does not remove the optional Windows services.
-- Runtime-only store ZIP, current 1280×800 screenshots, 440×280 promo image and 128px icon.
-- STORE_LISTING.md supplies listing text, permission reasons, data-flow declarations and reviewer steps.
-- No public target-specific routing rules or real browsing history in public examples.
+- Upload only dist/automatic-access-4.18.3.zip, not the repository or helper archive.
+- STORE_LISTING.md: English/Turkish descriptions, public links and assets.
+- STORE_SUBMISSION.md: single purpose, permission reasons, remote-code answer, conservative data-use declarations and owner-only account fields.
+- STORE_REVIEWER_GUIDE.md: copy-ready tests, proxy/helper prerequisites and removal.
+- PRIVACY.md / PRIVACY_TR.md: public recipients, retention and Limited Use notices.
+- automatic-access-store-materials-4.18.3.zip: documents, screenshots, promo tile and icon, separate from the runtime ZIP.
 
-## Required verification gates
+## Included behavior
 
-Run node --check on runtime files; background, popup and helper-migration tests; repository-audit.cjs --history; build-store-zip.cjs. Verify ZIP manifest and assets and review screenshots in both themes. These checks do not prove success on every network or constitute a Google review.
+- Manifest V3 with packaged JavaScript; no downloaded executable extension code.
+- Permissions: `activeTab`, `notifications`, `proxy`, `scripting`, `storage`, `webRequest`; HTTP/HTTPS/WS/WSS host access supports the disclosed cross-site feature.
+- Switch starts ON, but routing awaits an explicit proxy choice. Setup distinguishes bundled-helper health from a merely saved custom endpoint.
+- Exact-host PAC rules, conventional main-page www alias, ignored-target precedence and local/private exclusions. Normal unlisted traffic stays DIRECT.
+- A compatible user-supplied proxy works without native installation. The optional Windows helper needs administrator permission to install/remove, as disclosed.
+- Debug starts off; global measurements require a click. Per-tab diagnostics do not mask resource errors with main-page success.
+- Optional LAN sharing starts OFF after helper installation/update. A separate relay and Private-profile firewall/application checks restrict it to one selected private IPv4 interface/subnet. OFF retains the loopback helper; uninstall removes the helper services and dedicated rule. The helper changes no DNS setting or firewall profile.
+- First-attempt delays, transport limits, lack of anonymity/access guarantees and absence of a developer-operated remote proxy are disclosed.
 
-## Publisher-only actions in Developer Dashboard
+## Verification and limits
 
-The account owner must provide verified contact details, enable two-step verification, choose applicable account/trader declarations, supply the public privacy/support URLs, review the actual data-use form, and upload the store ZIP and listing graphics. Do not certify that the product handles no user data: hostnames and connection metadata are processed locally and sent to selected recipients as described in PRIVACY.md.
+Runtime behavior is unchanged from 4.18.2. Lifecycle/race/restart, popup, migration, localization and preview coverage is retained. Resolver tests contain 28 checks and LAN tests contain 286 assertions. Release checks include syntax, required regressions, repository/history privacy audit, store-document version/filename checks, ZIP/manifest integrity and graphic dimensions.
 
-Upload only automatic-access-4.18.2.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
+Historical live validation on 2026-11-12 covered administrator installation, scoped firewall matching, ON/OFF cleanup, Public-profile shutdown and second-computer browser/TCP access. Installed-helper health and routed resolution were checked. The computer was not rebooted; automatic-start configuration was verified. These are earlier live results, not new validation of every network. See tests/LAN_VALIDATION.md and tests/GATEWAY_PERFORMANCE.md.
+
+Graphics show the actual base interface with reserved demonstration data. They contain no real target, account, client identifier or browsing history.
+
+## Release gates
+
+Run runtime syntax and background, popup, migration, resolver, LAN, localization and preview tests. Run scripts/repository-audit.cjs --history and scripts/build-store-zip.cjs. Verify release files against SHA256SUMS.txt. Document checks must reject old upload filenames and superseded validation claims.
+
+## Publisher-only Dashboard actions
+
+Enter verified contact details, complete account security, choose the applicable legal/trader declarations and distribution regions, and select a category available in the current Dashboard. Review the prepared data-category mapping against the form, add the public privacy URL, upload automatic-access-4.18.3.zip and graphics, and submit for review. Local hostname processing is still data handling; do not certify that no data is handled. Personal/legal account facts are not inferred or stored in the repository.
+
+No Dashboard submission is performed by release scripts. Signing the optional native helper is recommended for publisher trust but is not represented as a universal extension-store requirement.
 
 ## Official references
 
-- https://developer.chrome.com/docs/webstore/program-policies/policies
-- https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
 - https://developer.chrome.com/docs/webstore/cws-dashboard-listing
+- https://developer.chrome.com/docs/webstore/cws-dashboard-privacy
+- https://developer.chrome.com/docs/webstore/cws-dashboard-test-instructions
+- https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
+- https://developer.chrome.com/docs/webstore/program-policies/policies
 - https://developer.chrome.com/docs/webstore/publish
-
-Code signing the optional Windows helper is recommended for distribution trust but is not represented here as a universal Chrome Extensions policy requirement. The product must be independently reviewable with a user-supplied proxy; reviewer instructions disclose all optional native dependencies.
-
-## Private-LAN sharing
-
-Version 4.18.0 includes optional LAN sharing. Run helper/share.cmd on the host: ON / OFF / Status. Changes require Windows administrator approval. The separate LocalService relay binds one selected private IPv4 interface on TCP 1082. Firewall and application peer rules limit access to that exact subnet and Windows Private profile. Public/Domain/mixed profiles, excluded firewall interfaces and disabled firewalls are refused. Address/profile changes stop the relay. Private/loopback resolved destinations are blocked. No wildcard listeners or router changes are made. Any trusted device in that subnet can use the unauthenticated proxy; LAN SOCKS metadata is unencrypted.
-
-Clients select Custom proxy → SOCKS5 and the displayed server IP/1082. They need no helper or administrator permission. OFF removes only the sharing service/rule; uninstall removes all helper services and the rule. The host's loopback gateway remains separate. Every helper install/update disables sharing.
-
-Native validation passed on 2026-11-12: administrator installation, service-specific firewall scope, physical-client browser/TCP access, full running-service OFF/ON cleanup and Public-profile listener shutdown. The service SID omission and stop-state races found during validation were corrected. Sharing was restored on the approved Private network. Automatic-start configuration was checked without rebooting the computer; that limitation remains explicit in tests/LAN_VALIDATION.md. Existing 4.17 graphics illustrate the base popup; LAN instructions are in README.

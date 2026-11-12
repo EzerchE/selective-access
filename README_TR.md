@@ -4,7 +4,9 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.2** — kararlı. Sekmeye özgü bağlantı tanısı ve doğru araç çubuğu uyarıları. [Sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.18.3** — kararlı. Mağaza başvuru belgeleri güncellendi; yönlendirme davranışı 4.18.2 ile aynı. [Sürüm notları](RELEASE_NOTES.md).
+
+Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.18.3.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim temel arayüzü: seçici yönlendirme ve proxy kurulumu" width="620">
 

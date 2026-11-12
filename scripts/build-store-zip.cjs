@@ -210,17 +210,17 @@ function verify(entries, manifest) {
   }
 }
 
-const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
-const entries = collectEntries();
-verify(entries, manifest);
-
-fs.mkdirSync(outputDirectory, { recursive: true });
-const outputFile = path.join(outputDirectory, `automatic-access-${manifest.version}.zip`);
-const archive = buildZip(entries);
-fs.writeFileSync(outputFile, archive);
-
-const relativeOutput = path.relative(root, outputFile).replaceAll("\\", "/");
-process.stdout.write(`${relativeOutput} (${entries.length} files, ${archive.length} bytes)\n`);
-for (const entry of entries) {
-  process.stdout.write(`  ${entry.name} (${entry.data.length} bytes)\n`);
+function buildStorePackage() {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+  const entries = collectEntries();
+  verify(entries, manifest);
+  fs.mkdirSync(outputDirectory, { recursive: true });
+  const outputFile = path.join(outputDirectory, `automatic-access-${manifest.version}.zip`);
+  const archive = buildZip(entries);
+  fs.writeFileSync(outputFile, archive);
+  process.stdout.write(`${path.relative(root, outputFile).replaceAll("\\", "/")} (${entries.length} files, ${archive.length} bytes)\n`);
+  return outputFile;
 }
+
+if (require.main === module) buildStorePackage();
+module.exports = { buildZip, buildStorePackage };

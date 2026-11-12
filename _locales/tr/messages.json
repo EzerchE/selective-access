@@ -82,7 +82,7 @@
     "message": "Debug kaydını etkinleştir"
   },
   "extensionDescription": {
-    "message": "Bağlantı hatası yaşayan hedefleri öğrenir ve yalnızca onları yerel uyumluluk geçidine yönlendirir."
+    "message": "Bağlantı hatalarını algılar ve etkilenen hedefleri seçtiğiniz proxy üzerinden yönlendirir."
   },
   "extensionName": {
     "message": "Otomatik Erişim"
