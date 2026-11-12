@@ -53,11 +53,12 @@ internal static class SelectiveAccessLanShare
                 Console.WriteLine("Usage: --on | --off | --status"); return 1;
             }
             string installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SelectiveAccess", "SelectiveAccessLanShare.exe");
-            if (!String.Equals(installed, Process.GetCurrentProcess().MainModule.FileName, StringComparison.OrdinalIgnoreCase)) {
+            if (args[0] == "--on" && !String.Equals(installed, Process.GetCurrentProcess().MainModule.FileName, StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidOperationException("Run helper/install.cmd first, then helper/share.cmd.");
             }
             if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) {
-                using (Process p = Process.Start(new ProcessStartInfo(installed, args[0] + " --elevated") { UseShellExecute = true, Verb = "runas" })) {
+                string launcher = args[0] == "--on" ? installed : Process.GetCurrentProcess().MainModule.FileName;
+                using (Process p = Process.Start(new ProcessStartInfo(launcher, args[0] + " --elevated") { UseShellExecute = true, Verb = "runas" })) {
                     p.WaitForExit();
                     if (p.ExitCode == 0) ShowStatus();
                     return p.ExitCode;

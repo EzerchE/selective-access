@@ -155,7 +155,7 @@ if (!gatewaySourceRecord.includes(gatewayHash) ||
 }
 const sourceRecord = fs.readFileSync(path.join(root, "helper/bin/SOURCE.md"), "utf8");
 const lanShareHash = crypto.createHash("sha256").update(fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessLanShare.exe"))).digest("hex").toUpperCase();
-if (lanShareHash !== "EC19B8DEBA2EB27E244D1914A22F0B2C1C5263F845BEFB3EFA859ACA4D565C19" ||
+if (lanShareHash !== "D8E64F0CD1B2855BF1F43765A63DDC669B7EF61536B9E849A00492360D667517" ||
     !fs.readFileSync(path.join(root, "helper/bin/LAN_SHARE_SOURCE.md"), "utf8").includes(lanShareHash)) {
   fail("LAN sharing binary/build record mismatch.");
 }

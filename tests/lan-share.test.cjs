@@ -16,6 +16,7 @@ const hash=crypto.createHash('sha256').update(fs.readFileSync(path.join(root,'he
 assert.equal(installer.match(/SHARE_HASH=([A-F0-9]{64})/)?.[1],hash);
 assert.match(installer,/"%TARGET_SHARE%" --off/);
 assert.match(uninstaller,/SelectiveAccessLanShare\.exe" --off/);
+assert.ok(uninstaller.includes('"%~dp0bin\\SelectiveAccessLanShare.exe" --off'),'cleanup works after installed relay binary was deleted');
 assert.ok(installer.indexOf('icacls.exe') < installer.indexOf('"%TARGET_SHARE%" --off'),'secure ACL before execution');
 assert.match(src,/CurrentProfileTypes != 2/);
 assert.match(src,/FirewallEnabled\[2\]/);
