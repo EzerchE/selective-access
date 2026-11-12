@@ -537,7 +537,8 @@ if (process.argv.includes("--history")) {
   });
   // Public attribution trailers identify contributors, not routing targets.
   // Secret and machine-identifier checks still cover the complete messages.
-  const messageProse = messages.split("\n").filter((line) => !/^Co-authored-by:/i.test(line)).join("\n");
+  const messageProse = messages.split("\n").filter((line) =>
+    !/^(?:Co-authored-by:|\S+\s+Generated with \[)/i.test(line)).join("\n");
   if (unapprovedPublicHosts(messageProse).length > 0 || sensitivePatterns.some((pattern) => pattern.test(messages))) {
     fail("Git commit mesajlarinda kamuya acik olmamasi gereken veri bulundu.");
   }
