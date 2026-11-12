@@ -1,6 +1,6 @@
 # Privacy policy — Automatic Access
 
-Updated: 11 November 2026 · Version 4.17.0
+Updated: 12 November 2026 · Version 4.18.0
 
 [Türkçe](PRIVACY_TR.md)
 
@@ -18,7 +18,7 @@ Rules match exact listed hostnames. Main-page learning also records the conventi
 
 - Destination servers receive sanitized origin-root checks without cookies or credentials. They see the source IP and normal request metadata. Paths, queries, fragments and user information are removed before checks.
 - Your selected proxy receives routed destination hostnames/IPs, ports, source connection information and traffic needed to provide the connection. Its operator may read HTTP content. HTTPS/WSS content remains protected by end-to-end TLS; certificate validation is never disabled. HTTP/SOCKS proxy transport does not encrypt connection metadata. HTTPS proxy transport encrypts the hop to the proxy, whose operator still sees destinations. Choose an operator you trust; its retention/privacy terms apply. Settings stay local; username/password proxy login is not supported.
-- The optional bundled Windows helper listens on loopback only. Routed hostname queries go sequentially to Cloudflare and/or Google over HTTPS, falling back to the system resolver if no usable answer is returned. Resolvers receive the hostname and connection IP under their own terms. DNS does not include page paths, cookies or content. Normal traffic retains existing DNS settings. The helper does not decrypt HTTPS or replace certificates.
+- The bundled gateway/backend listen on loopback. Optional LAN sharing adds a separate relay on a selected private IPv4 interface, port 1082, limited to that subnet and the Windows Private firewall profile. Sharing starts off after install/update and is controlled by the host's helper/share.cmd menu. The host and other permitted LAN devices can observe connection metadata and unencrypted traffic; HTTPS/WSS content remains encrypted. The relay stores no traffic/client log. Runtime peer IPs are used only for access control. Routed hostname queries go sequentially to Cloudflare and/or Google over HTTPS, falling back to the system resolver if no usable answer is returned. Resolvers receive the hostname and host connection IP under their own terms. DNS does not include page paths, cookies or content. Normal traffic retains existing DNS settings. The helper does not decrypt HTTPS or replace certificates.
 - Globalping receives the hostname only when you click Check global status, for external measurements from three continents. Its infrastructure and probe operators receive the target and measurement request. Do not submit private service names. Literal private/local targets are rejected; the extension cannot recognize every private service behind a public hostname. No automatic global check runs.
 - GitHub and the optional Buy Me a Coffee link open only on a click under those websites' privacy terms. No remote payment script is loaded.
 
@@ -28,7 +28,7 @@ Browsing data is not sent to the developer, sold, used for ads, credit scoring o
 
 Local settings remain until removed by you, cleared by Chrome or the extension is uninstalled. Session data ends with the browser session. Remove targets using row actions and clear logs in Advanced settings. A user-selected proxy is not installed or removed by the extension.
 
-If you installed the bundled Windows services, separately run helper/uninstall.cmd as administrator. Removing the extension does not remove these services. The uninstaller does not change adapter DNS or other system network settings.
+Use helper/share.cmd → OFF to remove the dedicated LAN service/firewall rule while keeping the loopback helper. If you installed the bundled Windows services, separately run helper/uninstall.cmd as administrator to remove all helper services and the LAN rule. Removing the extension does not remove Windows services. The uninstaller does not change adapter DNS or unrelated network settings.
 
 ## Permissions
 

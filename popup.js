@@ -17,6 +17,7 @@ const elements = {
   proxyHost: document.querySelector("#proxyHost"),
   proxyPortInput: document.querySelector("#proxyPortInput"),
   customProxyFields: document.querySelector("#customProxyFields"),
+  lanProxyHelp: document.querySelector("#lanProxyHelp"),
   saveProxy: document.querySelector("#saveProxy"),
   proxyStatus: document.querySelector("#proxyStatus"),
   proxyStatusTitle: document.querySelector("#proxyStatusTitle"),
@@ -225,6 +226,7 @@ function render(state) {
   elements.proxyHost.value = state.proxyHost || "127.0.0.1";
   elements.proxyPortInput.value = String(state.proxyPort || 1080);
   elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
+  elements.lanProxyHelp.hidden = elements.proxyMode.value !== "custom";
   elements.gatewayHelpLinks.hidden = elements.proxyMode.value !== "local";
   elements.debugEnabled.checked = Boolean(state.debugEnabled);
   elements.debugControls.hidden = !state.debugEnabled;
@@ -477,6 +479,7 @@ elements.enabled.addEventListener("change", () => {
 
 elements.proxyMode.addEventListener("change", () => {
   elements.customProxyFields.hidden = elements.proxyMode.value !== "custom";
+  elements.lanProxyHelp.hidden = elements.proxyMode.value !== "custom";
   elements.gatewayHelpLinks.hidden = elements.proxyMode.value !== "local";
   renderProxyStatus({ status: "unconfigured", mode: elements.proxyMode.value });
   if (elements.proxyMode.value === "custom" && elements.proxyHost.value === "127.0.0.1") {
