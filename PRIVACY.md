@@ -1,6 +1,6 @@
 # Privacy policy — Automatic Access
 
-Updated: 12 November 2026 · Version 4.18.0
+Updated: 12 November 2026 · Version 4.18.1
 
 [Türkçe](PRIVACY_TR.md)
 
@@ -15,6 +15,8 @@ Local storage holds enabled state, proxy type/address/port, learned and ignored 
 Rules match exact listed hostnames. Main-page learning also records the conventional www/non-www alias; this never enables wildcard routing. Ignored targets and their subdomains stay direct. Automatic routes can be removed by bounded direct recovery; manual routes are preserved.
 
 ## Requests and recipients
+
+For routed SOCKS connections, the optional helper coalesces identical in-flight DNS queries and keeps up to 256 positive answers only in process memory, bounded by remaining DNS TTL and a 30-second cap. It retains no failed answers or persistent DNS history. Network changes clear answers and existing-provider preference. No additional DNS recipient is introduced.
 
 - Destination servers receive sanitized origin-root checks without cookies or credentials. They see the source IP and normal request metadata. Paths, queries, fragments and user information are removed before checks.
 - Your selected proxy receives routed destination hostnames/IPs, ports, source connection information and traffic needed to provide the connection. Its operator may read HTTP content. HTTPS/WSS content remains protected by end-to-end TLS; certificate validation is never disabled. HTTP/SOCKS proxy transport does not encrypt connection metadata. HTTPS proxy transport encrypts the hop to the proxy, whose operator still sees destinations. Choose an operator you trust; its retention/privacy terms apply. Settings stay local; username/password proxy login is not supported.

@@ -1,6 +1,6 @@
 # Gizlilik bildirimi — Otomatik Erişim
 
-Güncelleme: 12 Kasım 2026 · Sürüm 4.18.0
+Güncelleme: 12 Kasım 2026 · Sürüm 4.18.1
 
 [English](PRIVACY.md)
 
@@ -15,6 +15,8 @@ Etkinlik, proxy türü/adresi/portu, öğrenilen ve yoksayılan hedefler, rota k
 Kurallar yalnız listelenen tam alan adlarına uygulanır; öğrenilen ana sayfanın geleneksel www eş adı da listelenir. Joker kapsam oluşturulmaz. Yoksayılan hedef ve alt alanları doğrudan kalır. Otomatik rotalar sınırlı kurtarmayla kaldırılabilir; elle seçilen rotalar korunur.
 
 ## Veri alıcıları
+
+İsteğe bağlı yardımcı, yönlendirilmiş SOCKS bağlantılarının aynı anda yapılan aynı DNS sorgularını birleştirir. En fazla 256 başarılı yanıtı kalan DNS ömrünü ve 30 saniyelik üst sınırı aşmadan yalnız süreç belleğinde tutar. Başarısız yanıt veya kalıcı DNS geçmişi saklanmaz. Ağ değişince yanıtlar ve mevcut sağlayıcı tercihi temizlenir. Yeni bir DNS alıcısı eklenmez.
 
 - Hedef sunucu: otomatik origin kök kontrolünü çerez ve kimlik bilgisi olmadan alır. Kaynak IP ve normal bağlantı bilgilerini görür. Yol, sorgu, fragment ve kullanıcı bilgisi kontrol öncesinde temizlenir.
 - Seçtiğiniz proxy: hedef adı/IP, port, kaynak bağlantı bilgisi ve bağlantı için gereken trafiği alır. İşletmecisi HTTP içeriğini okuyabilir. HTTPS/WSS uçtan uca TLS ile korunur; sertifika doğrulaması atlanmaz. HTTP/SOCKS proxy bağlantıları üst veriyi şifrelemez. HTTPS proxy bağlantısı proxy'ye kadar şifrelidir; işletmeci hedefleri yine görür. Güvendiğiniz proxy'yi seçin; işletmecinin saklama ve gizlilik koşulları geçerlidir. Ayarlar cihazda kalır; proxy kullanıcı adı/parolası desteklenmez.

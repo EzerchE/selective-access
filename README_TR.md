@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.0** — kararlı. Yerel ağ paylaşımı; yönetici yetkili aç/kapa, ağ profili değişince durma ve ikinci fiziksel bilgisayardan erişim ile test edildi; [sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.18.1** — kararlı. Doğrudan yönlendirmeyi değiştirmeden, geçit üzerinden DNS çözümlemesi hızlandırıldı. [Sürüm notları](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim 4.17: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -117,6 +117,10 @@ Yalnız güvendiğiniz yerel ağda açın: izinli alt ağdaki her cihaz kimlik d
 Chrome eklentisi Windows hizmetlerini/güvenlik duvarını doğrudan değiştiremez; aç/kapa denetimi sunucudaki share.cmd menüsüdür. DNS ayarı veya güvenlik duvarı profil korumaları değiştirilmez.
 
 Paylaşım denetimi, Windows'un hizmete özel güvenlik duvarı kuralını eşleştirebilmesi için geçidi başlatmadan önce hizmet kimliğini (SID) etkinleştirir. Eski ön sürüm sunucuda çalışıp ikinci cihazda çalışmıyorsa sunucudaki yardımcıyı güncelleyin ve paylaşımı yeniden açın. Güvenlik duvarını açık tutun; istemci eklentisinin yeniden kurulması gerekmez.
+
+Hazır geçit, aynı yönlendirilmiş hedefin eş zamanlı şifreli DNS sorgularını birleştirir. Başarılı yanıtları kalan DNS ömrünü aşmadan, en fazla 30 saniye yalnız süreç belleğinde tutar; başarısız yanıtlar önbelleğe alınmaz. Mevcut çözümleyicilerden son başarılı olan önce denenir; böylece her yeni alt kaynak için erişilemeyen çözümleyicide tekrar beklenmez. Ağ değişince bu durum temizlenir. Yalnız yönlendirilmiş bağlantılar hızlandırılır; normal trafik, sistem DNS'i, öğrenme eşikleri ve tam alan adı eşleştirmesi değişmez. Tarayıcının ilk doğrudan denemesinin süresi ağın yanıtına bağlı kalır.
+
+4.18.1 hızlandırması için hazır geçidin çalıştığı bilgisayardaki yardımcıyı güncelleyin; yalnız eklentiyi güncellemek Windows hizmetini değiştirmez. helper/install.cmd tamamlandıktan sonra LAN paylaşımı kullanıyorsanız helper/share.cmd ile yeniden açın. Diğer LAN istemcilerinde ve kendi proxy'sini kullananlarda yerel yardımcı güncellemesi gerekmez.
 
 İçerik filtresi bir engelleme sayfası döndürdüğünde de kendi seçtiğiniz siteyi yönlendirebilirsiniz: o sayfada eklentiyi açın, **Şimdi geçide al** seçeneğine basın ve **Ctrl+F5** ile yenileyin. Bu işlem yalnız o alan adının rotasını değiştirir. Her HTTP hatası veya filtre sayfası otomatik olarak erişim engeli sayılmaz. Cihazdaki güvenlik yazılımı proxy trafiğini de filtreleyebilir; sertifika doğrulaması açık kalır.
 

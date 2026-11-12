@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -26,8 +27,76 @@ internal static class SelectiveAccessGateway
     private static ServiceStatusHandle statusHandle;
     private static ServiceControlHandler controlHandler;
     private static ServiceMainFunction serviceMain;
+    private static readonly AnswerCache EncryptedAnswers = new AnswerCache();
+    private static readonly object ProviderGate = new object();
+    private static int PreferredProvider;
+    private static int ProviderGeneration;
 
-    private sealed class DohProvider
+    internal static void ResetEncryptedResolution() {
+        lock (ProviderGate) { PreferredProvider = 0; ProviderGeneration++; }
+        EncryptedAnswers.Clear();
+    }
+
+    internal sealed class DnsAnswer {
+        internal readonly IPAddress[] Addresses;
+        internal readonly int LifetimeMs;
+        internal DnsAnswer(IPAddress[] addresses, int lifetimeMs) {
+            Addresses = addresses; LifetimeMs = Math.Max(0, Math.Min(30000, lifetimeMs));
+        }
+    }
+
+    // Only routed SOCKS hostnames enter this cache. No system DNS settings or
+    // browser routes change; no lookup history is persisted to disk.
+    internal sealed class AnswerCache {
+        private sealed class Entry { internal DnsAnswer Answer; internal long Expires; }
+        private readonly object Gate = new object();
+        private readonly Dictionary<string, Entry> Cached = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Task<DnsAnswer>> Pending = new Dictionary<string, Task<DnsAnswer>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Func<long> Now;
+        private int Generation;
+        internal AnswerCache(Func<long> now = null) {
+            Stopwatch clock = Stopwatch.StartNew();
+            Now = now ?? delegate { return clock.ElapsedMilliseconds; };
+        }
+        internal Task<DnsAnswer> GetAsync(string host, Func<Task<DnsAnswer>> lookup) {
+            TaskCompletionSource<DnsAnswer> completion;
+            int generation;
+            lock (Gate) {
+                Entry entry;
+                if (Cached.TryGetValue(host, out entry) && entry.Expires > Now()) return Task.FromResult(entry.Answer);
+                Cached.Remove(host);
+                Task<DnsAnswer> pending;
+                if (Pending.TryGetValue(host, out pending)) return pending;
+                // Bound bookkeeping even if a local client supplies many names.
+                if (Pending.Count >= 256) return Task.FromResult(new DnsAnswer(new IPAddress[0], 0));
+                completion = new TaskCompletionSource<DnsAnswer>(TaskCreationOptions.RunContinuationsAsynchronously);
+                Pending.Add(host, completion.Task);
+                generation = Generation;
+            }
+            Task ignored = LoadAsync(host, lookup, completion, generation);
+            return completion.Task;
+        }
+        private async Task LoadAsync(string host, Func<Task<DnsAnswer>> lookup, TaskCompletionSource<DnsAnswer> completion, int generation) {
+            DnsAnswer answer;
+            try { answer = await lookup().ConfigureAwait(false); }
+            catch { answer = new DnsAnswer(new IPAddress[0], 0); }
+            lock (Gate) {
+                if (generation != Generation) answer = new DnsAnswer(new IPAddress[0], 0);
+                else {
+                    Pending.Remove(host);
+                    if (answer.Addresses.Length > 0 && answer.LifetimeMs > 0) {
+                        if (Cached.Count >= 256) Cached.Clear();
+                        Cached[host] = new Entry { Answer = answer, Expires = Now() + answer.LifetimeMs };
+                    }
+                }
+            }
+            completion.TrySetResult(answer);
+        }
+        internal void Invalidate(string host) { lock (Gate) Cached.Remove(host); }
+        internal void Clear() { lock (Gate) { Generation++; Cached.Clear(); Pending.Clear(); } }
+    }
+
+    internal sealed class DohProvider
     {
         public string Host;
         public string Address;
@@ -94,6 +163,8 @@ internal static class SelectiveAccessGateway
     {
         TcpListener listener = new TcpListener(ListenAddress, ListenPort);
         listener.Start(128);
+        NetworkAddressChangedEventHandler changed = delegate { ResetEncryptedResolution(); };
+        NetworkChange.NetworkAddressChanged += changed;
         using (token.Register(delegate { listener.Stop(); })) {
             try {
                 while (!token.IsCancellationRequested) {
@@ -105,7 +176,7 @@ internal static class SelectiveAccessGateway
             } catch (SocketException) {
                 if (!token.IsCancellationRequested) throw;
             }
-            finally { listener.Stop(); }
+            finally { listener.Stop(); NetworkChange.NetworkAddressChanged -= changed; ResetEncryptedResolution(); }
         }
     }
 
@@ -167,7 +238,7 @@ internal static class SelectiveAccessGateway
                         }
                     }
                 }
-                if (backend == null) { await ReplyAsync(input, 4, token); return; }
+                if (backend == null) { EncryptedAnswers.Invalidate(host); await ReplyAsync(input, 4, token); return; }
                 await ReplyAsync(input, 0, token).ConfigureAwait(false);
                 using (backend) {
                     NetworkStream output = backend.GetStream();
@@ -176,6 +247,7 @@ internal static class SelectiveAccessGateway
                     await Task.WhenAny(a, b).ConfigureAwait(false);
                 }
             } catch (Exception error) {
+                EncryptedAnswers.Invalidate(host);
                 Log("client: " + error.Message);
                 try { ReplyAsync(input, 4, token).Wait(1000); } catch { }
             }
@@ -200,22 +272,48 @@ internal static class SelectiveAccessGateway
 
     private static async Task<IPAddress[]> ResolveEncryptedAsync(string host, CancellationToken token)
     {
-        foreach (DohProvider provider in DohProviders) {
+        // One caller timing out must not cancel a lookup shared by other sockets.
+        DnsAnswer answer = await WithCancellation(EncryptedAnswers.GetAsync(host, async delegate {
+            using (CancellationTokenSource lookupSource = CancellationTokenSource.CreateLinkedTokenSource(StopSource.Token)) {
+                lookupSource.CancelAfter(ConnectionSetupTimeoutMs);
+                return await ResolveEncryptedAnswerAsync(host, lookupSource.Token).ConfigureAwait(false);
+            }
+        }), token).ConfigureAwait(false);
+        return answer.Addresses;
+    }
+
+    internal static async Task<DnsAnswer> ResolveEncryptedAnswerAsync(string host, CancellationToken token,
+        Func<DohProvider, string, CancellationToken, Task<DnsAnswer>> query = null)
+    {
+        if (query == null) query = ResolveDohAsync;
+        // Reuse the last provider that returned an authenticated DNS answer.
+        // A failing provider otherwise costs its full deadline for every new
+        // dependency hostname. Only the existing provider set is used.
+        int preferred, generation;
+        lock (ProviderGate) { preferred = PreferredProvider; generation = ProviderGeneration; }
+        DohProvider[] providers = new DohProvider[DohProviders.Length];
+        for (int i = 0; i < providers.Length; i++) providers[i] = DohProviders[(preferred + i) % providers.Length];
+        foreach (DohProvider provider in providers) {
             using (CancellationTokenSource providerSource =
                 CancellationTokenSource.CreateLinkedTokenSource(token)) {
                 providerSource.CancelAfter(DohProviderTimeoutMs);
                 try {
-                    IPAddress[] result = await ResolveDohAsync(
+                    DnsAnswer result = await query(
                         provider,
                         host,
                         providerSource.Token).ConfigureAwait(false);
-                    if (result.Length > 0) return result;
+                    if (result.Addresses.Length > 0) {
+                        lock (ProviderGate) {
+                            if (generation == ProviderGeneration) PreferredProvider = Array.IndexOf(DohProviders, provider);
+                        }
+                        return result;
+                    }
                 } catch (Exception error) {
                     Log("doh " + provider.Host + ": " + error.Message);
                 }
             }
         }
-        return new IPAddress[0];
+        return new DnsAnswer(new IPAddress[0], 0);
     }
 
     private static async Task<TcpClient> TryBackendAddressesAsync(IPAddress[] addresses, int port, CancellationToken token)
@@ -248,7 +346,7 @@ internal static class SelectiveAccessGateway
             (b[0] & 0xE0) == 0x20 && !(b[0] == 0x20 && b[1] == 1 && b[2] == 0x0d && b[3] == 0xb8);
     }
 
-    private static async Task<IPAddress[]> ResolveDohAsync(DohProvider provider, string host, CancellationToken token)
+    private static async Task<DnsAnswer> ResolveDohAsync(DohProvider provider, string host, CancellationToken token)
     {
         using (TcpClient tunnel = await ConnectDirectAsync(IPAddress.Parse(provider.Address), 443, token).ConfigureAwait(false))
         using (SslStream tls = new SslStream(tunnel.GetStream(), false)) {
@@ -265,16 +363,36 @@ internal static class SelectiveAccessGateway
             using (StreamReader reader = new StreamReader(tls, Encoding.UTF8)) {
                 string response = await WithCancellation(reader.ReadToEndAsync(), token).ConfigureAwait(false);
                 int bodyIndex = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
-                if (!response.StartsWith("HTTP/1.1 200", StringComparison.Ordinal) || bodyIndex < 0) return new IPAddress[0];
+                if (!response.StartsWith("HTTP/1.1 200", StringComparison.Ordinal) || bodyIndex < 0) return new DnsAnswer(new IPAddress[0], 0);
                 List<IPAddress> addresses = new List<IPAddress>();
                 foreach (Match match in Regex.Matches(response.Substring(bodyIndex + 4), "\\\"data\\\"\\s*:\\s*\\\"([0-9.]+)\\\"")) {
                     IPAddress address;
                     if (IPAddress.TryParse(match.Groups[1].Value, out address) && address.AddressFamily == AddressFamily.InterNetwork)
                         addresses.Add(address);
                 }
-                return addresses.ToArray();
+                return new DnsAnswer(addresses.ToArray(), AnswerLifetimeMs(response.Substring(bodyIndex + 4), response.Substring(0, bodyIndex)));
             }
         }
+    }
+
+    internal static int AnswerLifetimeMs(string body, string headers) {
+        // Include CNAME TTLs, use the shortest record, and never cache a reply
+        // without a valid TTL. HTTP Age is subtracted if a provider cached it.
+        int seconds = int.MaxValue;
+        MatchCollection ttls = Regex.Matches(body, "\\\"TTL\\\"\\s*:\\s*([^,}\\s]+)", RegexOptions.IgnoreCase);
+        if (ttls.Count == 0) return 0;
+        foreach (Match ttl in ttls) {
+            int value;
+            if (!int.TryParse(ttl.Groups[1].Value, out value) || value < 0) return 0;
+            seconds = Math.Min(seconds, value);
+        }
+        Match age = Regex.Match(headers, @"(?im)^Age:\s*([0-9]+)");
+        if (age.Success) {
+            int value;
+            if (!int.TryParse(age.Groups[1].Value, out value)) return 0;
+            seconds = Math.Max(0, seconds - value);
+        }
+        return Math.Min(30, seconds) * 1000;
     }
 
     private static async Task<TcpClient> ConnectDirectAsync(IPAddress address, int port, CancellationToken token)

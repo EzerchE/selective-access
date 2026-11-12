@@ -1,5 +1,7 @@
 # Optional Windows ByeDPI helper
 
+The 4.18.1 helper requires .NET Framework 4.6 or later. It is prepared for current Windows 10/11 runtimes; older runtimes have not been validated.
+
 ## Optional private-LAN sharing (4.18.0)
 
 After installation, double-click share.cmd. Choose 1 to enable, 2 to disable, or 3 for status. Changes request administrator approval. ON prints the selected server address and port 1082; another computer uses Custom proxy → SOCKS5 with that address/port and needs no helper. Multiple eligible interfaces require selection.
@@ -19,6 +21,8 @@ This helper is separate from the Chrome extension and is optional if you already
 Services: SelectiveAccessGateway and SelectiveAccessByeDPI. Local endpoints: 127.0.0.1:1080 and 127.0.0.1:1081. DNS adapter settings are not modified. Installation and removal require Windows administrator permission. The package is unsigned; existing hash checks verify expected bundled binary integrity, not publisher identity.
 
 ## Türkçe
+
+4.18.1 yardımcısı .NET Framework 4.6 veya üzerini gerektirir. Güncel Windows 10/11 çalışma ortamları için hazırlanmıştır; eski çalışma ortamlarında doğrulanmamıştır.
 
 Mevcut uyumlu proxy'niz varsa bu yardımcıyı kurmanız gerekmez.
 

@@ -12,4 +12,6 @@ Her kod değişikliğinde:
 
 LAN paylaşımı değişikliklerinde ayrıca `node tests/lan-share.test.cjs`, yerelleştirme ve önizleme testleri çalıştırılır. Windows hizmeti/güvenlik duvarı yaşam döngüsü yönetici ortamında doğrulanmadıysa sürüm yalnız prerelease olarak yayımlanır; bu eksik kararlı veya mağaza onayı gibi sunulmaz.
 
+Geçit çözümlemesi değiştiğinde `node tests/gateway-resolution.test.cjs` çalıştırılır; süre/TTL, iptal, paralel sorgular ve ağ değişimi kontrolleri geçmelidir. Performans ölçümleri ile gerçek sayfa açılışı ayrı raporlanır.
+
 Kimlik bilgileri, kişisel veriler, öğrenilmiş alan adları, sabit eklenti kimlikleri ve makineye özgü dosyalar depoya eklenmez. Kod, test ve dokümantasyon örneklerinde yalnız ayrılmış `.example`, `example.com`, `example.net` ve `example.org` adları kullanılır.
