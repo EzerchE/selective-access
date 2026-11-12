@@ -427,5 +427,7 @@
   "finishSetup": { "message": "Finish and close this tab" },
   "proxySetupRequiredDetail": { "message": "Automatic Access is on, but routing will remain inactive until you choose your own proxy or install and select the bundled local gateway." },
   "proxyChoiceRequired": { "message": "Choose the bundled local gateway or a custom proxy first." },
-  "installGateway": { "message": "Download ready-to-install ByeDPI helper" }
+  "installGateway": { "message": "Download ready-to-install ByeDPI helper" },
+  "dependencyIssueTitle": { "message": "A routed page resource is still failing" },
+  "dependencyIssueDetail": { "message": "A routed connection to $1 is still failing. This can affect parts of a page even when its main document loads. The warning clears when that connection succeeds or you leave the page. The optional status check below checks this resource's hostname." }
 }

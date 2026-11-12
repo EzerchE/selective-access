@@ -304,8 +304,11 @@ async function refreshProxyStatus() {
 }
 
 function renderDiagnostic(state) {
-  const issueMatches = Boolean(currentHost && state.lastIssueDomain === currentHost);
-  const globalCheck = state.lastGlobalCheck?.domain === currentHost ? state.lastGlobalCheck : null;
+  const scopedIssue = state.tabIssue?.mainHost === currentHost ? state.tabIssue : null;
+  if (scopedIssue) state = { ...state, lastIssueType: "route_failed", lastIssueDomain: scopedIssue.domain };
+  const diagnosticHost = scopedIssue?.domain || currentHost;
+  const issueMatches = Boolean(scopedIssue || (currentHost && state.lastIssueDomain === currentHost));
+  const globalCheck = state.lastGlobalCheck?.domain === diagnosticHost ? state.lastGlobalCheck : null;
   elements.diagnosticCard.hidden = !issueMatches && !globalCheck;
   if (elements.diagnosticCard.hidden) return;
 
@@ -354,8 +357,9 @@ function renderDiagnostic(state) {
     elements.diagnosticTitle.textContent = t("gatewayUnavailable");
     elements.diagnosticText.textContent = t("gatewayUnavailableDetail");
   } else if (state.lastIssueType === "route_failed") {
-    elements.diagnosticTitle.textContent = t("routeFailedTitle");
-    elements.diagnosticText.textContent = t("routeFailedDetail");
+    const dependency = scopedIssue && scopedIssue.domain !== currentHost;
+    elements.diagnosticTitle.textContent = t(dependency ? "dependencyIssueTitle" : "routeFailedTitle");
+    elements.diagnosticText.textContent = dependency ? t("dependencyIssueDetail", scopedIssue.domain) : t("routeFailedDetail");
   } else if (state.lastIssueType === "transient_reachable") {
     elements.diagnosticTitle.textContent = t("transientTitle");
     elements.diagnosticText.textContent = t("transientDetail");
@@ -389,6 +393,7 @@ function updateSiteAction() {
 }
 
 async function sendMessage(message) {
+  if (message.type === "getState") message = { ...message, tabId: currentTabId };
   const response = await chrome.runtime.sendMessage(message);
   if (!response?.ok) throw new Error(response?.error || t("operationFailed"));
   return response;
@@ -533,8 +538,9 @@ const LIVE_KEYS = [
 chrome.storage?.onChanged?.addListener((changes, areaName) => {
   // A save of our own already re-renders, and a global check renders when it
   // settles; reacting again would fight whichever is in flight.
-  if (areaName !== "local" || saving || checkingGlobalStatus) return;
-  if (!LIVE_KEYS.some((key) => Object.hasOwn(changes, key))) return;
+  const localChanged = areaName === "local" && LIVE_KEYS.some((key) => Object.hasOwn(changes, key));
+  const sessionChanged = areaName === "session" && Object.hasOwn(changes, "runtimeState");
+  if ((!localChanged && !sessionChanged) || saving || checkingGlobalStatus) return;
   sendMessage({ type: "getState" })
     .then((response) => render(response.state))
     .catch(() => {});
@@ -635,7 +641,8 @@ elements.checkStatus.addEventListener("click", async () => {
   renderDiagnostic(currentState);
   showNotice("");
   try {
-    await sendMessage({ type: "checkGlobalStatus", domain: currentHost, tabId: currentTabId });
+    const scopedIssue = currentState?.tabIssue?.mainHost === currentHost ? currentState.tabIssue : null;
+    await sendMessage({ type: "checkGlobalStatus", domain: scopedIssue?.domain || currentHost, tabId: currentTabId });
     const response = await sendMessage({ type: "getState" });
     render(response.state);
   } catch (error) {

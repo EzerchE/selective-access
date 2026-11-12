@@ -97,6 +97,7 @@ const directProbeUrls = [];
 const delayedProbeHosts = new Set();
 const tabUrls = new Map();
 const tabPendingUrls = new Map();
+const tabStatuses = new Map();
 let activeDirectProbes = 0;
 let maxActiveDirectProbes = 0;
 const testMessages = JSON.parse(fs.readFileSync(
@@ -222,7 +223,8 @@ const chrome = {
       return {
         id: tabId,
         url: tabUrls.get(tabId) || "chrome://newtab/",
-        pendingUrl: tabPendingUrls.get(tabId)
+        pendingUrl: tabPendingUrls.get(tabId),
+        status: tabStatuses.get(tabId)
       };
     },
     async reload(tabId, options) {
@@ -689,11 +691,13 @@ async function waitForDebugFlush() {
     assert.equal(storage.lastIssueType, "slow_loading");
     const tabContext = await send({ type: "getTabContext", tabId: 60 });
     assert.equal(tabContext.host, "slow-loading.example");
-    listeners.tabUpdated(
+    await listeners.tabUpdated(
       60,
       { status: "complete" },
       { id: 60, status: "complete", url: slowLoadingUrl }
     );
+    assert.equal(storage.lastIssueType, null, "completed page clears its slow-loading warning");
+    assertBadge(lastForTab(badgeTexts, 60), 60, "");
     tabPendingUrls.delete(60);
   } finally {
     setClockScale(1);
@@ -822,7 +826,8 @@ async function waitForDebugFlush() {
   assert.equal(storage.debugLog.some((entry) =>
     entry.event === "reload-cancelled" && entry.tabId === 55 && entry.reason === "main-completed"), false);
   assert.equal(listeners.completedFilter.types, undefined);
-  assert.deepEqual([...listeners.beforeRequestFilter.types], ["main_frame"]);
+  assert.equal(listeners.beforeRequestFilter.types, undefined);
+  assert.equal(listeners.beforeRequestFilter.urls.includes("wss://*/*"), true);
 
   measurementShouldBeDown = true;
   const lastDetectedBeforeGlobalDown = storage.lastDetectedDomain;
@@ -2529,6 +2534,63 @@ async function waitForDebugFlush() {
     assert.equal(storage.learnedDomains.includes(host), false, `${mode} must prevent automatic recovery`);
     directlyReachableHosts.delete(host);
   }
+
+  // A routed dependency issue is scoped to its tab, hostname and request type.
+  await send({type:"saveSettings",patch:{enabled:true,proxyMode:"custom",proxyType:"socks5",proxyHost:"proxy.example",proxyPort:1080,learnedDomains:[]}});
+  tabUrls.set(400,"https://app-diagnostics.example/");
+  await listeners.beforeRequest({tabId:400,type:"main_frame",url:tabUrls.get(400)});
+  await listeners.requestError({tabId:400,type:"main_frame",url:tabUrls.get(400),error:"net::ERR_NAME_NOT_RESOLVED"});
+  await new Promise(resolve=>setTimeout(resolve,350));
+  const dependency={tabId:400,frameId:0,type:"xmlhttprequest",url:"https://api.app-diagnostics.example/private?credential=fixture",initiator:tabUrls.get(400)};
+  await listeners.beforeRequest({...dependency,requestId:"old-direct-request"});
+  await listeners.requestError({...dependency,requestId:"discover-dependency",error:"net::ERR_NAME_NOT_RESOLVED"});
+  await listeners.requestError({...dependency,requestId:"old-direct-request",error:"net::ERR_NAME_NOT_RESOLVED"});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue,null,"pre-route request failure must not blame new proxy route");
+  await listeners.beforeRequest({...dependency,requestId:"real-routed-request"});
+  await listeners.requestError({...dependency,requestId:"real-routed-request",error:"net::ERR_NAME_NOT_RESOLVED"});
+  let scoped=(await send({type:"getState",tabId:400})).state.tabIssue;
+  assert.equal(scoped.domain,"api.app-diagnostics.example");
+  assert.equal(scoped.requestType,"xmlhttprequest");
+  assert.equal((await send({type:"getState",tabId:401})).state.tabIssue,null,"another tab cannot inherit dependency warning");
+  await listeners.requestCompleted({tabId:400,type:"main_frame",url:tabUrls.get(400),statusCode:200});
+  assertBadge(lastForTab(badgeTexts,400),400,"?");
+  const socket={...dependency,type:"websocket",url:"wss://api.app-diagnostics.example/stream",requestId:"socket-issue"};
+  await listeners.beforeRequest(socket);
+  await listeners.requestError({...socket,error:"net::ERR_FAILED"});
+  await listeners.requestCompleted({...dependency,statusCode:200});
+  scoped=(await send({type:"getState",tabId:400})).state.tabIssue;
+  assert.equal(scoped.requestType,"websocket","XHR success must not clear WebSocket failure");
+  await send({type:"saveSettings",patch:{enabled:false}});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue,null,"disabled routing has no active dependency warning");
+  assertBadge(lastForTab(badgeTexts,400),400,"×");
+  await send({type:"saveSettings",patch:{enabled:true}});
+  await listeners.requestCompleted({...socket,tabId:401,statusCode:101});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue.requestType,"websocket","another tab's success cannot clear this tab's failure");
+  await listeners.requestCompleted({...socket,statusCode:200});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue.requestType,"websocket","non-upgrade response is not WebSocket success");
+  await new Promise(resolve=>setTimeout(resolve,850));
+  startWorker();
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue.requestType,"websocket","pending issue survives worker restart");
+  await listeners.requestCompleted({...socket,statusCode:101});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue,null);
+  assertBadge(lastForTab(badgeTexts,400),400,"↗");
+  await listeners.beforeRequest({...dependency,requestId:"completion-race"});
+  const pendingFailure=listeners.requestError({...dependency,requestId:"completion-race",error:"net::ERR_NAME_NOT_RESOLVED"});
+  await listeners.requestCompleted({...dependency,statusCode:200});
+  await pendingFailure;
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue,null,"late failure processing cannot overwrite a newer success");
+  await listeners.beforeRequest({...dependency,requestId:"old-page-request"});
+  await listeners.beforeRequest({tabId:400,type:"main_frame",url:"https://ordinary-navigation.example/"});
+  await listeners.requestError({...dependency,requestId:"old-page-request",error:"net::ERR_NAME_NOT_RESOLVED"});
+  assert.equal((await send({type:"getState",tabId:400})).state.tabIssue,null,"old navigation cannot mark the new page as broken");
+  assert.equal(storage.learnedDomains.includes("ordinary-navigation.example"),false);
+  tabUrls.set(402,"https://completed-warning.example/");
+  await listeners.beforeRequest({tabId:402,type:"main_frame",url:tabUrls.get(402)});
+  await workerGlobal.setIssueBadge(true,"slow_loading",402);
+  Object.assign(storage,{lastIssueType:"slow_loading",lastIssueDomain:"completed-warning.example",lastIssueAt:new Date().toISOString()});
+  tabStatuses.set(402,"complete");
+  assert.equal((await send({type:"getState",tabId:402})).state.lastIssueType,null,"opening popup repairs an old slow warning on an already completed tab");
+  assertBadge(lastForTab(badgeTexts,402),402,"");
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
