@@ -27,6 +27,7 @@ jobs:
           node tests/popup.test.cjs
           node tests/helper-migration.test.cjs
           node tests/lan-share.test.cjs
+          node tests/gateway-resolution.test.cjs
           node tests/i18n.test.cjs
           node tests/popup-preview.test.cjs
       - name: Sensitive data audit

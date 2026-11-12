@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.0** — stable. Private-LAN sharing was tested with administrator ON/OFF, profile-change shutdown and a second physical computer; see [release notes](RELEASE_NOTES.md).
+Current version: **4.18.1** — stable. Faster routed DNS resolution with unchanged direct routing. See [release notes](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
 
@@ -118,6 +118,10 @@ Use this only on a trusted LAN: any device in the permitted subnet can use the u
 The Chrome extension cannot change Windows services/firewall settings itself; the host's share.cmd menu is the on/off control. It never weakens firewall profiles or changes DNS settings.
 
 The sharing controller enables the service SID before starting the relay, so Windows can match its service-scoped firewall rule. If an older preview works on the host but not on a second device, update the host helper and enable sharing again. Keep the firewall enabled; the client does not need a reinstall.
+
+The bundled gateway combines concurrent encrypted-DNS lookups for the same routed hostname. Successful answers stay only in process memory for their remaining DNS lifetime, capped at 30 seconds; failures are not cached. It tries the last successful existing resolver first, avoiding repeated waits for an unavailable resolver across new dependency names. Network changes clear this state. This optimization applies only to routed connections; it does not change ordinary traffic, system DNS, learning thresholds or hostname matching. The browser's initial direct attempt remains dependent on the network's response time.
+
+For the 4.18.1 performance update, update the helper on the computer hosting the bundled gateway; updating the extension alone does not replace its Windows service. After helper/install.cmd completes, enable LAN sharing again with helper/share.cmd if you use it. Other LAN clients and user-supplied proxies need no local helper update.
 
 To route a site you choose even when a content filter returns a completed block page, open the extension on that page, select **Route now**, then reload with **Ctrl+F5**. This changes routing only for that hostname. The extension does not automatically treat every HTTP error or filter page as an access restriction. Device-level security software may still filter proxy traffic; certificate validation remains enabled.
 

@@ -1,3 +1,18 @@
+# Automatic Access 4.18.1 — Routed connection performance
+
+Stable release; manifest version 4.18.1.
+
+- Combine concurrent encrypted-DNS lookups per routed hostname and retain positive answers only within remaining TTL, capped at 30 seconds and 256 entries. Missing/zero TTL, failures and target-connection failures do not leave a reusable stale answer.
+- Try the last successful existing resolver first for uncached routed names. Network changes reset preference and cached/in-flight results; old-network completion cannot restore old state.
+- Preserve direct traffic, system DNS settings, exact-host routing, learning thresholds, TLS validation and independent caller cancellation.
+- Local controlled measurement: eight requests required one lookup instead of eight. In a live reserved-domain comparison, the second uncached hostname completed in about 0.42 seconds versus 2.17 seconds on the previous helper; subsequent sampled requests averaged 0.29 seconds versus 2.22 seconds. This is one network sample, not a universal page-load guarantee; the initial cold connection still took about 2.2 seconds.
+
+Validation: 28 resolution checks, 286 LAN assertions, extension/popup/migration/localization/preview regressions, privacy/history audit and package integrity checks. Live installed-helper health and LAN requests succeeded. Full browser rendering speed and a computer reboot were not measured for this update.
+
+Update the bundled Windows helper to receive the resolver optimization; updating the extension alone does not replace the installed helper. Run helper/install.cmd as administrator. Helper installation disables LAN sharing; enable it again with helper/share.cmd if needed. Clients using another computer's shared proxy do not need a local helper. User-supplied proxies are unchanged. To remove the helper, switch the extension off or select another proxy, then run helper/uninstall.cmd as administrator.
+
+Downloads: automatic-access-4.18.1.zip (extension), selective-access-helper-4.18.1.zip (Windows helper), automatic-access-store-materials-4.18.1.zip (documents/base-interface graphics), SHA256SUMS.txt.
+
 # Automatic Access 4.18.0 — Private LAN sharing
 
 Stable release; manifest version 4.18.0.

@@ -1,4 +1,4 @@
-# Chrome Web Store submission materials — 4.18.0
+# Chrome Web Store submission materials — 4.18.1
 
 ## Listing (English)
 
