@@ -21,6 +21,9 @@ assert.ok(installer.indexOf('icacls.exe') < installer.indexOf('"%TARGET_SHARE%" 
 assert.match(src,/CurrentProfileTypes != 2/);
 assert.match(src,/FirewallEnabled\[2\]/);
 assert.match(src,/ExcludedInterfaces\[2\]/);
+const sidCommand = 'Command("sc.exe", "sidtype " + Name + " unrestricted", true);';
+assert.ok(src.includes(sidCommand), 'service-scoped firewall requires a service SID');
+assert.ok(src.indexOf(sidCommand) < src.indexOf('Command("netsh.exe", FirewallArguments'), 'configure SID before firewall and service start');
 assert.match(src,/new TcpListener\(Selected.Address, Port\)/);
 assert.match(src,/PermittedPeer\(\(\(IPEndPoint\)client.Client.RemoteEndPoint\).Address, Selected\)/);
 assert.match(src,/Timer monitor[\s\S]*BindingPresent\(Selected\)\) Stop.Cancel\(\)/);

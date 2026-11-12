@@ -152,12 +152,23 @@ internal static class SelectiveAccessLanShare
         return false;
     }
 
+    internal static void StopAndWait(Action stop, Action waitForStopped) {
+        try { stop(); }
+        catch (InvalidOperationException e) {
+            // The relay can finish while SCM is processing STOP. Error 1062
+            // then means it is already stopped; 1061 can mean STOP_PENDING.
+            var native = e.InnerException as System.ComponentModel.Win32Exception;
+            if (native == null || (native.NativeErrorCode != 1061 && native.NativeErrorCode != 1062)) throw;
+        }
+        waitForStopped(); // Still verify STOPPED; never ignore denial or timeout.
+    }
+
     private static void Disable() {
         // Remove only the exact project rule; never disable/reset the firewall.
         int ruleResult = Command("netsh.exe", "advfirewall firewall delete rule name=\"" + RuleName + "\"", false);
         if (ServiceExists()) {
             using (ServiceController service = new ServiceController(Name)) {
-                if (service.Status != ServiceControllerStatus.Stopped) { service.Stop(); service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15)); }
+                if (service.Status != ServiceControllerStatus.Stopped) StopAndWait(service.Stop, delegate { service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15)); });
             }
             Command("sc.exe", "delete " + Name, true);
             for (int i = 0; i < 100 && ServiceExists(); i++) Thread.Sleep(100);
@@ -188,6 +199,9 @@ internal static class SelectiveAccessLanShare
         Disable();
         try {
             Command("sc.exe", "create " + Name + " binPath= \"\\\"" + installed + "\\\" --service " + selected.Address + " " + selected.Mask + " " + selected.InterfaceId + "\" start= auto depend= SelectiveAccessGateway obj= \"NT AUTHORITY\\LocalService\"", true);
+            // Service-scoped firewall rules require a service SID in the process
+            // token. Configure it before the first start, keeping LocalService.
+            Command("sc.exe", "sidtype " + Name + " unrestricted", true);
             Command("netsh.exe", FirewallArguments(selected, installed), true);
             Command("sc.exe", "start " + Name, true);
             using (ServiceController service = new ServiceController(Name)) service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));

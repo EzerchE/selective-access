@@ -14,6 +14,21 @@ internal static class LanShareTests {
         catch(Exception e) { Console.Error.WriteLine(e); return 1; }
     }
     private static async Task Run() {
+        bool waited=false;
+        SelectiveAccessLanShare.StopAndWait(delegate {}, delegate { waited=true; });
+        Check(waited,"successful stop verifies STOPPED");
+        waited=false;
+        SelectiveAccessLanShare.StopAndWait(delegate { throw new InvalidOperationException("stop race",new System.ComponentModel.Win32Exception(1062)); },delegate { waited=true; });
+        Check(waited,"already-stopped race still verifies STOPPED");
+        waited=false;
+        SelectiveAccessLanShare.StopAndWait(delegate { throw new InvalidOperationException("stop pending",new System.ComponentModel.Win32Exception(1061)); },delegate { waited=true; });
+        Check(waited,"stop-pending race still verifies STOPPED");
+        bool denied=false;
+        try { SelectiveAccessLanShare.StopAndWait(delegate { throw new InvalidOperationException("denied",new System.ComponentModel.Win32Exception(5)); },delegate {}); } catch(InvalidOperationException){denied=true;}
+        Check(denied,"access denial is not swallowed");
+        bool timedOut=false;
+        try { SelectiveAccessLanShare.StopAndWait(delegate { throw new InvalidOperationException("stop race",new System.ComponentModel.Win32Exception(1062)); },delegate { throw new TimeoutException(); }); } catch(TimeoutException){timedOut=true;}
+        Check(timedOut,"already-stopped race cannot hide failed state verification");
         var b = new SelectiveAccessLanShare.Binding { Address=Ip(192,168,50,10), Mask=Ip(255,255,255,0), InterfaceId=Guid.Empty.ToString() };
         Check(SelectiveAccessLanShare.Prefix(b.Mask)==24,"prefix");
         foreach (var target in new[]{Ip(127,0,0,1),Ip(192,168,50,20),Ip(10,0,0,1),Ip(169,254,1,1),Ip(100,64,0,1),Ip(224,0,0,1),IPAddress.IPv6Loopback}) Check(!SelectiveAccessGateway.PublicDestination(target),"private/linklocal/loopback destination blocked after resolution");

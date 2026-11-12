@@ -91,6 +91,9 @@ const sensitivePatterns = [
   /AKIA[0-9A-Z]{16}/,
   /sk-[A-Za-z0-9_-]{20,}/,
   /C:\\Users\\[^\\\s]+/,
+  /[A-Z]:\/Users\/[^/\s]+/i,
+  /\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b/i,
+  /\b(?:[0-9a-f]{2}-){5}[0-9a-f]{2}\b/i,
   /(?<![a-p])[a-p]{32}(?![a-p])/,
   /(?<![0-9])(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})(?![0-9])/
 ];
@@ -155,7 +158,7 @@ if (!gatewaySourceRecord.includes(gatewayHash) ||
 }
 const sourceRecord = fs.readFileSync(path.join(root, "helper/bin/SOURCE.md"), "utf8");
 const lanShareHash = crypto.createHash("sha256").update(fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessLanShare.exe"))).digest("hex").toUpperCase();
-if (lanShareHash !== "D8E64F0CD1B2855BF1F43765A63DDC669B7EF61536B9E849A00492360D667517" ||
+if (lanShareHash !== "D26EA42F20A9662074CC6EA1FF3544BAAD7D5D222FFF581819985D8C0944A48E" ||
     !fs.readFileSync(path.join(root, "helper/bin/LAN_SHARE_SOURCE.md"), "utf8").includes(lanShareHash)) {
   fail("LAN sharing binary/build record mismatch.");
 }
