@@ -4,9 +4,13 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.1** — stable. Faster routed DNS resolution with unchanged direct routing. See [release notes](RELEASE_NOTES.md).
+Current version: **4.18.2** — stable. Tab-scoped connection diagnostics and accurate toolbar warnings. See [release notes](RELEASE_NOTES.md).
 
-<img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
+<img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
+
+The toolbar's question mark means a connection warning, not a disabled switch. A completed tab clears its old slow-loading warning. If a routed page resource still fails, the popup identifies its hostname, even when the main document loads. A successful connection clears only that tab's matching hostname/request type; a main-page response cannot mask a pending socket or resource failure. Requests observed before their route was installed and results from an older navigation do not become new-route failures. Normal direct traffic and learning thresholds are unchanged.
+
+For 4.18.2, reload/update the extension. The bundled helper is unchanged from 4.18.1; an existing 4.18.1 helper does not need reinstalling for these diagnostic fixes.
 
 ## Why this project matters
 

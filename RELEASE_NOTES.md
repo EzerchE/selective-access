@@ -1,3 +1,19 @@
+# Automatic Access 4.18.2 — Accurate connection diagnostics
+
+Stable release; manifest version 4.18.2.
+
+- Clear slow-loading warnings when the tab completes, including an old warning discovered after worker restart or popup reopening.
+- Show unresolved routed-resource warnings in the owning tab's popup. Match recovery by tab, hostname and request type; HTML success cannot hide a failed resource or socket handshake. Popup diagnostics refresh when session state changes.
+- Ignore errors observed from requests started before their route was installed, stale navigation results, and queued failures superseded by a matching success. Existing bounded initial-recovery retries are reused; no broader routes or new automatic reload policy is added.
+- Keep a real unresolved warning visible with its explanation. Optional global checks target the resource shown in that card only after an explicit click. Disabled routing has no active dependency warning.
+- Preserve exact-host PAC routing, ordinary direct traffic, learning thresholds, TLS validation and manual proxy settings. No target-specific rules or real browsing examples are added.
+
+Validation: background lifecycle/race/restart tests, popup diagnostics and explicit-check targeting, localization, preview, helper migration, 28 resolver checks, 286 LAN assertions, privacy/history audit and package integrity checks.
+
+Update/reload the extension. The helper binaries are unchanged from 4.18.1, so an already updated helper does not need reinstalling for this release. Included helper installation still disables LAN sharing until explicitly enabled again; uninstall.cmd remains the removal method.
+
+Downloads: automatic-access-4.18.2.zip (extension), selective-access-helper-4.18.2.zip (unchanged helper), automatic-access-store-materials-4.18.2.zip, SHA256SUMS.txt.
+
 # Automatic Access 4.18.1 — Routed connection performance
 
 Stable release; manifest version 4.18.1.

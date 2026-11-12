@@ -124,6 +124,7 @@ function createContext(options = {}) {
           return { ok: true, state: currentState };
         }
         if (message.type === "getState") return { ok: true, state: currentState };
+        if (message.type === "checkGlobalStatus") return { ok: true, result: { status: "inconclusive" } };
         if (message.type === "checkProxyStatus") {
           const status = options.proxyStatus || (currentState.proxyMode === "unset"
             ? "unconfigured"
@@ -525,6 +526,28 @@ function lastSavePatch(sent) {
   }
 
   // The diagnostic card stays hidden unless the issue belongs to the open tab.
+  {
+    const issue={domain:"api.portal.example",mainHost:"portal.example",requestType:"websocket"};
+    const {document,sent,setState,storageListeners}=createContext({state:baseState({tabIssue:issue,lastIssueType:null})});
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden,false);
+    assert.equal(document.querySelector("#diagnosticTitle").textContent,messages.dependencyIssueTitle.message);
+    assert.match(document.querySelector("#diagnosticText").textContent,/api\.portal\.example/);
+    assert.equal(sent.find(m=>m.type==="getState").tabId,7);
+    assert.equal(sent.some(m=>m.type==="checkGlobalStatus"),false,"opening a diagnostic makes no external status request");
+    document.querySelector("#checkStatus").dispatch("click");
+    await settle();
+    assert.equal(sent.find(m=>m.type==="checkGlobalStatus").domain,"api.portal.example");
+    setState(baseState({tabIssue:null,lastIssueType:null}));
+    for(const listener of storageListeners)listener({runtimeState:{newValue:{}}},"session");
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden,true,"resolved session issue disappears without reopening popup");
+  }
+  {
+    const {document}=createContext({state:baseState({tabIssue:{domain:"api.other.example",mainHost:"other.example"},lastIssueType:null})});
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden,true);
+  }
   {
     const { document } = createContext({
       state: baseState({ lastIssueType: "route_failed", lastIssueDomain: "other.example" })

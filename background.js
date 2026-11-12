@@ -113,6 +113,11 @@ class SessionMap extends Map {
 
 const retryCooldowns = new SessionMap();
 const tabIssues = new SessionMap();
+const tabRequestIssues = new SessionMap();
+const requestRouteObservations = new Map();
+const tabNavigationEpochs = new Map();
+const requestSuccesses = new Map();
+let requestSequence = 0;
 const tabMainHosts = new SessionMap();
 const tabConnectionResults = new SessionMap();
 const tabRoutedHosts = new SessionMap();
@@ -235,6 +240,7 @@ const SESSION_FLUSH_DELAY_MS = 250;
 const SESSION_MAPS = Object.freeze({
   retryCooldowns,
   tabIssues,
+  tabRequestIssues,
   tabMainHosts,
   tabConnectionResults,
   tabRoutedHosts,
@@ -614,6 +620,7 @@ async function setConnectionBadge(stateName, tabId = null) {
     // extension error that forces the user to reinstall after an update.
     tabMainHosts.delete(tabId);
     tabIssues.delete(tabId);
+    tabRequestIssues.delete(tabId);
     tabConnectionResults.delete(tabId);
     tabRoutedHosts.delete(tabId);
     return false;
@@ -632,9 +639,10 @@ function connectionStateForTab(settings, tabId) {
   if (settings.lastProxyError &&
       (isLearned(host, settings.learnedDomains) || routedDependency)) return "gatewayError";
   if (tabConnectionResults.get(tabId) === "failed") return "unreachable";
+  if (activeRequestIssues(tabId, settings).length > 0) return "issue";
   if (isLearned(host, settings.learnedDomains) || routedDependency) return "routed";
   if (tabConnectionResults.get(tabId) === "loading") return "loading";
-  if (tabConnectionResults.get(tabId) !== "success") return "unavailable";
+  if (!["success", "complete"].includes(tabConnectionResults.get(tabId))) return "unavailable";
   return "direct";
 }
 
@@ -682,10 +690,11 @@ async function reportSlowPage(tabId, host, startedAt) {
   const watchdog = slowLoadWatchdogs.get(tabId);
   if (!watchdog || watchdog.host !== host || watchdog.startedAt !== startedAt) return;
   slowLoadWatchdogs.delete(tabId);
-  if (tabMainHosts.get(tabId) !== host || tabConnectionResults.get(tabId) === "failed") return;
+  if (tabMainHosts.get(tabId) !== host || ["failed", "complete"].includes(tabConnectionResults.get(tabId))) return;
 
   const settings = await getSettings();
   if (!settings.enabled || isLocalHost(host) || isCovered(host, settings.ignoredDomains)) return;
+  if (["failed", "complete"].includes(tabConnectionResults.get(tabId))) return;
   const activeIssue = tabIssues.get(tabId);
   if (activeIssue && activeIssue !== "detecting") return;
 
@@ -735,6 +744,60 @@ async function getTabContext(tabId) {
   return { tabId, host };
 }
 
+function activeRequestIssues(tabId, settings) {
+  if (!settings.enabled) return [];
+  return (tabRequestIssues.get(tabId) || []).filter((issue) =>
+    isLearned(issue.host, settings.learnedDomains) && !isCovered(issue.host, settings.ignoredDomains));
+}
+
+function recordRequestIssue(details, error) {
+  const host = getRequestHost(details);
+  const issues = (tabRequestIssues.get(details.tabId) || []).filter((issue) =>
+    issue.host !== host || issue.requestType !== details.type);
+  issues.push({ host, requestType: details.type, error, at: Date.now() });
+  tabRequestIssues.set(details.tabId, issues.slice(-32));
+  return issues.at(-1);
+}
+
+function successfulRequest(details) {
+  return details.type === "websocket"
+    ? details.statusCode === 101
+    : details.statusCode >= 200 && details.statusCode < 400;
+}
+
+function requestScope(details) { return `${details.tabId}:${details.type}:${getRequestHost(details)}`; }
+function supersededRequestFailure(details) {
+  return Number.isInteger(details.failureSequence) && (requestSuccesses.get(requestScope(details)) || 0) > details.failureSequence;
+}
+
+async function settleRequestIssue(details) {
+  if (details.tabId < 0 || !successfulRequest(details)) return false;
+  const host = getRequestHost(details);
+  const issues = tabRequestIssues.get(details.tabId) || [];
+  const remaining = issues.filter((issue) => issue.host !== host || issue.requestType !== details.type);
+  if (remaining.length === issues.length) return false;
+  if (remaining.length) tabRequestIssues.set(details.tabId, remaining);
+  else tabRequestIssues.delete(details.tabId);
+  const settings = await getSettings();
+  if (tabIssues.get(details.tabId) === "route_failed" && activeRequestIssues(details.tabId, settings).length === 0) {
+    await clearTabIssue(details.tabId);
+  }
+  if (settings.lastIssueType === "route_failed" && settings.lastIssueDomain === host &&
+      ![...tabRequestIssues.values()].some((entries) => entries.some((issue) => issue.host === host))) {
+    await chrome.storage.local.set({ lastIssueType: null, lastIssueDomain: null, lastIssueError: null, lastIssueAt: null });
+  }
+  return true;
+}
+
+async function settleSlowPage(tabId) {
+  await sessionReady;
+  const settings = await getSettings();
+  if (tabIssues.get(tabId) === "slow_loading") await clearTabIssue(tabId);
+  if (settings.lastIssueType === "slow_loading" && settings.lastIssueDomain === tabMainHosts.get(tabId)) {
+    await chrome.storage.local.set({ lastIssueType: null, lastIssueDomain: null, lastIssueError: null, lastIssueAt: null });
+  }
+}
+
 async function trackCompletedRoute(details) {
   await Promise.all([routingSnapshotReady, sessionReady]);
   if (!Number.isInteger(details.tabId) || details.tabId < 0 || !routingSnapshot.enabled) {
@@ -777,6 +840,7 @@ async function refreshTrackedBadges(settings) {
   await setConnectionBadge(connectionStateForTab(settings, null));
   const tabIds = [...tabMainHosts.keys()];
   const results = await Promise.allSettled(tabIds.map((tabId) => {
+    if (tabIssues.get(tabId) === "route_failed" && activeRequestIssues(tabId, settings).length === 0) tabIssues.delete(tabId);
     const issueType = tabIssues.get(tabId);
     if (issueType) return setIssueBadge(settings.enabled, issueType, tabId);
     return setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
@@ -785,6 +849,7 @@ async function refreshTrackedBadges(settings) {
     if (result.status === "fulfilled") return;
     tabMainHosts.delete(tabIds[index]);
     tabIssues.delete(tabIds[index]);
+    tabRequestIssues.delete(tabIds[index]);
     tabConnectionResults.delete(tabIds[index]);
     tabRoutedHosts.delete(tabIds[index]);
   });
@@ -792,6 +857,8 @@ async function refreshTrackedBadges(settings) {
 
 async function setIssueBadge(enabled, issueType, tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) return;
+  if (issueType === "slow_loading" && tabConnectionResults.get(tabId) === "complete") return settleSlowPage(tabId);
+  if (issueType === "route_failed" && activeRequestIssues(tabId, await getSettings()).length === 0) return clearTabIssue(tabId);
   tabIssues.set(tabId, issueType);
   const isDown = issueType === "globally_down";
   const isUnreachable = ["unreachable", "gateway_unavailable"].includes(issueType);
@@ -815,17 +882,23 @@ async function refreshTabBadge(tabId) {
     try {
       const tab = await chrome.tabs.get(tabId);
       updateTabMainHost(tabId, firstHttpUrl(tab?.pendingUrl, tab?.url));
+      if (tab.status === "complete" && tabIssues.get(tabId) === "slow_loading") {
+        tabConnectionResults.set(tabId, "complete");
+        await settleSlowPage(tabId);
+      }
     } catch (error) {
       if (!/No tab with id/i.test(error?.message || "")) throw error;
       tabMainHosts.delete(tabId);
       tabIssues.delete(tabId);
+      tabRequestIssues.delete(tabId);
       tabConnectionResults.delete(tabId);
       tabRoutedHosts.delete(tabId);
       return;
     }
   }
-  const issueType = tabIssues.get(tabId);
   const settings = await getSettings();
+  if (tabIssues.get(tabId) === "route_failed" && activeRequestIssues(tabId, settings).length === 0) tabIssues.delete(tabId);
+  const issueType = tabIssues.get(tabId);
   if (issueType) await setIssueBadge(settings.enabled, issueType, tabId);
   else await setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
 }
@@ -940,12 +1013,22 @@ function saveSettings(patch) {
   return queueSettingsMutation(() => saveSettingsUnlocked(patch));
 }
 
-async function getPublicState() {
+async function getPublicState(tabId = null) {
+  if (tabIssues.get(tabId) === "slow_loading") await refreshTabBadge(tabId);
   const settings = await getSettings();
+  const issue = activeRequestIssues(tabId, settings).at(-1);
   const proxyState = await chrome.proxy.settings.get({ incognito: false });
   const stored = await chrome.storage.local.get({ debugLog: [] });
   return {
     ...settings,
+    ...(Number.isInteger(tabId) && settings.lastIssueType === "route_failed" && !issue
+      ? { lastIssueType: null, lastIssueDomain: null, lastIssueError: null, lastIssueAt: null } : {}),
+    tabIssue: issue ? {
+      ...issue,
+      domain: issue.host,
+      mainHost: tabMainHosts.get(tabId) || null,
+      tabId
+    } : null,
     debugLog: Array.isArray(stored.debugLog) ? stored.debugLog : [],
     levelOfControl: proxyState.levelOfControl,
     effectiveMode: proxyState.value?.mode ?? "unknown"
@@ -1341,6 +1424,7 @@ async function settleDirectRecoveryFailure(details) {
   directRecoveryTrials.delete(details.tabId);
   cancelTabReload(details.tabId, "direct-recovery-failed", "direct-recovery");
   const settings = await getSettings();
+  recordRequestIssue(details, matchingError(details, RETRYABLE_ERRORS) || details.error || null);
   await saveSettings({
     learnedDomains: normalizeDomains([...settings.learnedDomains, ...trial.previousDomains])
   });
@@ -1377,6 +1461,7 @@ async function recoverTransientGatewayFailure(details) {
     ? "direct_recovery"
     : gatewayAvailable ? "route_failed"
     : scheduled ? "gateway_recovering" : "gateway_unavailable";
+  if (issueType === "route_failed") recordRequestIssue(details, error);
   await chrome.storage.local.set({
     lastProxyError: error,
     lastIssueType: issueType,
@@ -2121,7 +2206,14 @@ async function learnAndRetry(details) {
   }
 
   if (isLearned(host, settings.learnedDomains)) {
+    if (supersededRequestFailure(details)) return;
+    if (details.startedRouted === false && details.type !== "main_frame") {
+      await appendDebug("pre-route-error-ignored", { tabId: details.tabId, host, requestType: details.type, error });
+      scheduleSettledRecoveryReload(details);
+      return;
+    }
     const origin = await autoRouteOrigin(host);
+    if (supersededRequestFailure(details)) return;
     const matchesAutomaticEvidence = origin?.requestType === details.type;
     if (matchesAutomaticEvidence) {
       const recoveryCandidate = registerDetectionCandidate(host, details, error);
@@ -2130,7 +2222,8 @@ async function learnAndRetry(details) {
         return;
       }
     }
-    if (details.type === "main_frame" || matchesAutomaticEvidence) {
+    if (details.type === "main_frame" || matchesAutomaticEvidence || details.startedRouted === true) {
+      const issue = recordRequestIssue(details, error);
       // A sick gateway is not the target failing, and a tab the extension is
       // itself reloading is the same navigation seen again.
       const blamesTarget = !settings.lastProxyError &&
@@ -2145,8 +2238,10 @@ async function learnAndRetry(details) {
         host,
         error: matchingError(details, RETRYABLE_ERRORS),
         blamesTarget,
-        counted
+        counted,
+        requestType: details.type
       });
+      if (!(tabRequestIssues.get(details.tabId) || []).includes(issue)) return;
       await chrome.storage.local.set({
         lastIssueType: "route_failed",
         lastIssueDomain: host,
@@ -2444,6 +2539,7 @@ async function clearIssueAfterSuccess(details) {
     host &&
     settings.lastIssueType === "slow_loading" &&
     settings.lastIssueDomain === host &&
+    tabConnectionResults.get(details.tabId) !== "complete" &&
     Number.isFinite(issueTime) &&
     Date.now() - issueTime < SLOW_PAGE_ISSUE_HOLD_MS;
 
@@ -2459,6 +2555,11 @@ async function clearIssueAfterSuccess(details) {
 
   if (recentSlowPageIssue) {
     await setIssueBadge(settings.enabled, "slow_loading", details.tabId);
+    return;
+  }
+
+  if (activeRequestIssues(details.tabId, settings).length > 0) {
+    await setIssueBadge(settings.enabled, "route_failed", details.tabId);
     return;
   }
 
@@ -2570,6 +2671,11 @@ chrome.proxy.onProxyError.addListener(async (details) => {
 
 chrome.webRequest.onErrorOccurred.addListener(
   (details) => {
+    const observation = requestRouteObservations.get(details.requestId);
+    requestRouteObservations.delete(details.requestId);
+    if (observation && observation.navigation !== tabNavigationEpochs.get(details.tabId)) return;
+    details = { ...details, failureSequence: ++requestSequence };
+    if (observation && observation.host === getRequestHost(details)) details = { ...details, startedRouted: observation.routed };
     if (details.tabId < 0) return;
     if (details.type === "main_frame" && !NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) {
       cancelSlowLoadWatchdog(details.tabId);
@@ -2615,6 +2721,13 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 chrome.webRequest.onCompleted.addListener(
   async (details) => {
+    const observation = requestRouteObservations.get(details.requestId);
+    requestRouteObservations.delete(details.requestId);
+    if (observation && observation.navigation !== tabNavigationEpochs.get(details.tabId)) return;
+    if (details.tabId >= 0 && successfulRequest(details) && isLearned(getRequestHost(details), routingSnapshot.learnedDomains)) {
+      if (requestSuccesses.size >= 4096) requestSuccesses.delete(requestSuccesses.keys().next().value);
+      requestSuccesses.set(requestScope(details), ++requestSequence);
+    }
     // Invalidate synchronously, before any asynchronous route bookkeeping, so
     // a pending origin probe cannot overrule this successful main navigation.
     if (details.type === "main_frame") {
@@ -2624,16 +2737,17 @@ chrome.webRequest.onCompleted.addListener(
     if (await settleDirectRecoverySuccess(details)) return;
     const routeChanged = await trackCompletedRoute(details);
     const completedHost = getRequestHost(details);
-    if (!details.fromCache && completedHost &&
+    const issueChanged = await settleRequestIssue(details);
+    if (!details.fromCache && observation?.routed !== false && completedHost &&
         isLearned(completedHost, routingSnapshot.learnedDomains)) {
       await confirmRoute(completedHost, details.type);
     }
     if (details.type !== "main_frame") {
-      if (routeChanged) return refreshTabBadge(details.tabId).catch(reportAsyncError);
+      if (routeChanged || issueChanged) return refreshTabBadge(details.tabId).catch(reportAsyncError);
       return;
     }
     updateTabMainHost(details.tabId, details.url);
-    tabConnectionResults.set(details.tabId, "success");
+    if (tabConnectionResults.get(details.tabId) !== "complete") tabConnectionResults.set(details.tabId, "success");
     clientFilterCandidates.delete(details.tabId);
     cancelGatewayRetry(details.tabId, "main-completed", getRequestHost(details));
     cancelTabReload(
@@ -2658,6 +2772,18 @@ chrome.webRequest.onCompleted.addListener(
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
+    if (details.type !== "main_frame") {
+      const host = getRequestHost(details);
+      const mainHost = tabMainHosts.get(details.tabId);
+      if (details.requestId && details.tabId >= 0 && routingSnapshot.enabled &&
+          (isLearned(host, routingSnapshot.learnedDomains) || isLearned(mainHost, routingSnapshot.learnedDomains))) {
+        if (requestRouteObservations.size >= 4096) requestRouteObservations.delete(requestRouteObservations.keys().next().value);
+        requestRouteObservations.set(details.requestId, { host, tabId: details.tabId, navigation: tabNavigationEpochs.get(details.tabId), routed: isLearned(host, routingSnapshot.learnedDomains) });
+      }
+      return;
+    }
+    tabRequestIssues.delete(details.tabId);
+    tabNavigationEpochs.set(details.tabId, (tabNavigationEpochs.get(details.tabId) || 0) + 1);
     clientFilterCandidates.delete(details.tabId);
     const retry = gatewayRetryStates.get(details.tabId);
     const nextHost = getRequestHost(details);
@@ -2667,7 +2793,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     trackMainNavigation(details);
     return clearTabIssue(details.tabId).catch(reportAsyncError);
   },
-  { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] }
+  { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }
 );
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -2685,6 +2811,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     startSlowLoadWatchdog(tabId, url);
   } else if (changeInfo?.status === "complete") {
     cancelSlowLoadWatchdog(tabId);
+    if (tabConnectionResults.get(tabId) !== "failed") tabConnectionResults.set(tabId, "complete");
+    return settleSlowPage(tabId).then(() => refreshTabBadge(tabId)).catch(reportAsyncError);
   }
   if (!url && !changeInfo?.status) return;
   refreshTabBadge(tabId).catch(reportAsyncError);
@@ -2694,6 +2822,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   cancelGatewayRetry(tabId, "tab-removed");
   cancelSlowLoadWatchdog(tabId);
   tabIssues.delete(tabId);
+  tabRequestIssues.delete(tabId);
+  tabNavigationEpochs.delete(tabId);
+  for (const scope of requestSuccesses.keys()) if (scope.startsWith(`${tabId}:`)) requestSuccesses.delete(scope);
+  for (const [id, request] of requestRouteObservations) if (request.tabId === tabId) requestRouteObservations.delete(id);
   tabMainHosts.delete(tabId);
   tabConnectionResults.delete(tabId);
   tabRoutedHosts.delete(tabId);
@@ -2717,7 +2849,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     await ensureInitialized();
     switch (message?.type) {
       case "getState":
-        return { ok: true, state: await getPublicState() };
+        return { ok: true, state: await getPublicState(message.tabId) };
       case "getTabContext":
         return { ok: true, ...(await getTabContext(message.tabId)) };
       case "checkProxyStatus":

@@ -1,6 +1,6 @@
 # Privacy policy — Automatic Access
 
-Updated: 12 November 2026 · Version 4.18.1
+Updated: 12 November 2026 · Version 4.18.2
 
 [Türkçe](PRIVACY_TR.md)
 
@@ -13,6 +13,8 @@ Chrome supplies request URLs, errors, types and tab/frame identifiers. The exten
 Local storage holds enabled state, proxy type/address/port, learned and ignored hosts, route provenance/health and recent status results. Session storage keeps bounded recovery state until the browser session ends. Debug starts off; if enabled, at most 150 local events contain hostnames, error classes, request types, timings and routing decisions. Clear them in Advanced settings.
 
 Rules match exact listed hostnames. Main-page learning also records the conventional www/non-www alias; this never enables wildcard routing. Ignored targets and their subdomains stay direct. Automatic routes can be removed by bounded direct recovery; manual routes are preserved.
+
+Recent routed-resource warnings retain only hostname, request type, error and time, up to 32 per tab in session storage. Temporary request-route and completion bookkeeping is bounded in process memory and excludes paths, queries and payloads. Navigation or tab closure clears obsolete tab context. A popup can display the failed resource's hostname; an external status check for it still requires your explicit click.
 
 ## Requests and recipients
 

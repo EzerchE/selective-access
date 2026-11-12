@@ -4,9 +4,13 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.1** — kararlı. Doğrudan yönlendirmeyi değiştirmeden, geçit üzerinden DNS çözümlemesi hızlandırıldı. [Sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.18.2** — kararlı. Sekmeye özgü bağlantı tanısı ve doğru araç çubuğu uyarıları. [Sürüm notları](RELEASE_NOTES.md).
 
-<img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim 4.17: seçici yönlendirme ve proxy kurulumu" width="620">
+<img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim temel arayüzü: seçici yönlendirme ve proxy kurulumu" width="620">
+
+Araç çubuğundaki soru işareti, anahtarın kapalı olduğunu değil bir bağlantı uyarısını belirtir. Sekme tamamlanınca eski yavaş yüklenme uyarısı temizlenir. Yönlendirilen bir sayfa kaynağında hata sürüyorsa ana belge açılsa bile popup ilgili alan adını gösterir. Başarı yalnız aynı sekme, alan adı ve istek türünün uyarısını temizler; ana sayfanın açılması bekleyen bir soket veya kaynak hatasını gizlemez. Rota kurulmadan önce başladığı gözlemlenen istekler ve eski gezinmenin sonuçları yeni rotanın hatası sayılmaz. Normal doğrudan trafik ve öğrenme eşikleri değişmez.
+
+4.18.2 için eklentiyi güncelleyin/yeniden yükleyin. Hazır yardımcı 4.18.1 ile aynıdır; mevcut 4.18.1 yardımcısını bu tanı düzeltmeleri için yeniden kurmanız gerekmez.
 
 ## Bu proje neden önemli?
 

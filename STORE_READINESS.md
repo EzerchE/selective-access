@@ -1,4 +1,4 @@
-# Chrome Web Store preparation — 4.18.1
+# Chrome Web Store preparation — 4.18.2
 
 Prepared 12 November 2026. This document records submission materials, not Google approval.
 
@@ -24,7 +24,7 @@ Run node --check on runtime files; background, popup and helper-migration tests;
 
 The account owner must provide verified contact details, enable two-step verification, choose applicable account/trader declarations, supply the public privacy/support URLs, review the actual data-use form, and upload the store ZIP and listing graphics. Do not certify that the product handles no user data: hostnames and connection metadata are processed locally and sent to selected recipients as described in PRIVACY.md.
 
-Upload only automatic-access-4.18.1.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
+Upload only automatic-access-4.18.2.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
 
 ## Official references
 

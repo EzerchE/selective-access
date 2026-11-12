@@ -1,6 +1,6 @@
 # Gizlilik bildirimi — Otomatik Erişim
 
-Güncelleme: 12 Kasım 2026 · Sürüm 4.18.1
+Güncelleme: 12 Kasım 2026 · Sürüm 4.18.2
 
 [English](PRIVACY.md)
 
@@ -13,6 +13,8 @@ Chrome olaylarındaki URL'lerden alan adı türetilir. Tam adres, yol, sorgu, fr
 Etkinlik, proxy türü/adresi/portu, öğrenilen ve yoksayılan hedefler, rota kaynağı/sağlığı ve son durumlar cihazda tutulur. Oturum depolaması kurtarma durumunu tarayıcı oturumu boyunca tutar. Başlangıçta kapalı debug açılırsa en fazla 150 olay alan adı, hata, istek türü, süre ve karar bilgisi içerir. Gelişmiş bölümünden temizlenebilir.
 
 Kurallar yalnız listelenen tam alan adlarına uygulanır; öğrenilen ana sayfanın geleneksel www eş adı da listelenir. Joker kapsam oluşturulmaz. Yoksayılan hedef ve alt alanları doğrudan kalır. Otomatik rotalar sınırlı kurtarmayla kaldırılabilir; elle seçilen rotalar korunur.
+
+Yönlendirilen kaynak uyarılarında yalnız alan adı, istek türü, hata ve zaman tutulur; oturum depolamasında sekme başına en fazla 32 kayıt vardır. Geçici istek/rota ve tamamlanma takibi süreç belleğinde sınırlıdır; yol, sorgu veya içerik tutmaz. Gezinme veya sekmenin kapatılması eski sekme bağlamını temizler. Popup hatalı kaynağın alan adını gösterebilir; bunun dış durum denetimi için yine açıkça düğmeye basmanız gerekir.
 
 ## Veri alıcıları
 
