@@ -115,6 +115,11 @@ for (const required of [
   "helper/bin/ciadpi.exe",
   "helper/bin/SelectiveAccessGateway.exe",
   "helper/bin/GATEWAY_SOURCE.md",
+  "helper/bin/SelectiveAccessLanShare.exe",
+  "helper/bin/LAN_SHARE_SOURCE.md",
+  "helper/source/SelectiveAccessLanShare.cs",
+  "helper/source/build-lan-share.cmd",
+  "helper/share.cmd",
   "helper/source/SelectiveAccessGateway.cs",
   "helper/source/build-gateway.cmd",
   "helper/install.cmd",
@@ -140,7 +145,7 @@ if (ciadpiHash !== "EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B5
 }
 const gateway = fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessGateway.exe"));
 const gatewayHash = crypto.createHash("sha256").update(gateway).digest("hex").toUpperCase();
-if (gatewayHash !== "065D28EF9BA5F2EEC79CC0CA74964577B2260C8BCACFC6D9A41FD5E4AB0C8350") {
+if (gatewayHash !== "B09C66E8E9F10A59DB2B01D7090B98232A7F0CA8D629E0589B72FA45E252E226") {
   fail("Yardimci ikili beklenen surumle eslesmiyor: helper/bin/SelectiveAccessGateway.exe");
 }
 const gatewaySourceRecord = fs.readFileSync(path.join(root, "helper/bin/GATEWAY_SOURCE.md"), "utf8");
@@ -149,6 +154,11 @@ if (!gatewaySourceRecord.includes(gatewayHash) ||
   fail("On gecit kaynak, derleme veya hash kaydi eksik.");
 }
 const sourceRecord = fs.readFileSync(path.join(root, "helper/bin/SOURCE.md"), "utf8");
+const lanShareHash = crypto.createHash("sha256").update(fs.readFileSync(path.join(root, "helper/bin/SelectiveAccessLanShare.exe"))).digest("hex").toUpperCase();
+if (lanShareHash !== "D8E64F0CD1B2855BF1F43765A63DDC669B7EF61536B9E849A00492360D667517" ||
+    !fs.readFileSync(path.join(root, "helper/bin/LAN_SHARE_SOURCE.md"), "utf8").includes(lanShareHash)) {
+  fail("LAN sharing binary/build record mismatch.");
+}
 if (!sourceRecord.includes("v0.17.3") ||
     !sourceRecord.includes("70D2C94147193CB915F9C6EB5144B8D404DACBCFA90BDA2383B6B211AFAFA456") ||
     !sourceRecord.includes(ciadpiHash)) {

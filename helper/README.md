@@ -1,5 +1,13 @@
 # Optional Windows ByeDPI helper
 
+## Optional private-LAN sharing (4.18.0)
+
+After installation, double-click share.cmd. Choose 1 to enable, 2 to disable, or 3 for status. Changes request administrator approval. ON prints the selected server address and port 1082; another computer uses Custom proxy → SOCKS5 with that address/port and needs no helper. Multiple eligible interfaces require selection.
+
+Sharing starts OFF after install/update. It supports only private IPv4 Ethernet/Wi-Fi, an enabled Private-profile firewall with no excluded interfaces, and clients from that exact subnet. Public/Domain/mixed profiles are refused. Network changes stop sharing and active connections. OFF removes the separate LAN service/rule while retaining the loopback helper. uninstall.cmd removes both. No firewall profile or DNS setting is changed. Public destinations only; LAN clients cannot proxy into private/loopback services. Use a trusted LAN: there is no client authentication. Do not forward port 1082 from your router.
+
+Kurulumdan sonra share.cmd dosyasını açın: 1 paylaşımı açar, 2 kapatır, 3 sunucu adresi ve durumu gösterir. Diğer bilgisayarda Özel proxy → SOCKS5, gösterilen adres ve 1082 portunu kaydedin. İstemcide yardımcı/yönetici izni gerekmez. Sunucudaki değişiklikler yönetici onayı ister. Paylaşım kurulum/güncelleme sonrası kapalıdır; yalnız Özel ağ ve aynı alt ağ desteklenir. Kapatma yalnız LAN hizmetini/kuralını, uninstall.cmd tüm yardımcıları kaldırır.
+
 This helper is separate from the Chrome extension and is optional if you already have a compatible proxy.
 
 1. Extract the complete archive. Keep the helper folder and its contents together.

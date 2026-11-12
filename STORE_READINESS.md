@@ -1,6 +1,6 @@
-# Chrome Web Store preparation — 4.17.0
+# Chrome Web Store preparation — 4.18.0
 
-Prepared 11 November 2026. This document records submission materials, not Google approval.
+Prepared 12 November 2026. This document records submission materials, not Google approval.
 
 ## Included
 
@@ -24,7 +24,7 @@ Run node --check on runtime files; background, popup and helper-migration tests;
 
 The account owner must provide verified contact details, enable two-step verification, choose applicable account/trader declarations, supply the public privacy/support URLs, review the actual data-use form, and upload the store ZIP and listing graphics. Do not certify that the product handles no user data: hostnames and connection metadata are processed locally and sent to selected recipients as described in PRIVACY.md.
 
-Upload only automatic-access-4.17.0.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
+Upload only automatic-access-4.18.0.zip, not the repository source or Windows-helper archive. No developer account or dashboard submission is performed by the release scripts.
 
 ## Official references
 
@@ -34,3 +34,11 @@ Upload only automatic-access-4.17.0.zip, not the repository source or Windows-he
 - https://developer.chrome.com/docs/webstore/publish
 
 Code signing the optional Windows helper is recommended for distribution trust but is not represented here as a universal Chrome Extensions policy requirement. The product must be independently reviewable with a user-supplied proxy; reviewer instructions disclose all optional native dependencies.
+
+## Private-LAN sharing preview
+
+Version 4.18.0-rc.1 is a prerelease. Run helper/share.cmd on the host: ON / OFF / Status. Changes require Windows administrator approval. The separate LocalService relay binds one selected private IPv4 interface on TCP 1082. Firewall and application peer rules limit access to that exact subnet and Windows Private profile. Public/Domain/mixed profiles, excluded firewall interfaces and disabled firewalls are refused. Address/profile changes stop the relay. Private/loopback resolved destinations are blocked. No wildcard listeners or router changes are made. Any trusted device in that subnet can use the unauthenticated proxy; LAN SOCKS metadata is unencrypted.
+
+Clients select Custom proxy → SOCKS5 and the displayed server IP/1082. They need no helper or administrator permission. OFF removes only the sharing service/rule; uninstall removes all helper services and the rule. The host's loopback gateway remains separate. Every helper install/update disables sharing.
+
+Remaining release gate: native Windows service/firewall ON/OFF, reboot/profile-change behavior and a second physical LAN client were not verified because this development shell is not elevated. Keep the release prerelease until an isolated administrator environment verifies the lifecycle. Do not submit this candidate as fully validated. Existing 4.17 graphics illustrate the base popup; LAN instructions are in README.

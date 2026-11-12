@@ -109,9 +109,12 @@
               <input id="proxyPortInput" type="number" inputmode="numeric" min="1" max="65535" placeholder="1080">
             </label>
           </div>
+          <p id="lanProxyHelp" class="fineprint" hidden data-i18n="lanProxyHelp">For a shared local gateway, select SOCKS5 and enter the server address shown by helper/share.cmd, port 1082. No helper is needed on this client.</p>
           <p class="fineprint" data-i18n="proxyPrivacy">Proxy settings stay on this device. Authentication is not stored; use a proxy that accepts your connection without browser credentials.</p>
           <a class="setup-link" href="https://github.com/EzerchE/selective-access/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer" data-i18n="privacyPolicyLink">Privacy and data use</a>
           <div id="gatewayHelpLinks" class="gateway-help-links">
+            <p class="fineprint" data-i18n="lanShareHelp">To share this computer's gateway, run helper/share.cmd: 1 enables private-LAN sharing, 2 disables it, 3 shows status. Windows administrator approval is required for changes.</p>
+            <a class="setup-link" href="https://github.com/EzerchE/selective-access#local-network-sharing" target="_blank" rel="noopener noreferrer" data-i18n="lanShareGuide">Local network sharing guide</a>
             <p class="fineprint" data-i18n="gatewayInstallSteps">Download the GitHub project ZIP and extract it. Run helper/install.cmd as administrator, then save this option and check again.</p>
             <a class="setup-link" href="https://github.com/EzerchE/selective-access#installation" target="_blank" rel="noopener noreferrer" data-i18n="installGateway">Install the bundled gateway from GitHub</a>
             <p class="fineprint" data-i18n="gatewayRemoveSteps">To remove the helper, first turn this extension off or select another proxy. Run helper/uninstall.cmd as administrator from the extracted folder. Removing Chrome's extension alone does not remove the Windows services.</p>

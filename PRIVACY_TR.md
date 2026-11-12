@@ -1,6 +1,6 @@
 # Gizlilik bildirimi — Otomatik Erişim
 
-Güncelleme: 11 Kasım 2026 · Sürüm 4.17.0
+Güncelleme: 12 Kasım 2026 · Sürüm 4.18.0
 
 [English](PRIVACY.md)
 
@@ -18,13 +18,15 @@ Kurallar yalnız listelenen tam alan adlarına uygulanır; öğrenilen ana sayfa
 
 - Hedef sunucu: otomatik origin kök kontrolünü çerez ve kimlik bilgisi olmadan alır. Kaynak IP ve normal bağlantı bilgilerini görür. Yol, sorgu, fragment ve kullanıcı bilgisi kontrol öncesinde temizlenir.
 - Seçtiğiniz proxy: hedef adı/IP, port, kaynak bağlantı bilgisi ve bağlantı için gereken trafiği alır. İşletmecisi HTTP içeriğini okuyabilir. HTTPS/WSS uçtan uca TLS ile korunur; sertifika doğrulaması atlanmaz. HTTP/SOCKS proxy bağlantıları üst veriyi şifrelemez. HTTPS proxy bağlantısı proxy'ye kadar şifrelidir; işletmeci hedefleri yine görür. Güvendiğiniz proxy'yi seçin; işletmecinin saklama ve gizlilik koşulları geçerlidir. Ayarlar cihazda kalır; proxy kullanıcı adı/parolası desteklenmez.
-- İsteğe bağlı yerel Windows yardımcısı: yalnız loopback üzerinde çalışır. Yönlendirilen alan adlarının DNS sorgularını sırayla Cloudflare ve/veya Google'a HTTPS üzerinden gönderir; uygun cevap yoksa sistem çözümleyicisine döner. Sağlayıcı hedef adı ve kaynak IP'yi kendi koşulları altında alır. DNS içinde sayfa yolu, çerez ve içerik aktarılmaz. Normal trafiğin DNS ayarları değişmez; HTTPS çözülmez ve sertifika değiştirilmez.
+- İsteğe bağlı yerel Windows yardımcısı: temel geçit ve arka geçit loopback üzerinde çalışır; ayrıca açıkça etkinleştirilen LAN aktarımı aşağıda açıklanır. Yönlendirilen alan adlarının DNS sorgularını sırayla Cloudflare ve/veya Google'a HTTPS üzerinden gönderir; uygun cevap yoksa sistem çözümleyicisine döner. Sağlayıcı hedef adı ve kaynak IP'yi kendi koşulları altında alır. DNS içinde sayfa yolu, çerez ve içerik aktarılmaz. Normal trafiğin DNS ayarları değişmez; HTTPS çözülmez ve sertifika değiştirilmez.
 - Globalping: yalnız Genel durumu kontrol et düğmesine basarsanız alan adı dış problarda üç kıtadan ölçüm için API'ye gönderilir. Altyapı ve prob işletmecileri hedefi ve ölçüm isteğini alır. Özel hizmet adlarını göndermeyin. Yerel/özel IP hedefleri reddedilir; genel alan adı arkasındaki tüm özel hizmetler belirlenemez. Otomatik Globalping kontrolü yoktur.
 - GitHub ve isteğe bağlı Buy Me a Coffee bağlantısı: yalnız tıklayınca açılır; ilgili sitenin koşulları geçerlidir. Uzak ödeme betiği yüklenmez.
 
 Gezinme verileri geliştiriciye gönderilmez, satılmaz, reklam, kredi değerlendirmesi veya ilgisiz profillemede kullanılmaz. Destek için günlük paylaşımı sizin açık seçiminizdir; özel hedefleri önce temizleyin.
 
 ## Saklama ve kaldırma
+
+İsteğe bağlı LAN paylaşımı seçilen özel IPv4 arayüzünde 1082 portunu açar; erişim aynı alt ağ ve Windows Özel güvenlik duvarı profiliyle sınırlandırılır. Kurulum/güncelleme sonrası kapalı başlar. Sunucudaki helper/share.cmd menüsünden yönetilir. Sunucu ve izinli ağ cihazları bağlantı üst verisini ve şifresiz trafiği görebilir; HTTPS/WSS içeriği şifreli kalır. İstemci IP'leri yalnız erişim kontrolü için geçici işlenir; trafik/istemci günlüğü tutulmaz. share.cmd → KAPAT yalnız LAN hizmetini/kuralını; uninstall.cmd tüm yardımcı hizmetleri ve LAN kuralını kaldırır.
 
 Yerel veriler siz silene, Chrome temizleyene veya eklenti kaldırılana kadar kalabilir. Oturum verisi tarayıcı oturumuyla biter. Hedefleri satır düğmeleriyle, debug kaydını Gelişmiş bölümünden temizleyebilirsiniz. Eklenti kendi seçtiğiniz proxy'yi kurmaz veya kaldırmaz.
 

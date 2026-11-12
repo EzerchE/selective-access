@@ -1,4 +1,20 @@
-# Automatic Access 4.17.1
+# Automatic Access 4.18.0-rc.1 — Private LAN sharing preview
+
+Prerelease; manifest version 4.18.0. Stable release remains 4.17.1.
+
+- Host: update the helper with install.cmd as administrator, then open helper/share.cmd. 1 enables sharing, 2 disables it, 3 shows status. Changes request administrator approval.
+- Clients: Custom proxy → SOCKS5, displayed host IP, port 1082. No client helper/admin rights are required.
+- Sharing starts OFF after every helper install/update. It uses a separate LocalService relay; the 1080 local gateway remains available.
+- Firewall scope: selected private IPv4 interface, exact subnet, executable, service and TCP port; Private profile only, no edge traversal. Application checks reject out-of-subnet/public/IPv6 sources.
+- Public/Domain/mixed profiles, disabled firewalls and excluded interfaces are refused. Address/profile changes stop active connections. Resolved private/loopback/link-local destinations are blocked.
+- OFF removes only the LAN service/rule. uninstall.cmd removes all project services and the LAN rule. DNS and firewall-profile settings are not changed.
+- Any trusted device in the allowed subnet can use the unauthenticated proxy. Do not forward port 1082 from your router.
+
+Validation: 281 LAN policy/relay assertions, real loopback TCP forwarding and cancellation, extension/migration/localization/preview tests and repository/history audit. Native Windows service/firewall ON/OFF, reboot/profile-change lifecycle and a second physical LAN client remain unverified because this development shell is not elevated. No live host services/firewall rules were enabled. This prerelease must pass that remaining gate before stable/store submission.
+
+Downloads: automatic-access-4.18.0.zip (extension), selective-access-helper-4.18.0.zip (Windows helper), automatic-access-store-materials-4.18.0.zip (documents/base-interface graphics), SHA256SUMS.txt.
+
+# Previous: Automatic Access 4.17.1
 
 - Based on 4.17.0, preserving existing settings and setup gates.
 - Repeated top-level transport failures can now trigger automatic provisional proxy routing even when a small direct-origin check responds. Single transient failures and successful navigations remain direct.

@@ -1,5 +1,7 @@
 # Üçüncü taraf bildirimleri
 
+SelectiveAccessLanShare.exe bu projenin helper/source/SelectiveAccessLanShare.cs kaynağından üretilir; kök MIT lisansı kapsamındadır. Kaynak/derleme/hash kaydı helper/bin/LAN_SHARE_SOURCE.md dosyasındadır.
+
 `helper/bin/ciadpi.exe`, [hufrea/byedpi](https://github.com/hufrea/byedpi) projesinden türetilmiş bir üçüncü taraf ikilidir.
 
 ByeDPI lisansı:

@@ -18,8 +18,11 @@ set "SOURCE_BACKEND=%~dp0bin\ciadpi.exe"
 set "SOURCE_GATEWAY=%~dp0bin\SelectiveAccessGateway.exe"
 set "TARGET_BACKEND=%INSTALL_DIR%\ciadpi.exe"
 set "TARGET_GATEWAY=%INSTALL_DIR%\SelectiveAccessGateway.exe"
+set "SOURCE_SHARE=%~dp0bin\SelectiveAccessLanShare.exe"
+set "TARGET_SHARE=%INSTALL_DIR%\SelectiveAccessLanShare.exe"
+set "SHARE_HASH=D8E64F0CD1B2855BF1F43765A63DDC669B7EF61536B9E849A00492360D667517"
 set "BACKEND_HASH=EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B54EF4"
-set "GATEWAY_HASH=065D28EF9BA5F2EEC79CC0CA74964577B2260C8BCACFC6D9A41FD5E4AB0C8350"
+set "GATEWAY_HASH=B09C66E8E9F10A59DB2B01D7090B98232A7F0CA8D629E0589B72FA45E252E226"
 
 call "%~dp0migrate-legacy.cmd"
 if errorlevel 1 goto MigrationFailed
@@ -27,6 +30,10 @@ call :VerifyHash "%SOURCE_BACKEND%" "%BACKEND_HASH%"
 if errorlevel 1 goto SourceVerificationFailed
 call :VerifyHash "%SOURCE_GATEWAY%" "%GATEWAY_HASH%"
 if errorlevel 1 goto SourceVerificationFailed
+call :VerifyHash "%SOURCE_SHARE%" "%SHARE_HASH%"
+if errorlevel 1 goto SourceVerificationFailed
+call :RemoveService "SelectiveAccessLanGateway"
+if errorlevel 1 goto RemovalFailed
 call :RemoveService "%GATEWAY_SERVICE%"
 if errorlevel 1 goto RemovalFailed
 call :RemoveService "%BACKEND_SERVICE%"
@@ -38,12 +45,21 @@ copy /y "%SOURCE_BACKEND%" "%TARGET_BACKEND%" >nul
 if errorlevel 1 goto CopyFailed
 copy /y "%SOURCE_GATEWAY%" "%TARGET_GATEWAY%" >nul
 if errorlevel 1 goto CopyFailed
+copy /y "%SOURCE_SHARE%" "%TARGET_SHARE%" >nul
+if errorlevel 1 goto CopyFailed
+call :VerifyHash "%TARGET_SHARE%" "%SHARE_HASH%"
+if errorlevel 1 goto CopyFailed
 call :VerifyHash "%TARGET_BACKEND%" "%BACKEND_HASH%"
 if errorlevel 1 goto CopyFailed
+
 call :VerifyHash "%TARGET_GATEWAY%" "%GATEWAY_HASH%"
 if errorlevel 1 goto CopyFailed
 icacls.exe "%INSTALL_DIR%" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-19:(OI)(CI)RX" >nul
 if errorlevel 1 goto CopyFailed
+
+rem Updates deliberately return optional LAN sharing to OFF.
+"%TARGET_SHARE%" --off
+if errorlevel 1 goto ServiceConfigurationFailed
 
 sc.exe create "%BACKEND_SERVICE%" binPath= "\"%TARGET_BACKEND%\" --ip 127.0.0.1 --port 1081 --no-udp --split 1 --oob 1 --auto r --auto t --fake -1 --tlsrec 1+s --auto s" start= auto obj= "NT AUTHORITY\LocalService" DisplayName= "Selective Access ByeDPI" >nul
 if errorlevel 1 goto ServiceConfigurationFailed
@@ -69,6 +85,7 @@ echo.
 echo Kurulum tamamlandi. Yerel gecit: 127.0.0.1:1080
 echo Sistem, tarayici ve ag DNS ayarlari degistirilmedi.
 echo Chrome eklenti kartindaki yenile simgesine bir kez basin.
+echo Yerel agda paylasim KAPALI. Acmak/kapatmak icin helper\share.cmd kullanin.
 exit /b 0
 
 :MigrationFailed

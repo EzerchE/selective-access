@@ -3,7 +3,7 @@
 - Source: `helper/source/SelectiveAccessGateway.cs`
 - Build command: `helper/source/build-gateway.cmd`
 - Target: Windows .NET Framework 4.x, x64-compatible AnyCPU executable
-- SHA-256: `065D28EF9BA5F2EEC79CC0CA74964577B2260C8BCACFC6D9A41FD5E4AB0C8350`
+- SHA-256: `B09C66E8E9F10A59DB2B01D7090B98232A7F0CA8D629E0589B72FA45E252E226`
 - License: repository root `LICENSE` (MIT)
 
-The gateway is built from repository source. It listens only on `127.0.0.1:1080`, prefers authenticated encrypted DNS only for SOCKS-routed hostnames, gives every provider an independent deadline before trying the next one, falls back to system DNS only when encrypted resolution returns no usable address, leaves literal IP requests unchanged, and forwards resolved target IP connections to the local ByeDPI backend on `127.0.0.1:1081`.
+The gateway listens only on `127.0.0.1:1080`, prefers authenticated encrypted DNS for routed hostnames and gives each provider an independent deadline before system fallback. Only public destination IPs are forwarded to the loopback ByeDPI backend; literal and DNS-resolved private, loopback, link-local and reserved targets are rejected. The optional LAN relay is a separate binary documented in LAN_SHARE_SOURCE.md.

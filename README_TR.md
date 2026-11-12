@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.17.1**
+Güncel sürüm: **4.18.0** — **yalnız ön sürüm (4.18.0-rc.1)**. Kararlı sürüm: **4.17.1**. Windows paylaşım hizmeti yaşam döngüsü doğrulaması bekleniyor; [sürüm notları](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim 4.17: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -100,6 +100,22 @@ Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim 
 
 Yönetici izni yalnız Windows hizmetinin kurulması ve kaldırılması için gerekir. Eklenti yenileme veya ayar değişikliği PowerShell, komut penceresi ya da UAC istemi başlatmaz.
 
+## Yerel ağda paylaşım
+
+Paylaşım isteğe bağlıdır; **her yardımcı kurulumu/güncellemesinden sonra KAPALI** başlar. Normal yerel geçit 127.0.0.1:1080 üzerinde kalır.
+
+1. Sunucu bilgisayarda güncel helper/install.cmd dosyasını yönetici olarak çalıştırın.
+2. helper/share.cmd dosyasına çift tıklayın. **1 — ON / AÇ** seçeneğini seçip Windows yönetici onayını verin. Birden fazla uygun Ethernet/Wi-Fi arayüzü varsa birini seçin.
+3. Gösterilen SOCKS5 sunucu adresini ve **1082** portunu not edin. **3 — Durum** ile yeniden görebilirsiniz.
+4. Diğer bilgisayarda eklenti Gelişmiş → Özel proxy → SOCKS5 seçin; bu sunucu adresini ve 1082 portunu girip kabul ederek kaydedin. İstemcide yardımcı kurulumu veya yönetici izni gerekmez.
+5. Kapatmak için aynı menüden **2 — OFF / KAPAT** seçin. Yalnız LAN hizmeti ve ona ait güvenlik duvarı kuralı silinir; 1080 üzerindeki yerel geçit çalışmayı sürdürür. Tüm yardımcıları kaldırmak için helper/uninstall.cmd dosyasını yönetici olarak çalıştırın.
+
+Yalnız etkin Ethernet/Wi-Fi üzerindeki RFC1918 IPv4 adresi seçilebilir. Windows ağ profili Özel olmalı, güvenlik duvarı açık olmalı ve hariç tutulan arayüz olmamalıdır. Genel, Etki Alanı ve karma profiller reddedilir. Güvenlik duvarı ve uygulama kontrolü istemcileri seçilen arayüzün tam alt ağıyla sınırlar. IPv6 veya tüm adresleri dinleyen joker bağlama yoktur. Profil, IP veya alt ağ değişirse aktarım ve etkin bağlantılar durdurulur; uygun güvenilir ağda tekrar AÇ seçin. Yardımcı güncellemesi paylaşımı kapatır; açık bırakılan paylaşım aynı uygun arayüz mevcutsa Windows ile başlar.
+
+Yalnız güvendiğiniz yerel ağda açın: izinli alt ağdaki her cihaz kimlik doğrulamasız SOCKS5 geçidini kullanabilir. LAN SOCKS aktarımı şifresizdir; HTTPS/WSS içeriği uçtan uca şifreli kalır. Modemde 1082 port yönlendirmesi açmayın. Dış bağlantının kaynağını yerel IP'ye çeviren NAT, yalnız alt ağ kontrolüyle ayırt edilemez. Misafir Wi-Fi/istemci izolasyonu bağlantıyı engelleyebilir. Sabit sunucu IP'si veya DHCP rezervasyonu kullanmak kolaylık sağlar.
+
+Chrome eklentisi Windows hizmetlerini/güvenlik duvarını doğrudan değiştiremez; aç/kapa denetimi sunucudaki share.cmd menüsüdür. DNS ayarı veya güvenlik duvarı profil korumaları değiştirilmez.
+
 ## Güncelleme
 
 1. Depo dosyalarını güncelleyin.
@@ -128,7 +144,7 @@ Eklenti uzaktan JavaScript çalıştırmaz, sayfa içeriği toplamaz, HTTPS şif
 
 ## Yerel yardımcı
 
-Paketle gelen yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. İlk kurulumda yerel veya özel proxy açıkça seçilmelidir. Uyumlu bir proxy işleten kullanıcı Gelişmiş ayarlardan kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP veya HTTPS uç noktası seçebilir; özel proxy bilgileri `chrome.storage.local` içinde kalır ve doğrudan trafik bu uç noktaya gönderilmez. Yerel yardımcının yönlendirdiği alan adlarında kimliği doğrulanan şifreli DNS cevabı önceliklidir; her sağlayıcı ayrı süre sınırıyla denenir ve biri engellendiğinde bağlantı bütçesinin tamamını tüketmeden sıradakine geçilir. Şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri dönülür. Doğrudan IP istekleri değişmez. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS doğrulaması Chrome ile hedef arasında uçtan uca kalır ve hiçbir zaman kapatılmaz. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Normal ve yönlendirilmemiş trafik cihazın mevcut DNS'ini ve doğrudan yolunu kullanmayı sürdürür. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
+Paketle gelen yerel geçit yalnız `127.0.0.1:1080` üzerinde dinler. İlk kurulumda yerel veya özel proxy açıkça seçilmelidir. Uyumlu bir proxy işleten kullanıcı Gelişmiş ayarlardan kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP veya HTTPS uç noktası seçebilir; özel proxy bilgileri `chrome.storage.local` içinde kalır ve doğrudan trafik bu uç noktaya gönderilmez. Yerel yardımcının yönlendirdiği alan adlarında kimliği doğrulanan şifreli DNS cevabı önceliklidir; her sağlayıcı ayrı süre sınırıyla denenir ve biri engellendiğinde bağlantı bütçesinin tamamını tüketmeden sıradakine geçilir. Şifreli çözümleme kullanılabilir bir adres üretemezse mevcut sistem çözümleyicisine geri dönülür. Yalnız genel doğrudan veya DNS ile çözülmüş hedef IP'ler aktarılır; özel, loopback ve link-local hedefler reddedilir. Çözülen IP adresleri `127.0.0.1:1081` üzerindeki ByeDPI arka geçidine verilir; TLS doğrulaması Chrome ile hedef arasında uçtan uca kalır ve hiçbir zaman kapatılmaz. İki Windows hizmeti de kısıtlı `LocalService` hesabıyla, bağımlılık sıralaması, otomatik başlangıç ve kontrollü yeniden başlatma politikalarıyla çalışır. Normal ve yönlendirilmemiş trafik cihazın mevcut DNS'ini ve doğrudan yolunu kullanmayı sürdürür. Geçit henüz başlıyorsa yönlendirilmiş ana sayfalar kısa aralıklarla ve sabit bir sınırla yeniden denenir. Kurulum:
 
 - paketlenen iki ikilinin SHA-256 değerlerini kopyalamadan önce ve sonra doğrular;
 - klasörü yalnız SYSTEM, yöneticiler ve hizmet hesabının erişebileceği ACL ile sınırlar;

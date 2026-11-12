@@ -16,6 +16,16 @@ set "GATEWAY_SERVICE=SelectiveAccessGateway"
 set "INSTALL_DIR=%ProgramData%\SelectiveAccess"
 call "%~dp0migrate-legacy.cmd"
 if errorlevel 1 goto Failed
+if exist "%INSTALL_DIR%\SelectiveAccessLanShare.exe" (
+  "%INSTALL_DIR%\SelectiveAccessLanShare.exe" --off
+  if errorlevel 1 goto Failed
+) else (
+  if not exist "%~dp0bin\SelectiveAccessLanShare.exe" goto Failed
+  "%~dp0bin\SelectiveAccessLanShare.exe" --off
+  if errorlevel 1 goto Failed
+)
+call :RemoveService "SelectiveAccessLanGateway"
+if errorlevel 1 goto Failed
 call :RemoveService "%GATEWAY_SERVICE%"
 if errorlevel 1 goto Failed
 call :RemoveService "%BACKEND_SERVICE%"

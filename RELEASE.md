@@ -10,4 +10,6 @@ Her kod değişikliğinde:
 6. Chrome Web Store paketi `node scripts/build-store-zip.cjs` ile üretilir. Dosya listesi betikte tutulur; yardımcı ikili, test, geliştirme betiği veya depo belgesi arşive girerse betik yazmayı reddeder.
 7. Yardımcı paket değiştiğinde temiz kurulum ve desteklenen en eski yükseltme yolu izole bir Windows ortamında doğrulanır; taslak sürüm dosyaları ve checksum değerleri yeniden üretilir.
 
+LAN paylaşımı değişikliklerinde ayrıca `node tests/lan-share.test.cjs`, yerelleştirme ve önizleme testleri çalıştırılır. Windows hizmeti/güvenlik duvarı yaşam döngüsü yönetici ortamında doğrulanmadıysa sürüm yalnız prerelease olarak yayımlanır; bu eksik kararlı veya mağaza onayı gibi sunulmaz.
+
 Kimlik bilgileri, kişisel veriler, öğrenilmiş alan adları, sabit eklenti kimlikleri ve makineye özgü dosyalar depoya eklenmez. Kod, test ve dokümantasyon örneklerinde yalnız ayrılmış `.example`, `example.com`, `example.net` ve `example.org` adları kullanılır.

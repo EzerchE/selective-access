@@ -1,4 +1,4 @@
-# Chrome Web Store submission materials — 4.17.0
+# Chrome Web Store submission materials — 4.18.0
 
 ## Listing (English)
 
@@ -72,10 +72,18 @@ No account is required. No credentials, private target names or real browsing lo
 
 ## Upload assets
 
-- dist/automatic-access-4.17.0.zip
+- dist/automatic-access-4.18.0.zip
 - assets/store/screenshot-routing.png (1280×800)
 - assets/store/screenshot-setup.png (1280×800)
 - assets/store/promo-small.png (440×280)
 - assets/icon-128.png
 
 Screenshots show the actual UI with reserved .example demonstration targets. They do not claim successful access to a particular public service.
+
+## Private-LAN sharing preview
+
+Version 4.18.0-rc.1 is a prerelease. Run helper/share.cmd on the host: ON / OFF / Status. Changes require Windows administrator approval. The separate LocalService relay binds one selected private IPv4 interface on TCP 1082. Firewall and application peer rules limit access to that exact subnet and Windows Private profile. Public/Domain/mixed profiles, excluded firewall interfaces and disabled firewalls are refused. Address/profile changes stop the relay. Private/loopback resolved destinations are blocked. No wildcard listeners or router changes are made. Any trusted device in that subnet can use the unauthenticated proxy; LAN SOCKS metadata is unencrypted.
+
+Clients select Custom proxy → SOCKS5 and the displayed server IP/1082. They need no helper or administrator permission. OFF removes only the sharing service/rule; uninstall removes all helper services and the rule. The host's loopback gateway remains separate. Every helper install/update disables sharing.
+
+Remaining release gate: native Windows service/firewall ON/OFF, reboot/profile-change behavior and a second physical LAN client were not verified because this development shell is not elevated. Keep the release prerelease until an isolated administrator environment verifies the lifecycle. Do not submit this candidate as fully validated. Existing 4.17 graphics illustrate the base popup; LAN instructions are in README.

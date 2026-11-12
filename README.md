@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.17.1**
+Current version: **4.18.0** — **preview only (4.18.0-rc.1)**. Stable: **4.17.1**. Native sharing lifecycle verification is pending; see [release notes](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
 
@@ -101,6 +101,22 @@ The popup follows the browser light or dark theme. Every control draws a keyboar
 
 Administrator permission is required only to install or remove the Windows service. Reloading the extension or changing its settings does not start PowerShell, a command window, or a UAC prompt.
 
+## Local network sharing
+
+Sharing is optional and **OFF after every helper install/update**. The normal local gateway remains at 127.0.0.1:1080.
+
+1. On the host computer, install/update the matching Windows helper with helper/install.cmd as administrator.
+2. Double-click helper/share.cmd. Choose **1 — ON** and approve Windows administrator access. If multiple eligible Ethernet/Wi-Fi interfaces exist, choose one.
+3. Read the displayed SOCKS5 server address and port **1082**. Use **3 — Status** to see them again.
+4. On another computer, open extension Advanced → Custom proxy → SOCKS5, enter that server address and port 1082, then agree/save. This client needs no Windows helper or administrator permission.
+5. To stop sharing, run helper/share.cmd and choose **2 — OFF**. This removes only the dedicated LAN service/firewall rule; local browsing through port 1080 continues. Run helper/uninstall.cmd as administrator to remove all project helper services.
+
+Only RFC1918 IPv4 on an active Ethernet/Wi-Fi interface is eligible. The Windows profile must be Private, its firewall enabled with no excluded interfaces; Public, Domain and mixed profiles are refused. Both firewall and application checks limit clients to the selected interface's exact subnet. IPv6 and wildcard listeners are not used. A profile, address or subnet change stops the relay and active connections; run ON again after selecting the correct trusted network. A helper update turns sharing off; an explicitly enabled share otherwise starts with Windows when the same eligible binding is available.
+
+Use this only on a trusted LAN: any device in the permitted subnet can use the unauthenticated SOCKS5 proxy. LAN SOCKS transport is unencrypted; HTTPS/WSS content remains end-to-end encrypted. Do not port-forward 1082 on your router. NAT that rewrites an external source as a local client cannot be distinguished by subnet checks alone. Guest-Wi-Fi/client isolation may prevent clients from connecting. A stable host address (for example a router DHCP reservation) avoids reconfiguration.
+
+The Chrome extension cannot change Windows services/firewall settings itself; the host's share.cmd menu is the on/off control. It never weakens firewall profiles or changes DNS settings.
+
 ## Updating
 
 1. Update the repository files.
@@ -129,7 +145,7 @@ The extension does not execute remote JavaScript, collect page content, decrypt 
 
 ## Local helper
 
-The bundled local gateway listens only on `127.0.0.1:1080`. First installation requires an explicit local/custom choice. Users who already operate a compatible proxy may instead select an unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS endpoint in Advanced settings; custom proxy details stay in `chrome.storage.local`, and the extension never sends direct traffic through that endpoint. For hostnames explicitly routed through the bundled helper, it prefers an authenticated encrypted-DNS answer and falls back to the next provider within a per-provider deadline, then to the existing system resolver only when encrypted resolution produces no usable address. A blocked provider therefore cannot consume the entire connection budget. Literal IP requests are unchanged. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
+The bundled local gateway listens only on `127.0.0.1:1080`. First installation requires an explicit local/custom choice. Users who already operate a compatible proxy may instead select an unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS endpoint in Advanced settings; custom proxy details stay in `chrome.storage.local`, and the extension never sends direct traffic through that endpoint. For hostnames explicitly routed through the bundled helper, it prefers an authenticated encrypted-DNS answer and falls back to the next provider within a per-provider deadline, then to the existing system resolver only when encrypted resolution produces no usable address. A blocked provider therefore cannot consume the entire connection budget. Only public literal or DNS-resolved destination IPs are forwarded; private, loopback and link-local targets are rejected. Resolved IP addresses are passed to the ByeDPI backend on `127.0.0.1:1081`; TLS validation remains end-to-end between Chrome and the destination and is never disabled. Both Windows services run under the restricted `LocalService` account with automatic startup, dependency ordering, and controlled restart policies. Normal, unrouted traffic keeps the device's existing DNS and direct path. If the gateway is still starting, routed main pages are retried briefly with a fixed limit. The installer:
 
 - verifies both bundled binaries' SHA-256 values before and after copying them;
 - restricts the installation directory to SYSTEM, administrators, and the service account;
