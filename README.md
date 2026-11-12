@@ -4,7 +4,7 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.0** — **preview only (4.18.0-rc.1)**. Stable: **4.17.1**. Native sharing lifecycle verification is pending; see [release notes](RELEASE_NOTES.md).
+Current version: **4.18.0** — stable. Private-LAN sharing was tested with administrator ON/OFF, profile-change shutdown and a second physical computer; see [release notes](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access 4.17: selective routing and clear proxy setup" width="620">
 
@@ -116,6 +116,10 @@ Only RFC1918 IPv4 on an active Ethernet/Wi-Fi interface is eligible. The Windows
 Use this only on a trusted LAN: any device in the permitted subnet can use the unauthenticated SOCKS5 proxy. LAN SOCKS transport is unencrypted; HTTPS/WSS content remains end-to-end encrypted. Do not port-forward 1082 on your router. NAT that rewrites an external source as a local client cannot be distinguished by subnet checks alone. Guest-Wi-Fi/client isolation may prevent clients from connecting. A stable host address (for example a router DHCP reservation) avoids reconfiguration.
 
 The Chrome extension cannot change Windows services/firewall settings itself; the host's share.cmd menu is the on/off control. It never weakens firewall profiles or changes DNS settings.
+
+The sharing controller enables the service SID before starting the relay, so Windows can match its service-scoped firewall rule. If an older preview works on the host but not on a second device, update the host helper and enable sharing again. Keep the firewall enabled; the client does not need a reinstall.
+
+To route a site you choose even when a content filter returns a completed block page, open the extension on that page, select **Route now**, then reload with **Ctrl+F5**. This changes routing only for that hostname. The extension does not automatically treat every HTTP error or filter page as an access restriction. Device-level security software may still filter proxy traffic; certificate validation remains enabled.
 
 ## Updating
 

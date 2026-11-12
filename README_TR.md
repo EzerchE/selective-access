@@ -4,7 +4,7 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.0** — **yalnız ön sürüm (4.18.0-rc.1)**. Kararlı sürüm: **4.17.1**. Windows paylaşım hizmeti yaşam döngüsü doğrulaması bekleniyor; [sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.18.0** — kararlı. Yerel ağ paylaşımı; yönetici yetkili aç/kapa, ağ profili değişince durma ve ikinci fiziksel bilgisayardan erişim ile test edildi; [sürüm notları](RELEASE_NOTES.md).
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim 4.17: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -115,6 +115,10 @@ Yalnız etkin Ethernet/Wi-Fi üzerindeki RFC1918 IPv4 adresi seçilebilir. Windo
 Yalnız güvendiğiniz yerel ağda açın: izinli alt ağdaki her cihaz kimlik doğrulamasız SOCKS5 geçidini kullanabilir. LAN SOCKS aktarımı şifresizdir; HTTPS/WSS içeriği uçtan uca şifreli kalır. Modemde 1082 port yönlendirmesi açmayın. Dış bağlantının kaynağını yerel IP'ye çeviren NAT, yalnız alt ağ kontrolüyle ayırt edilemez. Misafir Wi-Fi/istemci izolasyonu bağlantıyı engelleyebilir. Sabit sunucu IP'si veya DHCP rezervasyonu kullanmak kolaylık sağlar.
 
 Chrome eklentisi Windows hizmetlerini/güvenlik duvarını doğrudan değiştiremez; aç/kapa denetimi sunucudaki share.cmd menüsüdür. DNS ayarı veya güvenlik duvarı profil korumaları değiştirilmez.
+
+Paylaşım denetimi, Windows'un hizmete özel güvenlik duvarı kuralını eşleştirebilmesi için geçidi başlatmadan önce hizmet kimliğini (SID) etkinleştirir. Eski ön sürüm sunucuda çalışıp ikinci cihazda çalışmıyorsa sunucudaki yardımcıyı güncelleyin ve paylaşımı yeniden açın. Güvenlik duvarını açık tutun; istemci eklentisinin yeniden kurulması gerekmez.
+
+İçerik filtresi bir engelleme sayfası döndürdüğünde de kendi seçtiğiniz siteyi yönlendirebilirsiniz: o sayfada eklentiyi açın, **Şimdi geçide al** seçeneğine basın ve **Ctrl+F5** ile yenileyin. Bu işlem yalnız o alan adının rotasını değiştirir. Her HTTP hatası veya filtre sayfası otomatik olarak erişim engeli sayılmaz. Cihazdaki güvenlik yazılımı proxy trafiğini de filtreleyebilir; sertifika doğrulaması açık kalır.
 
 ## Güncelleme
 
