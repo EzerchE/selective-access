@@ -1,89 +1,84 @@
-# Chrome Web Store submission materials — 4.18.2
+# Chrome Web Store listing — 4.18.3
 
-## Listing (English)
+Copy each locale into its corresponding listing. Names and short descriptions match the packaged locale catalogues. Preparation is not store approval.
 
-Name: Automatic Access
+## English
 
-Short description: Detect connection failures and selectively route affected sites through a proxy you choose.
+### Name
 
-Detailed description:
+Automatic Access
 
-Automatic Access keeps ordinary Chrome browsing direct and routes explicitly selected or learned destinations through your chosen proxy. It observes connection errors, applies bounded checks and remembers affected hostnames. You can remove a route, ignore a target permanently, and manage proxy preferences from the popup.
+### Short description
 
-Choose your own unauthenticated SOCKS5, SOCKS4, HTTP or HTTPS proxy, or install the optional Windows local gateway from GitHub. A working proxy is required for routing. The extension does not provide a free remote proxy service. The optional Windows gateway requires administrator permission to install/remove its services; the extension itself does not.
+Detects connection errors and routes affected destinations through a proxy you choose.
 
-The setup screen explains the selected connection method and checks the bundled helper's local health. A saved custom proxy configuration is verified by the first routed connection, not by saving alone. Normal traffic stays direct; exact listed hosts use the selected proxy. Ignored and private/local targets are excluded.
+### Detailed description
 
-Hostnames and connection errors are processed on your device. Routed destinations are shared with the selected proxy. The optional local helper uses Cloudflare/Google encrypted DNS with system fallback. A Globalping check sends a hostname to external measurement probes only when requested. There is no developer analytics or browsing-history server. Debug logs are opt-in and local.
+Automatic Access keeps ordinary browsing direct and selectively routes listed destinations through a proxy you choose.
 
-HTTPS certificate validation remains enabled. The bundled gateway does not change your public exit IP; a remote proxy can. Some network restrictions or site outages cannot be repaired. Repeated failures can still take time to confirm.
+Supported connection errors trigger bounded checks and can teach the extension an affected hostname. You can also route the current site yourself, remove its route, or ignore it to prevent automatic relearning. Rules match exact listed hostnames. Main-page learning may add the conventional www alias; other subdomains are not automatically routed.
 
-Optional Buy Me a Coffee link opens only when clicked and is not required to use the extension.
+A WORKING PROXY IS REQUIRED
+Choose your own compatible SOCKS5, SOCKS4, HTTP or HTTPS proxy without username/password authentication, or install the optional Windows gateway from the project repository. No developer-operated remote proxy service is provided. Saving a custom endpoint confirms configuration, not connectivity; its first routed connection tests the endpoint.
 
-Privacy: https://github.com/EzerchE/selective-access/blob/main/PRIVACY.md
-Homepage: https://github.com/EzerchE/selective-access
-Support: https://github.com/EzerchE/selective-access/issues
+OPTIONAL WINDOWS HELPER
+The helper requires administrator permission to install/remove Windows services; the extension itself does not. Services start automatically after installation. Optional trusted private-LAN sharing lets another computer use the host's SOCKS5 endpoint without installing a local helper. Sharing starts OFF after helper installation/update, and the host must remain running. Use the sharing menu to stop LAN sharing or the included uninstaller to remove the helper. Removing the extension alone does not remove Windows services.
 
-## Mağaza metni (Türkçe)
+VISIBLE, LIMITED RECOVERY
+The toolbar and popup explain setup, waiting, routing and unresolved connections. A main document loading does not hide a failed routed resource. Retries and notifications are bounded. Temporary failure is not proof that a site is restricted.
 
-Ad: Otomatik Erişim
+DATA AND CONTROL
+Hostnames and connection outcomes are processed locally. Routed destinations and connection metadata reach your selected proxy. The optional helper uses disclosed encrypted-DNS recipients and system fallback. External global-status measurements happen only when you click their button. Debug starts off, remains local and can be cleared. Limited embedded-frame URL inspection supports retrying an affected frame. No developer analytics, traffic relay or browsing-history server is operated.
 
-Kısa açıklama: Bağlantı hatalarını algılar ve etkilenen siteleri seçtiğiniz proxy üzerinden seçici yönlendirir.
+HTTPS certificate validation remains enabled. HTTP/SOCKS proxy transport does not encrypt connection metadata; HTTPS proxy transport encrypts the hop to the proxy. The local gateway does not provide anonymity or change the internet connection's public exit IP. A remote proxy may change the exit IP. The helper does not replace certificates or modify device DNS settings.
 
-Açıklama: Normal Chrome bağlantıları doğrudan kalırken yalnız listelenen hedefler seçtiğiniz proxy'yi kullanır. Bağlantı hataları sınırlı kontrollerle değerlendirilir; hedefi kaldırabilir veya yoksayabilirsiniz. Kendi SOCKS5/SOCKS4/HTTP/HTTPS proxy'nizi seçin ya da GitHub'daki isteğe bağlı Windows yerel geçidini kurun. Yönlendirme için çalışan proxy gerekir; ücretsiz uzak proxy hizmeti sunulmaz. Yerel Windows hizmetlerinin kurulması/kaldırılması yönetici izni ister. Alan adları seçilen proxy'ye, yerel yardımcı kullanıldığında şifreli DNS sağlayıcılarına ulaşır. Globalping yalnız kullanıcı kontrol istediğinde kullanılır. Geliştirici telemetrisi yoktur; debug kapalı başlar ve cihazda kalır. HTTPS doğrulaması atlanmaz. Yerel geçit çıkış IP'sini değiştirmez; uzak proxy değiştirebilir. Her ağ engelinin veya kesintinin giderileceği garanti edilmez.
+Free and open source. No product account or subscription is required. The optional donation link unlocks no feature. Use only where authorized. Results depend on the destination, network and selected proxy; not every restriction or failure can be resolved, and first attempts can take time.
 
-Gizlilik: https://github.com/EzerchE/selective-access/blob/main/PRIVACY_TR.md
+## Türkçe
 
-## Single purpose
+### Ad
 
-Automatically identify supported Chrome connection failures and selectively route affected, explicitly listed hostnames through a user-selected proxy while preserving direct routing for other traffic.
+Otomatik Erişim
 
-## Permission justifications
+### Kısa açıklama
 
-- proxy: configure the PAC selection between DIRECT and the user's chosen endpoint.
-- webRequest: observe connection outcomes and request types to decide whether a route needs checking/recovery.
-- HTTP/HTTPS/WS/WSS host access: support automatic failure detection on arbitrary sites and retry the corresponding origin/frame; a fixed hostname list would defeat the disclosed feature. No history or cookie permission is requested.
-- activeTab: display the active target and apply user-triggered route actions.
-- scripting: retry an affected embedded frame in its parent document without reloading the entire page; packaged function bodies only.
-- storage: local settings, host lists, route provenance and bounded opt-in diagnostics.
-- notifications: setup and bounded connection/learning progress or user-requested outcomes.
+Bağlantı hatalarını algılar ve etkilenen hedefleri seçtiğiniz proxy üzerinden yönlendirir.
 
-Remote code: No. All executable extension logic is packaged. Globalping returns measurement data. The optional Windows helper is a separate user-installed program, excluded from the store ZIP; no downloaded JavaScript is evaluated.
+### Ayrıntılı açıklama
 
-## Data-use form preparation
+Otomatik Erişim normal gezintiyi doğrudan bağlantıda tutar; yalnız listelenen hedefleri seçtiğiniz proxy üzerinden yönlendirir.
 
-Review the current Dashboard questions before certifying. Hostnames and network activity are handled for the visible routing feature, even when retained only locally. Declare web browsing activity where applicable; describe local diagnostics, selected-proxy destination sharing, DNS providers and optional Globalping measurements. The extension does not intentionally collect identity, health, finance, authentication information, personal communications or precise location. As a transport, a user-selected proxy can observe HTTP content; disclose this distinction rather than claiming the entire proxy path sees no data.
+Desteklenen bağlantı hatalarında sınırlı kontrollerle ilgili alan adını öğrenebilir. Açık siteyi kendiniz yönlendirebilir, listeden çıkarabilir veya yeniden öğrenilmemesi için yoksayabilirsiniz. Kurallar listelenen tam alan adlarına uygulanır. Ana sayfa öğrenilirken geleneksel www eş adı eklenebilir; diğer alt alanlar otomatik yönlendirilmez.
 
-Confirm Limited Use commitments only after reviewing PRIVACY.md against the upload. Do not substitute this document for the publisher's actual answers.
+ÇALIŞAN BİR PROXY GEREKİR
+Kullanıcı adı/parola gerektirmeyen uyumlu SOCKS5, SOCKS4, HTTP veya HTTPS proxy'nizi seçin ya da proje deposundaki isteğe bağlı Windows geçidini kurun. Geliştiricinin işlettiği uzak proxy hizmeti sunulmaz. Özel uç noktayı kaydetmek ayarları doğrular; bağlantının çalışması ilk yönlendirilen istekte anlaşılır.
 
-## Reviewer instructions
+İSTEĞE BAĞLI WINDOWS YARDIMCISI
+Windows hizmetlerini kurmak/kaldırmak yönetici izni gerektirir; eklentinin kendisi bunu gerektirmez. Kurulan hizmetler otomatik başlar. Güvenilir Özel yerel ağda paylaşım ayrıca açılabilir; başka bir bilgisayar yerel yardımcı kurmadan sunucunun SOCKS5 geçidini kullanabilir. Yardımcı kurulumu/güncellemesi paylaşımı KAPALI başlatır; sunucu açık kalmalıdır. Paylaşımı kapatmak için paylaşım menüsünü, yardımcıyı kaldırmak için paketle gelen kaldırıcıyı kullanın. Eklentiyi kaldırmak Windows hizmetlerini kaldırmaz.
 
-1. Use a fresh desktop Chrome profile and install the uploaded package. The setup tab opens once; switch on, proxy unconfigured. No domain should route before explicit selection.
-2. To review without native software, configure an unauthenticated HTTP/HTTPS/SOCKS proxy under your control. Observe its request log. Saving reports configuration saved, not connectivity verified.
-3. Navigate to an authorized test hostname. In the popup select Route now. Verify only that exact hostname goes through the proxy; another hostname and an unlisted subdomain remain direct. Add Ignore and verify direct routing takes precedence.
-4. Simulate a connection/DNS failure on an authorized test host, keeping it reachable through your proxy. Verify the candidate/provisional route and bounded retry. HTTP 200 must not confirm a WebSocket route.
-5. For optional Windows-helper review, download the matching GitHub source/helper package, run helper/install.cmd as administrator, select Bundled local gateway, and Check again. A 204 response at the loopback health endpoint produces the ready state. Stop the service only in the isolated test environment and verify unavailable, not success.
-6. No proxy running: show setup or unavailable status. Switch off: Chrome proxy setting is cleared. A competing extension's proxy control is reported.
-7. Globalping runs only when the button is clicked. Enable debug logging, reproduce an error, check only bounded metadata is recorded, and clear it. No path/query/credential should appear in logs.
-8. Test notifications with the built-in test button. OS do-not-disturb may hide accepted notifications; popup/setup remains available.
-9. Remove a learned target and test Ignore/restore. Remove the extension. If the helper was installed, separately run helper/uninstall.cmd as administrator; verify the project services are removed and unrelated network settings remain unchanged.
+GÖRÜNÜR VE SINIRLI KURTARMA
+Araç çubuğu ve popup kurulum gereksinimini, beklemeyi, yönlendirmeyi ve devam eden sorunları açıklar. Ana belgenin açılması, başarısız bir alt kaynak bağlantısını gizlemez. Denemeler ve bildirimler sınırlıdır. Geçici hata, sitenin erişime engelli olduğunu kanıtlamaz.
 
-No account is required. No credentials, private target names or real browsing logs should be included in review examples.
+VERİ VE DENETİM
+Alan adları ve bağlantı sonuçları cihazda işlenir. Yönlendirilen hedefler ve bağlantı üst verisi seçtiğiniz proxy'ye ulaşır. İsteğe bağlı yardımcı, açıklanan şifreli DNS alıcılarını ve sistem yedeğini kullanır. Dış genel durum ölçümü yalnız düğmesine bastığınızda yapılır. Debug kapalı başlar, cihazda kalır ve temizlenebilir. Sınırlı iframe adresi incelemesi, ilgili çerçevenin yeniden denenmesini sağlar. Geliştiricinin analiz, trafik aktarma veya gezinti geçmişi sunucusu yoktur.
+
+HTTPS sertifika doğrulaması açık kalır. HTTP/SOCKS aktarımı bağlantı üst verisini şifrelemez; HTTPS proxy aktarımı proxy'ye kadar olan bölümü şifreler. Yerel geçit anonimlik sağlamaz veya internet bağlantısının genel çıkış IP'sini değiştirmez. Uzak proxy çıkış IP'sini değiştirebilir. Yardımcı sertifika değiştirmez ve cihazın DNS ayarlarını düzenlemez.
+
+Ücretsiz ve açık kaynaklıdır. Ürün hesabı veya abonelik gerekmez. Bağış bağlantısı hiçbir özelliği açmak için zorunlu değildir. Yalnız yetkili olduğunuz durumlarda kullanın. Sonuç hedefe, ağa ve proxy'ye bağlıdır; her kısıtlama veya hata çözülemez ve ilk denemeler zaman alabilir.
+
+## Public links
+
+- Homepage: https://github.com/EzerchE/selective-access
+- Support: https://github.com/EzerchE/selective-access/issues
+- English privacy: https://github.com/EzerchE/selective-access/blob/main/PRIVACY.md
+- Turkish privacy: https://github.com/EzerchE/selective-access/blob/main/PRIVACY_TR.md
+- Helper downloads/removal: https://github.com/EzerchE/selective-access/releases/latest
 
 ## Upload assets
 
-- dist/automatic-access-4.18.0.zip
-- assets/store/screenshot-routing.png (1280×800)
-- assets/store/screenshot-setup.png (1280×800)
-- assets/store/promo-small.png (440×280)
-- assets/icon-128.png
+- Store upload: dist/automatic-access-4.18.3.zip ONLY, not the repository or helper archive.
+- Screenshots: assets/store/screenshot-routing.png and assets/store/screenshot-setup.png, 1280×800; optional dark image: assets/store/screenshot-routing-dark.png.
+- Optional promotional tile: assets/store/promo-small.png, 440×280.
+- Store icon: assets/icon-128.png, 128×128.
 
-Screenshots show the actual UI with reserved .example demonstration targets. They do not claim successful access to a particular public service.
-
-## Private-LAN sharing preview
-
-Version 4.18.0-rc.1 is a prerelease. Run helper/share.cmd on the host: ON / OFF / Status. Changes require Windows administrator approval. The separate LocalService relay binds one selected private IPv4 interface on TCP 1082. Firewall and application peer rules limit access to that exact subnet and Windows Private profile. Public/Domain/mixed profiles, excluded firewall interfaces and disabled firewalls are refused. Address/profile changes stop the relay. Private/loopback resolved destinations are blocked. No wildcard listeners or router changes are made. Any trusted device in that subnet can use the unauthenticated proxy; LAN SOCKS metadata is unencrypted.
-
-Clients select Custom proxy → SOCKS5 and the displayed server IP/1082. They need no helper or administrator permission. OFF removes only the sharing service/rule; uninstall removes all helper services and the rule. The host's loopback gateway remains separate. Every helper install/update disables sharing.
-
-Remaining release gate: native Windows service/firewall ON/OFF, reboot/profile-change behavior and a second physical LAN client were not verified because this development shell is not elevated. Keep the release prerelease until an isolated administrator environment verifies the lifecycle. Do not submit this candidate as fully validated. Existing 4.17 graphics illustrate the base popup; LAN instructions are in README.
+Graphics use the actual base interface and reserved demonstration targets. No real account, browsing history or test destination appears. Publisher fields are in STORE_SUBMISSION.md; review steps are in STORE_REVIEWER_GUIDE.md.

@@ -1,3 +1,15 @@
+# Automatic Access 4.18.3 — Store submission materials
+
+Stable documentation/metadata release; manifest version 4.18.3. Connection handling and helper binaries are unchanged from 4.18.2.
+
+- Replace obsolete upload filenames and superseded LAN-validation claims with current submission instructions and explicitly dated evidence.
+- Supply complete English/Turkish listings, matching packaged short descriptions, single-purpose/permission explanations, a conservative data-use draft, retention/deletion text and reviewer instructions.
+- Keep publisher identity, verified contact details, legal/trader declarations and actual Dashboard certification as owner-only account facts. No store submission or approval is claimed.
+- Include every submission document in the separate store-materials archive. Add release-version and upload-filename checks to prevent stale application material from recurring.
+- Refresh graphics from the actual base interface using reserved demonstration data; remove outdated release labels. No real test target, account or browsing history is included.
+
+Store upload: automatic-access-4.18.3.zip only. Separate downloads: selective-access-helper-4.18.3.zip, automatic-access-store-materials-4.18.3.zip and SHA256SUMS.txt. Existing helper installations need no reinstall for this release.
+
 # Automatic Access 4.18.2 — Accurate connection diagnostics
 
 Stable release; manifest version 4.18.2.

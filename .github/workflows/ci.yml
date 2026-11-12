@@ -33,4 +33,4 @@ jobs:
       - name: Sensitive data audit
         run: node scripts/repository-audit.cjs --history
       - name: Store package
-        run: node scripts/build-store-zip.cjs
+        run: node scripts/build-release-packages.cjs

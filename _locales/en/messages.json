@@ -82,7 +82,7 @@
     "message": "Enable debug logging"
   },
   "extensionDescription": {
-    "message": "Learns targets with connection errors and routes only them through a local compatibility gateway."
+    "message": "Detects connection errors and routes affected destinations through a proxy you choose."
   },
   "extensionName": {
     "message": "Automatic Access"

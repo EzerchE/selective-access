@@ -8,6 +8,7 @@ Her kod değişikliğinde:
 4. `git diff --check` başarılı olmalıdır.
 5. Yalnız denetimler başarılıysa sürüm etiketi ve checksum dosyası oluşturulup GitHub'a gönderilir.
 6. Chrome Web Store paketi `node scripts/build-store-zip.cjs` ile üretilir. Dosya listesi betikte tutulur; yardımcı ikili, test, geliştirme betiği veya depo belgesi arşive girerse betik yazmayı reddeder.
+   Üç dağıtım paketi ve sürüme ait checksum dosyaları birlikte `node scripts/build-release-packages.cjs` ile üretilir. Mağaza materyallerine ilan, başvuru alanları, incelemeci rehberi, gizlilik metinleri ve görseller açık dosya listesiyle alınır; yerel taslak/günlükler paketlenmez.
 7. Yardımcı paket değiştiğinde temiz kurulum ve desteklenen en eski yükseltme yolu izole bir Windows ortamında doğrulanır; taslak sürüm dosyaları ve checksum değerleri yeniden üretilir.
 
 LAN paylaşımı değişikliklerinde ayrıca `node tests/lan-share.test.cjs`, yerelleştirme ve önizleme testleri çalıştırılır. Windows hizmeti/güvenlik duvarı yaşam döngüsü yönetici ortamında doğrulanmadıysa sürüm yalnız prerelease olarak yayımlanır; bu eksik kararlı veya mağaza onayı gibi sunulmaz.
