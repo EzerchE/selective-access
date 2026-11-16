@@ -18,6 +18,7 @@ assert.match(installer,/"%TARGET_SHARE%" --off/);
 assert.match(uninstaller,/SelectiveAccessLanShare\.exe" --off/);
 assert.ok(uninstaller.includes('"%~dp0bin\\SelectiveAccessLanShare.exe" --off'),'cleanup works after installed relay binary was deleted');
 assert.ok(installer.indexOf('icacls.exe') < installer.indexOf('"%TARGET_SHARE%" --off'),'secure ACL before execution');
+assert.match(src,/start= delayed-auto depend= SelectiveAccessGateway/);
 assert.match(src,/CurrentProfileTypes != 2/);
 assert.match(src,/FirewallEnabled\[2\]/);
 assert.match(src,/ExcludedInterfaces\[2\]/);

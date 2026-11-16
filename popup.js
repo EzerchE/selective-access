@@ -354,8 +354,11 @@ function renderDiagnostic(state) {
     elements.diagnosticTitle.textContent = t("gatewayRecoveringTitle");
     elements.diagnosticText.textContent = t("gatewayRecoveringDetail");
   } else if (state.lastIssueType === "gateway_unavailable") {
-    elements.diagnosticTitle.textContent = t("gatewayUnavailable");
-    elements.diagnosticText.textContent = t("gatewayUnavailableDetail");
+    elements.checkStatus.hidden = true;
+    elements.diagnosticPrivacy.hidden = true;
+    const customProxy = state.proxyMode === "custom";
+    elements.diagnosticTitle.textContent = t(customProxy ? "proxyUnavailable" : "gatewayUnavailable");
+    elements.diagnosticText.textContent = t(customProxy ? "proxyUnavailableDetail" : "gatewayUnavailableDetail");
   } else if (state.lastIssueType === "route_failed") {
     const dependency = scopedIssue && scopedIssue.domain !== currentHost;
     elements.diagnosticTitle.textContent = t(dependency ? "dependencyIssueTitle" : "routeFailedTitle");

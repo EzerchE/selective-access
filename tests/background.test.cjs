@@ -2592,6 +2592,18 @@ async function waitForDebugFlush() {
   assert.equal((await send({type:"getState",tabId:402})).state.lastIssueType,null,"opening popup repairs an old slow warning on an already completed tab");
   assertBadge(lastForTab(badgeTexts,402),402,"");
 
+  // An unreachable custom proxy must not be diagnosed as a failed destination
+  // or trigger a direct trial. Unknown SOCKS target health remains unknown.
+  await send({type:"saveSettings",patch:{enabled:true,proxyMode:"custom",proxyType:"socks5",proxyHost:"proxy.example",proxyPort:1082,learnedDomains:["proxy-offline.example"]}});
+  tabUrls.set(410,"https://proxy-offline.example/");
+  const beforeProxyFailureReloads=reloads.length;
+  await listeners.requestError({tabId:410,type:"main_frame",url:tabUrls.get(410),error:"net::ERR_PROXY_CONNECTION_FAILED"});
+  assert.equal(storage.lastIssueType,"gateway_unavailable");
+  assert.ok(storage.learnedDomains.includes("proxy-offline.example"));
+  await new Promise(resolve=>setTimeout(resolve,950));
+  assert.equal(reloads.length,beforeProxyFailureReloads,"offline custom proxy must not trigger futile direct navigation or startup retries");
+  assert.equal(await workerGlobal.selectedProxyAvailable({proxyMode:"custom"}),null,"configured custom proxy health is unknown");
+
   process.stdout.write("background tests passed\n");
 })().catch((error) => {
   console.error(error);

@@ -1078,7 +1078,7 @@ async function selectedProxyAvailable(settings) {
   // for an arbitrary user-supplied proxy. Treat it as configured and use the
   // bounded direct-recovery path; only the bundled loopback helper has a health
   // URL and startup retry contract.
-  return settings.proxyMode === "custom" ? true : localGatewayAvailable();
+  return settings.proxyMode === "custom" ? null : localGatewayAvailable();
 }
 
 async function checkProxyStatus() {
@@ -1452,14 +1452,18 @@ async function recoverTransientGatewayFailure(details) {
 
   const settings = await getSettings();
   if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
-  const gatewayAvailable = await selectedProxyAvailable(settings);
-  const directRecovery = gatewayAvailable
+  // A proxy socket failure is evidence about the proxy, not the destination.
+  // Arbitrary proxies have no generic health URL; unknown must stay unknown.
+  const gatewayAvailable = error === "ERR_PROXY_CONNECTION_FAILED"
+    ? false : await selectedProxyAvailable(settings);
+  const directRecovery = gatewayAvailable !== false
     ? await startAutoDirectRecovery(details, host, settings)
     : false;
-  const scheduled = gatewayAvailable ? false : scheduleGatewayRetry(details, host);
+  const scheduled = gatewayAvailable === false && settings.proxyMode !== "custom"
+    ? scheduleGatewayRetry(details, host) : false;
   const issueType = directRecovery
     ? "direct_recovery"
-    : gatewayAvailable ? "route_failed"
+    : gatewayAvailable !== false ? "route_failed"
     : scheduled ? "gateway_recovering" : "gateway_unavailable";
   if (issueType === "route_failed") recordRequestIssue(details, error);
   await chrome.storage.local.set({

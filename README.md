@@ -4,9 +4,11 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.3** — stable. Updated store-submission materials; routing behavior is unchanged from 4.18.2. See [release notes](RELEASE_NOTES.md).
+Current version: **4.18.4** — stable. Correct proxy-endpoint diagnosis and delayed LAN service startup. See [release notes](RELEASE_NOTES.md).
 
-Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.18.3.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
+LAN troubleshooting: an unavailable proxy endpoint is reported separately from an unreachable destination. If LAN sharing stopped after a network/profile change, run `helper/share.cmd` on the host and select ON again on the trusted Private network. New sharing services use delayed automatic startup to reduce boot-time network readiness races. Restarting sharing does not change DNS or widen the allowed subnet.
+
+Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.18.4.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
 

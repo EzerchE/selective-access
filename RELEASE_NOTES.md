@@ -1,3 +1,12 @@
+# Automatic Access 4.18.4 — Proxy endpoint diagnosis
+
+- Distinguish a failed connection to the selected proxy from a destination failure. Do not start direct-route trials or repeat bundled-helper startup retries when a custom proxy endpoint is unavailable.
+- Keep custom-proxy health unknown when it cannot be measured; do not report a configured endpoint as verified healthy.
+- Create optional LAN sharing services with delayed automatic startup to reduce boot-time network readiness races. Private-network, interface and subnet restrictions remain unchanged; unsafe network changes still stop sharing.
+- Add regression coverage for offline custom proxies and retain routes without reload loops. Update documentation and submission package references.
+
+Store upload: automatic-access-4.18.4.zip. Optional helper: selective-access-helper-4.18.4.zip. After updating the helper, LAN sharing starts OFF; enable it explicitly with helper/share.cmd. Existing hosts can restart sharing on an eligible Private network without reinstalling the loopback gateway.
+
 # Automatic Access 4.18.3 — Store submission materials
 
 Stable documentation/metadata release; manifest version 4.18.3. Connection handling and helper binaries are unchanged from 4.18.2.
