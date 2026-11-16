@@ -592,6 +592,16 @@ function lastSavePatch(sent) {
     );
   }
 
+  // A failed custom proxy must explain endpoint availability, not invite a
+  // third-party destination check that cannot diagnose this connection.
+  {
+    const { document } = createContext({state: baseState({proxyMode:"custom",lastIssueType:"gateway_unavailable",lastIssueDomain:"portal.example"})});
+    await settle();
+    assert.equal(document.querySelector("#diagnosticTitle").textContent,messages.proxyUnavailable.message);
+    assert.equal(document.querySelector("#checkStatus").hidden,true);
+    assert.equal(document.querySelector("#diagnosticPrivacy").hidden,true);
+  }
+
   // The debug panel follows the stored flag and renders stored entries.
   {
     const { document } = createContext({

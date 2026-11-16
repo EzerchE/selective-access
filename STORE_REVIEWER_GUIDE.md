@@ -1,6 +1,6 @@
-# Reviewer test instructions — 4.18.3
+# Reviewer test instructions — 4.18.4
 
-Upload: automatic-access-4.18.3.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
+Upload: automatic-access-4.18.4.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
 
 ## Copy-ready reviewer instructions
 

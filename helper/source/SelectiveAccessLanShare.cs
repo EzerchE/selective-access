@@ -198,7 +198,7 @@ internal static class SelectiveAccessLanShare
         if (!PermittedPeer(selected.Address, selected)) throw new InvalidOperationException("The selected address is a network/broadcast address.");
         Disable();
         try {
-            Command("sc.exe", "create " + Name + " binPath= \"\\\"" + installed + "\\\" --service " + selected.Address + " " + selected.Mask + " " + selected.InterfaceId + "\" start= auto depend= SelectiveAccessGateway obj= \"NT AUTHORITY\\LocalService\"", true);
+            Command("sc.exe", "create " + Name + " binPath= \"\\\"" + installed + "\\\" --service " + selected.Address + " " + selected.Mask + " " + selected.InterfaceId + "\" start= delayed-auto depend= SelectiveAccessGateway obj= \"NT AUTHORITY\\LocalService\"", true);
             // Service-scoped firewall rules require a service SID in the process
             // token. Configure it before the first start, keeping LocalService.
             Command("sc.exe", "sidtype " + Name + " unrestricted", true);

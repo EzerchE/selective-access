@@ -21,3 +21,7 @@ Two defects found in native testing were fixed: missing service SID prevented se
 ## Limits
 
 The host was not rebooted: automatic-start configuration and explicit service restart were verified, not a full boot. Live tests used one host/client pair on a trusted IPv4 Ethernet subnet. They do not establish compatibility with every router, endpoint security policy or Wi-Fi isolation mode. The LAN proxy is unauthenticated within its permitted subnet; TLS validation remains end to end. Site-selected routing can be used with a completed filter page, but security software on the client may still inspect proxy traffic.
+
+## Follow-up — 2026-11-16
+
+The existing optional LAN service was stopped while the loopback gateway remained running. After an administrator restarted the sharing service on the unchanged eligible Private binding, the LAN SOCKS endpoint accepted connections. A host-origin HTTPS request through that bound LAN endpoint returned HTTP 200 with certificate validation enabled. The user then confirmed successful browser access from the second physical computer. This is a fresh host/client access check, not a reboot test. New service creation uses delayed automatic startup; it reduces startup races but does not prove every stop was caused by boot timing. Network safety stops still require explicit re-enabling on an eligible Private network.

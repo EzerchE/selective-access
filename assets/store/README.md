@@ -1,4 +1,4 @@
-# Store graphics — 4.18.3
+# Store graphics — 4.18.4
 
 - screenshot-routing.png: 1280×800, light UI.
 - screenshot-routing-dark.png: 1280×800, dark UI.

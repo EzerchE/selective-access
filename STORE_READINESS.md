@@ -1,15 +1,15 @@
-# Chrome Web Store preparation — 4.18.3
+# Chrome Web Store preparation — 4.18.4
 
 Prepared 12 November 2026. Submission materials are prepared; publisher-account actions and store review have not been completed by this work. No store approval is claimed.
 
 ## Submission bundle
 
-- Upload only dist/automatic-access-4.18.3.zip, not the repository or helper archive.
+- Upload only dist/automatic-access-4.18.4.zip, not the repository or helper archive.
 - STORE_LISTING.md: English/Turkish descriptions, public links and assets.
 - STORE_SUBMISSION.md: single purpose, permission reasons, remote-code answer, conservative data-use declarations and owner-only account fields.
 - STORE_REVIEWER_GUIDE.md: copy-ready tests, proxy/helper prerequisites and removal.
 - PRIVACY.md / PRIVACY_TR.md: public recipients, retention and Limited Use notices.
-- automatic-access-store-materials-4.18.3.zip: documents, screenshots, promo tile and icon, separate from the runtime ZIP.
+- automatic-access-store-materials-4.18.4.zip: documents, screenshots, promo tile and icon, separate from the runtime ZIP.
 
 ## Included behavior
 
@@ -36,7 +36,7 @@ Run runtime syntax and background, popup, migration, resolver, LAN, localization
 
 ## Publisher-only Dashboard actions
 
-Enter verified contact details, complete account security, choose the applicable legal/trader declarations and distribution regions, and select a category available in the current Dashboard. Review the prepared data-category mapping against the form, add the public privacy URL, upload automatic-access-4.18.3.zip and graphics, and submit for review. Local hostname processing is still data handling; do not certify that no data is handled. Personal/legal account facts are not inferred or stored in the repository.
+Enter verified contact details, complete account security, choose the applicable legal/trader declarations and distribution regions, and select a category available in the current Dashboard. Review the prepared data-category mapping against the form, add the public privacy URL, upload automatic-access-4.18.4.zip and graphics, and submit for review. Local hostname processing is still data handling; do not certify that no data is handled. Personal/legal account facts are not inferred or stored in the repository.
 
 No Dashboard submission is performed by release scripts. Signing the optional native helper is recommended for publisher trust but is not represented as a universal extension-store requirement.
 

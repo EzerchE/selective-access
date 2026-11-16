@@ -106,6 +106,8 @@
   "directRecoveryTitle": {
     "message": "Testing the direct path"
   },
+  "proxyUnavailable": {"message": "Cannot connect to the selected proxy"},
+  "proxyUnavailableDetail": {"message": "Check the proxy server, port and whether its host is running. For a shared LAN gateway, verify sharing is ON on the host. This error does not establish that the destination is unavailable."},
   "gatewayUnavailable": {
     "message": "Local gateway unavailable"
   },

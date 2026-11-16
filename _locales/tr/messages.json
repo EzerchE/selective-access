@@ -106,6 +106,8 @@
   "directRecoveryTitle": {
     "message": "Doğrudan yol deneniyor"
   },
+  "proxyUnavailable": {"message": "Seçilen proxy'ye bağlanılamıyor"},
+  "proxyUnavailableDetail": {"message": "Proxy sunucusunu, portunu ve sunucu bilgisayarın açık olduğunu kontrol edin. LAN geçidi kullanıyorsanız sunucuda paylaşımın AÇIK olduğunu doğrulayın. Bu hata, hedef sitenin kapalı olduğunu göstermez."},
   "gatewayUnavailable": {
     "message": "Yerel geçit kullanılamıyor"
   },
