@@ -4,11 +4,11 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.4** — stable. Correct proxy-endpoint diagnosis and delayed LAN service startup. See [release notes](RELEASE_NOTES.md).
+Current version: **4.18.5** — stable. Automatic safe LAN network readiness and helper lifecycle fixes. See [release notes](RELEASE_NOTES.md).
 
-LAN troubleshooting: an unavailable proxy endpoint is reported separately from an unreachable destination. If LAN sharing stopped after a network/profile change, run `helper/share.cmd` on the host and select ON again on the trusted Private network. New sharing services use delayed automatic startup to reduce boot-time network readiness races. Restarting sharing does not change DNS or widen the allowed subnet.
+LAN sharing stays enabled across host restarts. Its supervisor waits without listening while the original interface/address/subnet or Private firewall is unavailable, then resumes automatically when that same safe binding returns. Unsafe transitions close the listener and active sessions; OFF/uninstall removes the supervisor and cannot auto-resume. If the selected address changes permanently, select ON once to bind the new trusted address. Helper updates still start sharing OFF.
 
-Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.18.4.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
+Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.18.5.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
 
@@ -119,7 +119,7 @@ Sharing is optional and **OFF after every helper install/update**. The normal lo
 4. On another computer, open extension Advanced → Custom proxy → SOCKS5, enter that server address and port 1082, then agree/save. This client needs no Windows helper or administrator permission.
 5. To stop sharing, run helper/share.cmd and choose **2 — OFF**. This removes only the dedicated LAN service/firewall rule; local browsing through port 1080 continues. Run helper/uninstall.cmd as administrator to remove all project helper services.
 
-Only RFC1918 IPv4 on an active Ethernet/Wi-Fi interface is eligible. The Windows profile must be Private, its firewall enabled with no excluded interfaces; Public, Domain and mixed profiles are refused. Both firewall and application checks limit clients to the selected interface's exact subnet. IPv6 and wildcard listeners are not used. A profile, address or subnet change stops the relay and active connections; run ON again after selecting the correct trusted network. A helper update turns sharing off; an explicitly enabled share otherwise starts with Windows when the same eligible binding is available.
+Only RFC1918 IPv4 on an active Ethernet/Wi-Fi interface is eligible. The Windows profile must be Private, its firewall enabled with no excluded interfaces; Public, Domain and mixed profiles are refused. Both firewall and application checks limit clients to the selected interface's exact subnet. IPv6 and wildcard listeners are not used. A profile, address or subnet change stops the relay and active connections; the supervisor waits and resumes automatically only when the original trusted binding returns. A permanent binding change requires selecting ON again. A helper update turns sharing off; an explicitly enabled share otherwise starts with Windows when the same eligible binding is available.
 
 Use this only on a trusted LAN: any device in the permitted subnet can use the unauthenticated SOCKS5 proxy. LAN SOCKS transport is unencrypted; HTTPS/WSS content remains end-to-end encrypted. Do not port-forward 1082 on your router. NAT that rewrites an external source as a local client cannot be distinguished by subnet checks alone. Guest-Wi-Fi/client isolation may prevent clients from connecting. A stable host address (for example a router DHCP reservation) avoids reconfiguration.
 

@@ -97,3 +97,8 @@ const installerGatewayHash = installer.match(/set "GATEWAY_HASH=([A-F0-9]{64})"/
 assert.equal(installerGatewayHash, gatewayHash, "Installer gateway hash does not match bundled binary");
 
 process.stdout.write("Helper migration checks passed.\n");
+
+for (const script of [installer, uninstaller]) {
+  assert.ok(script.includes('if "!errorlevel!"=="1060" exit /b 0'), 'only missing service is a successful removal');
+  assert.ok(script.includes('if not "!errorlevel!"=="0" exit /b 1'), 'access denial/query errors fail closed');
+}

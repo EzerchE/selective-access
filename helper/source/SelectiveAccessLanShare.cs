@@ -198,10 +198,12 @@ internal static class SelectiveAccessLanShare
         if (!PermittedPeer(selected.Address, selected)) throw new InvalidOperationException("The selected address is a network/broadcast address.");
         Disable();
         try {
-            Command("sc.exe", "create " + Name + " binPath= \"\\\"" + installed + "\\\" --service " + selected.Address + " " + selected.Mask + " " + selected.InterfaceId + "\" start= delayed-auto depend= SelectiveAccessGateway obj= \"NT AUTHORITY\\LocalService\"", true);
+            Command("sc.exe", "create " + Name + " binPath= \"\\\"" + installed + "\\\" --service " + selected.Address + " " + selected.Mask + " " + selected.InterfaceId + "\" start= auto depend= SelectiveAccessGateway obj= \"NT AUTHORITY\\LocalService\"", true);
             // Service-scoped firewall rules require a service SID in the process
             // token. Configure it before the first start, keeping LocalService.
             Command("sc.exe", "sidtype " + Name + " unrestricted", true);
+            Command("sc.exe", "failure " + Name + " reset= 86400 actions= restart/5000/restart/15000/restart/60000", true);
+            Command("sc.exe", "failureflag " + Name + " 1", true);
             Command("netsh.exe", FirewallArguments(selected, installed), true);
             Command("sc.exe", "start " + Name, true);
             using (ServiceController service = new ServiceController(Name)) service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
@@ -222,7 +224,13 @@ internal static class SelectiveAccessLanShare
         Console.WriteLine("Private firewall eligible: " + PrivateFirewall());
         string image = Convert.ToString(Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\" + Name, "ImagePath", ""));
         var binding = System.Text.RegularExpressions.Regex.Match(image, @"--service ([0-9.]+) ([0-9.]+) ([a-fA-F0-9-]+)");
-        if (binding.Success) Console.WriteLine("Client / Istemci: SOCKS5 server=" + binding.Groups[1].Value + " port=" + Port);
+        if (binding.Success) {
+            Binding selected = ParseBinding(binding.Groups[1].Value, binding.Groups[2].Value, binding.Groups[3].Value);
+            Console.WriteLine("Client / Istemci: SOCKS5 server=" + selected.Address + " port=" + Port);
+            Console.WriteLine(PrivateFirewall() && BindingPresent(selected)
+                ? "Network eligible; verify service is Running. / Ag uygun; hizmet Running olmali."
+                : "Waiting safely for the selected Private network. / Secili Ozel ag guvenle bekleniyor.");
+        }
         return 0;
     }
 
@@ -239,19 +247,48 @@ internal static class SelectiveAccessLanShare
         SetServiceStatus(StatusHandle, ref s);
     }
 
-    private static async Task RunAsync() {
-        if (!PrivateFirewall() || !BindingPresent(Selected)) throw new InvalidOperationException("Private network binding unavailable.");
-        TcpListener listener = new TcpListener(Selected.Address, Port); listener.Start(64); Report(4, 0);
-        using (Stop.Token.Register(delegate { listener.Stop(); }))
-        using (Timer monitor = new Timer(delegate { if (!PrivateFirewall() || !BindingPresent(Selected)) Stop.Cancel(); }, null, 2000, 2000)) {
+    private static Task RunAsync() {
+        // Running means the sharing supervisor is available; the listener is
+        // created only while the originally selected Private binding is safe.
+        Report(4, 0);
+        return RunWhenEligibleAsync(delegate { return PrivateFirewall() && BindingPresent(Selected); },
+            ServeAsync, Stop.Token);
+    }
+
+    internal static async Task RunWhenEligibleAsync(Func<bool> eligible,
+        Func<CancellationToken, Task> serve, CancellationToken stop, int pollMs = 2000) {
+        try {
+            while (!stop.IsCancellationRequested) {
+                if (eligible()) {
+                    using (CancellationTokenSource session = CancellationTokenSource.CreateLinkedTokenSource(stop))
+                    using (Timer monitor = new Timer(delegate {
+                        if (!eligible()) {
+                            try { session.Cancel(); } catch (ObjectDisposedException) { }
+                        }
+                    }, null, pollMs, pollMs)) {
+                        try { await serve(session.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { if (!session.IsCancellationRequested) throw; }
+                        catch (SocketException) { /* Binding may vanish between check and listen; retry safely. */ }
+                    }
+                }
+                await Task.Delay(pollMs, stop).ConfigureAwait(false);
+            }
+        } catch (OperationCanceledException) { if (!stop.IsCancellationRequested) throw; }
+    }
+
+    private static async Task ServeAsync(CancellationToken token) {
+        token.ThrowIfCancellationRequested();
+        if (!PrivateFirewall() || !BindingPresent(Selected)) return;
+        TcpListener listener = new TcpListener(Selected.Address, Port); listener.Start(64);
+        using (token.Register(delegate { listener.Stop(); })) {
             try {
-                while (!Stop.IsCancellationRequested) {
+                while (!token.IsCancellationRequested) {
                     TcpClient client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                     if (!PrivateFirewall() || !BindingPresent(Selected) || !PermittedPeer(((IPEndPoint)client.Client.RemoteEndPoint).Address, Selected) || !Slots.Wait(0)) { client.Close(); continue; }
-                    Task ignored = RelayAsync(client, Stop.Token).ContinueWith(delegate { Slots.Release(); });
+                    Task ignored = RelayAsync(client, token).ContinueWith(delegate { Slots.Release(); });
                 }
-            } catch (ObjectDisposedException) { if (!Stop.IsCancellationRequested) throw; }
-            catch (SocketException) { if (!Stop.IsCancellationRequested) throw; }
+            } catch (ObjectDisposedException) { if (!token.IsCancellationRequested) throw; }
+            catch (SocketException) { if (!token.IsCancellationRequested) throw; }
             finally { listener.Stop(); }
         }
     }

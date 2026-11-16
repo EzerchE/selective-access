@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 title Otomatik Erisim yardimcisini kaldir
 
 fltmc >nul 2>&1
@@ -49,11 +49,16 @@ pause
 exit /b 1
 
 :RemoveService
+sc.exe query "%~1" >nul 2>&1
+if "!errorlevel!"=="1060" exit /b 0
+if not "!errorlevel!"=="0" exit /b 1
 sc.exe stop "%~1" >nul 2>&1
 sc.exe delete "%~1" >nul 2>&1
+if errorlevel 1 exit /b 1
 for /l %%I in (1,1,20) do (
   sc.exe query "%~1" >nul 2>&1
-  if errorlevel 1 exit /b 0
+  if "!errorlevel!"=="1060" exit /b 0
+  if not "!errorlevel!"=="0" exit /b 1
   ping.exe 127.0.0.1 -n 2 >nul
 )
 exit /b 1

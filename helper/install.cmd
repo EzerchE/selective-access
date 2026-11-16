@@ -20,7 +20,7 @@ set "TARGET_BACKEND=%INSTALL_DIR%\ciadpi.exe"
 set "TARGET_GATEWAY=%INSTALL_DIR%\SelectiveAccessGateway.exe"
 set "SOURCE_SHARE=%~dp0bin\SelectiveAccessLanShare.exe"
 set "TARGET_SHARE=%INSTALL_DIR%\SelectiveAccessLanShare.exe"
-set "SHARE_HASH=EF932E7157D30092CA0C5AF2DD62F680EDF30D9979B36F2AF4F245C7E6561B3A"
+set "SHARE_HASH=425B051EBC73598527C95DD009E0E2F573434BDCA080FAD250D78D592A8214AE"
 set "BACKEND_HASH=EB53CEEEB981CC6735AC24BB1E51E725280B86630E80FDF19DDC4EE4A5B54EF4"
 set "GATEWAY_HASH=B7E4D7E799EB34498B37E095365E28D75C50949D014DD396E8D6B418BC511C59"
 
@@ -127,11 +127,16 @@ sc.exe failureflag "%~1" 1 >nul
 exit /b %ERRORLEVEL%
 
 :RemoveService
+sc.exe query "%~1" >nul 2>&1
+if "!errorlevel!"=="1060" exit /b 0
+if not "!errorlevel!"=="0" exit /b 1
 sc.exe stop "%~1" >nul 2>&1
 sc.exe delete "%~1" >nul 2>&1
+if errorlevel 1 exit /b 1
 for /l %%I in (1,1,20) do (
   sc.exe query "%~1" >nul 2>&1
-  if errorlevel 1 exit /b 0
+  if "!errorlevel!"=="1060" exit /b 0
+  if not "!errorlevel!"=="0" exit /b 1
   ping.exe 127.0.0.1 -n 2 >nul
 )
 exit /b 1

@@ -14,6 +14,43 @@ internal static class LanShareTests {
         catch(Exception e) { Console.Error.WriteLine(e); return 1; }
     }
     private static async Task Run() {
+        // Exercise the production supervisor without mutating the host network:
+        // boot with no network, private readiness, unsafe transition, recovery,
+        // binding failure, explicit STOP and a fresh service lifetime.
+        using(var shutdown = new CancellationTokenSource()) {
+            int safe=0, started=0, active=0, closed=0;
+            Func<bool> ready=delegate { return Volatile.Read(ref safe)==1; };
+            Func<CancellationToken,Task> serve=async delegate(CancellationToken token) {
+                Interlocked.Increment(ref started); Interlocked.Increment(ref active);
+                try { await Task.Delay(Timeout.Infinite,token); }
+                finally { Interlocked.Decrement(ref active); Interlocked.Increment(ref closed); }
+            };
+            var supervisor=SelectiveAccessLanShare.RunWhenEligibleAsync(ready,serve,shutdown.Token,10);
+            await Task.Delay(50);
+            Check(started==0 && !supervisor.IsCompleted,"boot without trusted network waits without listening");
+            Volatile.Write(ref safe,1);
+            for(int i=0;i<100 && started<1;i++) await Task.Delay(10);
+            Check(started==1 && active==1,"Private network readiness starts sharing automatically");
+            Volatile.Write(ref safe,0);
+            for(int i=0;i<100 && active!=0;i++) await Task.Delay(10);
+            Check(active==0 && closed==1 && !supervisor.IsCompleted,"unsafe network closes session but keeps supervisor waiting");
+            await Task.Delay(50); Check(started==1,"unsafe network never opens a new session");
+            Volatile.Write(ref safe,1);
+            for(int i=0;i<100 && started<2;i++) await Task.Delay(10);
+            Check(started==2 && active==1,"original trusted binding restoration resumes automatically");
+            shutdown.Cancel(); await supervisor;
+            Check(active==0 && closed==2,"explicit STOP closes session and prevents recovery");
+            await Task.Delay(30); Check(started==2,"OFF is not undone by supervisor");
+        }
+        using(var restart=new CancellationTokenSource()) {
+            int attempts=0;
+            var worker=SelectiveAccessLanShare.RunWhenEligibleAsync(delegate{return true;},delegate(CancellationToken token) {
+                if(Interlocked.Increment(ref attempts)==1) throw new SocketException(10049);
+                restart.Cancel(); return Task.FromResult(0);
+            },restart.Token,10);
+            await worker;
+            Check(attempts==2,"fresh lifetime retries transient binding failure without a hot loop");
+        }
         bool waited=false;
         SelectiveAccessLanShare.StopAndWait(delegate {}, delegate { waited=true; });
         Check(waited,"successful stop verifies STOPPED");

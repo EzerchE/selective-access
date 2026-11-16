@@ -1,6 +1,6 @@
-# Chrome Web Store application fields — 4.18.4
+# Chrome Web Store application fields — 4.18.5
 
-Prepared 12 November 2026 for automatic-access-4.18.4.zip. Copy these English field texts; use STORE_LISTING.md for localized listings and STORE_REVIEWER_GUIDE.md for testing. This is a prepared declaration based on shipped behavior, not a completed Dashboard submission. The owner must compare the actual form wording and certify the answers personally.
+Prepared 16 November 2026 for automatic-access-4.18.5.zip. Copy these English field texts; use STORE_LISTING.md for localized listings and STORE_REVIEWER_GUIDE.md for testing. This is a prepared declaration based on shipped behavior, not a completed Dashboard submission. The owner must compare the actual form wording and certify the answers personally.
 
 ## Single purpose — English
 
