@@ -2,7 +2,7 @@
 
 - Keep an enabled LAN supervisor running while its original trusted Private network is unavailable at boot or after a transition. No port is opened until the original interface/address/subnet and firewall guards pass; restore sharing automatically when they return.
 - Cancel listener and active sessions on unsafe transitions without permanently cancelling the supervisor. Explicit OFF/uninstall removes the service and prevents automatic resumption. Permanent address changes require explicit rebinding.
-- Add bounded service crash recovery, waiting-state status text and lifecycle tests for network absence, recovery, cancellation and binding races.
+- Start the supervisor automatically without the delayed-start grace period: its safe waiting loop handles network readiness. Add bounded service crash recovery, waiting-state status text and lifecycle tests for network absence, recovery, cancellation and binding races.
 - Harden install/uninstall service-removal checks: only service-not-found is successful absence; permission and query failures cannot masquerade as completed cleanup.
 
 Runtime upload: automatic-access-4.18.5.zip. Optional helper: selective-access-helper-4.18.5.zip. Update the helper on its host and explicitly enable sharing once after update; subsequent restarts need no manual start when the original trusted binding is available. No destination-specific logic or DNS changes.
