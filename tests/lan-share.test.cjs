@@ -27,6 +27,8 @@ assert.ok(src.includes(sidCommand), 'service-scoped firewall requires a service 
 assert.ok(src.indexOf(sidCommand) < src.indexOf('Command("netsh.exe", FirewallArguments'), 'configure SID before firewall and service start');
 assert.match(src,/new TcpListener\(Selected.Address, Port\)/);
 assert.match(src,/PermittedPeer\(\(\(IPEndPoint\)client.Client.RemoteEndPoint\).Address, Selected\)/);
-assert.match(src,/Timer monitor[\s\S]*BindingPresent\(Selected\)\) Stop.Cancel\(\)/);
+assert.match(src,/RunWhenEligibleAsync/);
+assert.match(src,/session.Cancel\(\)/);
+assert.doesNotMatch(src,/if \(!PrivateFirewall\(\) \|\| !BindingPresent\(Selected\)\) Stop.Cancel/);
 assert.doesNotMatch(src,/IPAddress.Any|profile=any|remoteip=any|advfirewall reset|state off/);
 console.log('LAN firewall and binding guards passed');

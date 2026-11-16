@@ -1,6 +1,6 @@
 # Gizlilik bildirimi — Otomatik Erişim
 
-Güncelleme: 12 Kasım 2026 · Sürüm 4.18.4
+Güncelleme: 12 Kasım 2026 · Sürüm 4.18.5
 
 [English](PRIVACY.md)
 

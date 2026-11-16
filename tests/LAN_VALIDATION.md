@@ -25,3 +25,13 @@ The host was not rebooted: automatic-start configuration and explicit service re
 ## Follow-up — 2026-11-16
 
 The existing optional LAN service was stopped while the loopback gateway remained running. After an administrator restarted the sharing service on the unchanged eligible Private binding, the LAN SOCKS endpoint accepted connections. A host-origin HTTPS request through that bound LAN endpoint returned HTTP 200 with certificate validation enabled. The user then confirmed successful browser access from the second physical computer. This is a fresh host/client access check, not a reboot test. New service creation uses delayed automatic startup; it reduces startup races but does not prove every stop was caused by boot timing. Network safety stops still require explicit re-enabling on an eligible Private network.
+
+## Automatic readiness and helper lifecycle — 4.18.5, 2026-11-16
+
+- Code inspection identified two permanent-stop paths: an unavailable startup binding threw immediately; a later unsafe network transition cancelled the process-wide stop token. Event logs recorded service error 1, but did not preserve which eligibility check failed in each earlier incident.
+- Compiled production-supervisor tests cover waiting at boot without an eligible binding, automatic activation, unsafe-session cancellation, recovery to the same binding, explicit stop with no resurrection, and transient bind failure after a fresh service lifetime. LAN policy/relay suite: 294 assertions.
+- Administrator native checks passed uninstall, repeated uninstall, install and install-over-existing. Sharing was explicitly restored after the update.
+- A known concurrent STOP transition returned Windows error 1061; verified STOPPED state was required before restart, matching the controller's existing race handling. Native stop/start, OFF (no service/listener resurrection), and ON passed.
+- With only the dedicated service configured to an absent private binding, the production supervisor remained Running without opening the LAN listener. Restoring the original service binding and starting it restored the listener. Host network/firewall profiles were not weakened or disabled for this test.
+- Installed native binary hash, delayed automatic startup and unchanged DNS settings were verified. The host was left with sharing ON on its original binding.
+- A full Windows reboot was not performed. The native startup-with-missing-binding test and automated same-lifetime recovery tests are distinct evidence; they do not establish every hardware/network startup scenario.

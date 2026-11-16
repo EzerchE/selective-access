@@ -4,11 +4,11 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.4** — kararlı. Proxy uç noktası teşhisi düzeltildi; LAN hizmetine gecikmeli başlangıç eklendi. [Sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.18.5** — kararlı. LAN ağ hazırlığı otomatik beklenir; yardımcı kurulum ve kaldırma kontrolleri güçlendirildi. [Sürüm notları](RELEASE_NOTES.md).
 
-LAN sorun giderme: ulaşılamayan proxy uç noktası, hedefe erişim hatasından ayrı bildirilir. Ağ/profil değişikliği sonrası paylaşım durduysa sunucuda `helper/share.cmd` ile güvenilir Özel ağda yeniden AÇ seçin. Yeni paylaşım hizmetleri, açılışta ağın hazırlanmasına zaman tanımak için gecikmeli otomatik başlar. Paylaşımı başlatmak DNS ayarlarını veya izinli alt ağı değiştirmez.
+AÇIK bırakılan LAN paylaşımı bilgisayar yeniden başladığında korunur. Hizmet, seçilmiş aynı arayüz/IP/alt ağ ve Özel güvenlik duvarı hazır olana kadar port açmadan bekler; aynı güvenli bağlama geri gelince otomatik devam eder. Güvensiz geçişte dinleyici ve etkin bağlantılar kapanır. KAPAT/kaldırma hizmeti siler; kendiliğinden açılmaz. Seçilen IP kalıcı değişirse yeni güvenilir adresi bağlamak için bir kez AÇ seçin. Yardımcı güncellemesi paylaşımı yine KAPALI başlatır.
 
-Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.18.4.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
+Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.18.5.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim temel arayüzü: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -118,7 +118,7 @@ Paylaşım isteğe bağlıdır; **her yardımcı kurulumu/güncellemesinden sonr
 4. Diğer bilgisayarda eklenti Gelişmiş → Özel proxy → SOCKS5 seçin; bu sunucu adresini ve 1082 portunu girip kabul ederek kaydedin. İstemcide yardımcı kurulumu veya yönetici izni gerekmez.
 5. Kapatmak için aynı menüden **2 — OFF / KAPAT** seçin. Yalnız LAN hizmeti ve ona ait güvenlik duvarı kuralı silinir; 1080 üzerindeki yerel geçit çalışmayı sürdürür. Tüm yardımcıları kaldırmak için helper/uninstall.cmd dosyasını yönetici olarak çalıştırın.
 
-Yalnız etkin Ethernet/Wi-Fi üzerindeki RFC1918 IPv4 adresi seçilebilir. Windows ağ profili Özel olmalı, güvenlik duvarı açık olmalı ve hariç tutulan arayüz olmamalıdır. Genel, Etki Alanı ve karma profiller reddedilir. Güvenlik duvarı ve uygulama kontrolü istemcileri seçilen arayüzün tam alt ağıyla sınırlar. IPv6 veya tüm adresleri dinleyen joker bağlama yoktur. Profil, IP veya alt ağ değişirse aktarım ve etkin bağlantılar durdurulur; uygun güvenilir ağda tekrar AÇ seçin. Yardımcı güncellemesi paylaşımı kapatır; açık bırakılan paylaşım aynı uygun arayüz mevcutsa Windows ile başlar.
+Yalnız etkin Ethernet/Wi-Fi üzerindeki RFC1918 IPv4 adresi seçilebilir. Windows ağ profili Özel olmalı, güvenlik duvarı açık olmalı ve hariç tutulan arayüz olmamalıdır. Genel, Etki Alanı ve karma profiller reddedilir. Güvenlik duvarı ve uygulama kontrolü istemcileri seçilen arayüzün tam alt ağıyla sınırlar. IPv6 veya tüm adresleri dinleyen joker bağlama yoktur. Profil, IP veya alt ağ değişirse aktarım ve etkin bağlantılar durdurulur; aynı güvenilir bağlama geri geldiğinde otomatik devam eder. Yardımcı güncellemesi paylaşımı kapatır; açık bırakılan paylaşım aynı uygun arayüz mevcutsa Windows ile başlar.
 
 Yalnız güvendiğiniz yerel ağda açın: izinli alt ağdaki her cihaz kimlik doğrulamasız SOCKS5 geçidini kullanabilir. LAN SOCKS aktarımı şifresizdir; HTTPS/WSS içeriği uçtan uca şifreli kalır. Modemde 1082 port yönlendirmesi açmayın. Dış bağlantının kaynağını yerel IP'ye çeviren NAT, yalnız alt ağ kontrolüyle ayırt edilemez. Misafir Wi-Fi/istemci izolasyonu bağlantıyı engelleyebilir. Sabit sunucu IP'si veya DHCP rezervasyonu kullanmak kolaylık sağlar.
 

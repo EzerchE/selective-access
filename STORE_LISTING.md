@@ -1,4 +1,4 @@
-# Chrome Web Store listing — 4.18.4
+# Chrome Web Store listing — 4.18.5
 
 Copy each locale into its corresponding listing. Names and short descriptions match the packaged locale catalogues. Preparation is not store approval.
 
@@ -76,7 +76,7 @@ HTTPS sertifika doğrulaması açık kalır. HTTP/SOCKS aktarımı bağlantı ü
 
 ## Upload assets
 
-- Store upload: dist/automatic-access-4.18.4.zip ONLY, not the repository or helper archive.
+- Store upload: dist/automatic-access-4.18.5.zip ONLY, not the repository or helper archive.
 - Screenshots: assets/store/screenshot-routing.png and assets/store/screenshot-setup.png, 1280×800; optional dark image: assets/store/screenshot-routing-dark.png.
 - Optional promotional tile: assets/store/promo-small.png, 440×280.
 - Store icon: assets/icon-128.png, 128×128.
