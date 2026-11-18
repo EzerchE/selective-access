@@ -1,6 +1,6 @@
 # Gizlilik bildirimi — Otomatik Erişim
 
-Güncelleme: 12 Kasım 2026 · Sürüm 4.18.5
+Güncelleme: 18 Kasım 2026 · Sürüm 4.19.0
 
 [English](PRIVACY.md)
 
@@ -15,6 +15,10 @@ Etkinlik, proxy türü/adresi/portu, öğrenilen ve yoksayılan hedefler, rota k
 Kurallar yalnız listelenen tam alan adlarına uygulanır; öğrenilen ana sayfanın geleneksel www eş adı da listelenir. Joker kapsam oluşturulmaz. Yoksayılan hedef ve alt alanları doğrudan kalır. Otomatik rotalar sınırlı kurtarmayla kaldırılabilir; elle seçilen rotalar korunur.
 
 Yönlendirilen kaynak uyarılarında yalnız alan adı, istek türü, hata ve zaman tutulur; oturum depolamasında sekme başına en fazla 32 kayıt vardır. Geçici istek/rota ve tamamlanma takibi süreç belleğinde sınırlıdır; yol, sorgu veya içerik tutmaz. Gezinme veya sekmenin kapatılması eski sekme bağlamını temizler. Popup hatalı kaynağın alan adını gösterebilir; bunun dış durum denetimi için yine açıkça düğmeye basmanız gerekir.
+
+## Otomatik doğrudan erişim kontrolü
+
+Sayfa tamamlandıktan sonra uygun otomatik HTTPS ana sayfa rotalarında en sık 15 dakikada bir, çerez/kimlik bilgisi içermeyen iki HTTPS kök isteği yapılabilir. Üç saniyelik tam alan adı DIRECT kuralı, kontrolü proxy yolundan ayırır; bu sırada aynı hedefe açılan yeni bağlantılar da kısa süre doğrudan gidebilir. Son kontrol zamanı ve gözlenen WebSocket kullanımı yerel rota üst verisidir. Yeni veri alıcısı, geçmiş taraması veya otomatik dış genel durum ölçümü eklenmez. Yalnız denenen otomatik alan adı kaldırılabilir; elle seçilen, WebSocket'e özgü ve WebSocket kullanılan karma rotalar korunur. Başarısız/reddedilmiş kontrol veya eş zamanlı kaynak hatası rotayı korur. Kullanıcının ayar değişikliği önceliklidir.
 
 ## Veri alıcıları
 
@@ -32,7 +36,7 @@ Gezinme verileri geliştiriciye gönderilmez, satılmaz, reklam, kredi değerlen
 
 İsteğe bağlı LAN paylaşımı seçilen özel IPv4 arayüzünde 1082 portunu açar; erişim aynı alt ağ ve Windows Özel güvenlik duvarı profiliyle sınırlandırılır. Kurulum/güncelleme sonrası kapalı başlar. Sunucudaki helper/share.cmd menüsünden yönetilir. Sunucu ve izinli ağ cihazları bağlantı üst verisini ve şifresiz trafiği görebilir; HTTPS/WSS içeriği şifreli kalır. İstemci IP'leri yalnız erişim kontrolü için geçici işlenir; trafik/istemci günlüğü tutulmaz. share.cmd → KAPAT yalnız LAN hizmetini/kuralını; uninstall.cmd tüm yardımcı hizmetleri ve LAN kuralını kaldırır.
 
-Yerel veriler siz silene, Chrome temizleyene veya eklenti kaldırılana kadar kalabilir. Oturum verisi tarayıcı oturumuyla biter. Hedefleri satır düğmeleriyle, debug kaydını Gelişmiş bölümünden temizleyebilirsiniz. Eklenti kendi seçtiğiniz proxy'yi kurmaz veya kaldırmaz.
+Ayarlar ve yoksayılan hedefler siz silene, Chrome temizleyene veya eklenti kaldırılana kadar kalabilir. Otomatik rotalar açıklanan doğrudan erişim kontrolleriyle de kaldırılabilir. Oturum verisi tarayıcı oturumuyla biter. Hedefleri satır düğmeleriyle, debug kaydını Gelişmiş bölümünden temizleyebilirsiniz. Eklenti kendi seçtiğiniz proxy'yi kurmaz veya kaldırmaz.
 
 Yerel Windows hizmetlerini kurduysanız helper/uninstall.cmd dosyasını ayrıca yönetici olarak çalıştırın. Eklentiyi kaldırmak hizmetleri kaldırmaz. Kaldırıcı DNS veya başka sistem ağ ayarlarını değiştirmez.
 

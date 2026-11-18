@@ -94,6 +94,8 @@ let notificationPermission = "granted";
 let notificationCreateError = null;
 const directlyReachableHosts = new Set();
 const directProbeUrls = [];
+let directProbeHook = null;
+const directProbeStatuses = new Map();
 const delayedProbeHosts = new Set();
 const tabUrls = new Map();
 const tabPendingUrls = new Map();
@@ -303,13 +305,14 @@ const fetch = async (url, options = {}) => {
   if (options.method === "GET" && options.headers?.Range === "bytes=0-0") {
     directProbeUrls.push(String(url));
     const host = new URL(url).hostname;
+    if (directProbeHook) await directProbeHook(String(url), options);
     activeDirectProbes += 1;
     maxActiveDirectProbes = Math.max(maxActiveDirectProbes, activeDirectProbes);
     try {
       if (delayedProbeHosts.has(host)) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      if (directlyReachableHosts.has(host)) return { ok: true, status: 204 };
+      if (directlyReachableHosts.has(host)) return { ok: true, status: directProbeStatuses.get(host) || 204 };
       throw new Error("direct probe failed");
     } finally {
       activeDirectProbes -= 1;
@@ -402,6 +405,7 @@ function send(message) {
 
 function evaluatePac(data) {
   const pac = {
+    Date: ScaledDate,
     isPlainHostName: (host) => !host.includes("."),
     shExpMatch: (host, pattern) => {
       const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
@@ -2603,6 +2607,115 @@ async function waitForDebugFlush() {
   await new Promise(resolve=>setTimeout(resolve,950));
   assert.equal(reloads.length,beforeProxyFailureReloads,"offline custom proxy must not trigger futile direct navigation or startup retries");
   assert.equal(await workerGlobal.selectedProxyAvailable({proxyMode:"custom"}),null,"configured custom proxy health is unknown");
+
+  // First-navigation DNS failure already proves that direct resolution failed:
+  // no duplicate origin request or fixed post-PAC delay is necessary.
+  await send({type:"saveSettings",patch:{enabled:true,proxyMode:"custom",proxyHost:"proxy.example",proxyPort:1082,learnedDomains:[]}});
+  const dnsProbesBefore=directProbeUrls.length;
+  const dnsStart=Date.now();
+  await listeners.requestError({tabId:420,type:"main_frame",url:"https://fast-dns.example/private?q=hidden",error:"net::ERR_NAME_NOT_RESOLVED"});
+  assert.equal(directProbeUrls.length,dnsProbesBefore,"definitive navigation DNS error must not run a redundant fetch");
+  assert.ok(storage.learnedDomains.includes("fast-dns.example"));
+  console.log(`Controlled DNS learning overhead: ${Date.now()-dnsStart}ms; duplicate probes=0`);
+  await new Promise(resolve=>setTimeout(resolve,50));
+
+  const agedAt=()=>Math.round(logicalNow())-16*60_000;
+  const completed=(host)=>({tabId:421,type:"main_frame",url:`https://${host}/private?q=secret#fragment`,statusCode:200,fromCache:false});
+  await send({type:"saveSettings",patch:{learnedDomains:["smart-direct.example","www.smart-direct.example","other-route.example","manual-direct.example"]}});
+  await workerGlobal.markAutoRouteOrigin("smart-direct.example","main_frame",agedAt());
+  directlyReachableHosts.add("smart-direct.example");
+  let directChecksSeen=0;
+  directProbeHook=async (url,options)=>{
+    directChecksSeen++;
+    assert.equal(url,"https://smart-direct.example/");
+    assert.equal(options.credentials,"omit");
+    assert.equal(options.redirect,"manual");
+    const pac=evaluatePac(proxyConfig.pacScript.data);
+    assert.equal(pac(url,"smart-direct.example"),"DIRECT","health response must be genuinely direct");
+    assert.equal(pac("https://other-route.example/","other-route.example"),"SOCKS5 proxy.example:1082","other learned routes must not change");
+    assert.equal(pac("https://ordinary.example/","ordinary.example"),"DIRECT");
+  };
+  const duplicateResults=await Promise.all(Array.from({length:5},()=>workerGlobal.maybeRecheckAutomaticDirectRoute(completed("smart-direct.example"))));
+  assert.equal(duplicateResults.filter(Boolean).length,1);
+  assert.equal(directChecksSeen,2,"parallel tabs coalesce into two bounded direct checks");
+  assert.equal(storage.learnedDomains.includes("smart-direct.example"),false);
+  assert.ok(storage.learnedDomains.includes("www.smart-direct.example"),"unchecked aliases stay routed");
+  assert.ok(storage.learnedDomains.includes("manual-direct.example"));
+  directProbeHook=null;
+  const countBeforeManual=directProbeUrls.length;
+  directlyReachableHosts.add("manual-direct.example");
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("manual-direct.example")),false);
+  assert.equal(directProbeUrls.length,countBeforeManual,"manual routes must not be probed or removed");
+
+  for(const host of ["still-blocked.example","http-denied.example","expired-lease.example","manual-race.example","socket-only.example"]) {
+    await send({type:"saveSettings",patch:{learnedDomains:[...storage.learnedDomains,host]}});
+    await workerGlobal.markAutoRouteOrigin(host,host==="socket-only.example"?"websocket":"main_frame",agedAt());
+  }
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("still-blocked.example")),false);
+  assert.ok(storage.learnedDomains.includes("still-blocked.example"));
+  assert.equal(evaluatePac(proxyConfig.pacScript.data)("https://still-blocked.example/","still-blocked.example"),"SOCKS5 proxy.example:1082");
+  const failedCount=directProbeUrls.length;
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("still-blocked.example")),false);
+  assert.equal(directProbeUrls.length,failedCount,"failed checks back off for the persisted interval");
+  directlyReachableHosts.add("http-denied.example");directProbeStatuses.set("http-denied.example",403);
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("http-denied.example")),false);
+  assert.ok(storage.learnedDomains.includes("http-denied.example"),"a filter/auth/error response is not recovery proof");
+  directlyReachableHosts.add("socket-only.example");
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("socket-only.example")),false);
+  assert.ok(storage.learnedDomains.includes("socket-only.example"),"HTTP success must not remove a WebSocket-specific route");
+  directlyReachableHosts.add("expired-lease.example");
+  directProbeHook=async()=>{
+    const oldPac=evaluatePac(proxyConfig.pacScript.data);
+    advanceClock(4_000);
+    assert.equal(oldPac("https://expired-lease.example/","expired-lease.example"),"SOCKS5 proxy.example:1082","installed PAC lease expires without worker cleanup");
+  };
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("expired-lease.example")),false);
+  assert.ok(storage.learnedDomains.includes("expired-lease.example"));
+  directProbeHook=async()=>{
+    directProbeHook=null;
+    await send({type:"saveSettings",patch:{learnedDomains:[...storage.learnedDomains],manualRouteDomains:["manual-race.example"]}});
+  };
+  directlyReachableHosts.add("manual-race.example");
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("manual-race.example")),false);
+  assert.ok(storage.learnedDomains.includes("manual-race.example"),"a concurrent manual choice wins over automatic cleanup");
+  directProbeHook=null;
+  startWorker(); await send({type:"getState"});
+  const probesAfterRestart=directProbeUrls.length;
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("still-blocked.example")),false);
+  assert.equal(directProbeUrls.length,probesAfterRestart,"worker restart must not reset the stored check interval");
+
+  await send({type:"saveSettings",patch:{learnedDomains:[...storage.learnedDomains,"mixed-transport.example","completed-smart.example"]}});
+  for(const host of ["mixed-transport.example","completed-smart.example"]) {
+    await workerGlobal.markAutoRouteOrigin(host,"main_frame",agedAt());
+    directlyReachableHosts.add(host);
+  }
+  await listeners.beforeRequest({tabId:422,requestId:"mixed-socket",type:"websocket",url:"wss://mixed-transport.example/socket"});
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("mixed-transport.example")),false,"HTTP-root proof cannot clear a main route also used by WebSockets");
+  startWorker();await send({type:"getState"});
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("mixed-transport.example")),false,"mixed protocol guard survives worker restart");
+  tabUrls.set(423,"https://completed-smart.example/private?token=fixture");
+  await listeners.beforeRequest({tabId:423,type:"main_frame",requestId:"main-smart",url:tabUrls.get(423)});
+  await listeners.requestCompleted({tabId:423,type:"main_frame",requestId:"main-smart",url:tabUrls.get(423),statusCode:200,fromCache:false});
+  assert.ok(storage.learnedDomains.includes("completed-smart.example"),"do not revalidate while page resources are still loading");
+  await listeners.tabUpdated(423,{status:"complete"},{url:tabUrls.get(423),status:"complete"});
+  assert.equal(storage.learnedDomains.includes("completed-smart.example"),false,"completed-tab event wires the periodic direct recheck");
+
+  // Incomplete provenance is not permission to alter an old/manual route.
+  await send({type:"saveSettings",patch:{learnedDomains:[...storage.learnedDomains,"incomplete-origin.example","dependency-race.example"]}});
+  storage.autoRouteOrigins["incomplete-origin.example"]={requestType:"main_frame"};
+  directlyReachableHosts.add("incomplete-origin.example");
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("incomplete-origin.example")),false);
+  await workerGlobal.markAutoRouteOrigin("dependency-race.example","main_frame",agedAt());
+  directlyReachableHosts.add("dependency-race.example");
+  directProbeHook=async()=>{
+    directProbeHook=null;
+    const request={tabId:424,requestId:"dependency-during-check",type:"xmlhttprequest",url:"https://dependency-race.example/api",initiator:"https://dependency-race.example/"};
+    await listeners.beforeRequest(request);
+    await listeners.requestError({...request,error:"net::ERR_CONNECTION_RESET"});
+  };
+  assert.equal(await workerGlobal.maybeRecheckAutomaticDirectRoute(completed("dependency-race.example")),false);
+  assert.ok(storage.learnedDomains.includes("dependency-race.example"),"a resource failure during a check vetoes automatic removal");
+  directProbeHook=null;
 
   process.stdout.write("background tests passed\n");
 })().catch((error) => {

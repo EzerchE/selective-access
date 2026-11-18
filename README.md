@@ -4,11 +4,11 @@
 
 A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
 
-Current version: **4.18.5** — stable. Automatic safe LAN network readiness and helper lifecycle fixes. See [release notes](RELEASE_NOTES.md).
+Current version: **4.19.0** — stable. Faster first-failure recovery and bounded direct-access rechecks. See [release notes](RELEASE_NOTES.md).
 
 LAN sharing stays enabled across host restarts. Its supervisor waits without listening while the original interface/address/subnet or Private firewall is unavailable, then resumes automatically when that same safe binding returns. Unsafe transitions close the listener and active sessions; OFF/uninstall removes the supervisor and cannot auto-resume. If the selected address changes permanently, select ON once to bind the new trusted address. Helper updates still start sharing OFF.
 
-Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.18.5.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
+Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.19.0.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
 
@@ -49,7 +49,7 @@ The extension is the decision layer; the local helper is the transport layer. Th
 | **Automatic Access** | Explicitly listed hostnames in Chrome | Narrow PAC routing to a local compatibility path | Yes, with thresholds and a sanitized direct-origin check |
 | **Traditional VPN** | Usually all device or selected-app traffic | Network route and often the visible exit IP/location | No; traffic follows the VPN policy whether the target needs it or not |
 | **Custom DNS / encrypted DNS** | Name resolution for many or all domains | Which resolver answers DNS queries | No; DNS alone cannot repair transport-level DPI interference |
-| **Standalone ByeDPI** | Traffic manually sent to its local proxy or covered by external configuration | Packet-level connection behavior | Not by itself; target selection and browser recovery must be configured separately |
+| **Standalone ByeDPI** | Traffic manually sent to its local proxy or covered by external configuration | Packet-level connection behavior | Own host filters and conditional methods are available; browser detection/UI depends on configuration |
 
 Automatic Access does not replace these tools in every scenario. A VPN is appropriate when a different exit network is required; custom DNS is useful for resolver privacy or resolver failures; and standalone ByeDPI offers lower-level manual control. This project is aimed at the narrower case where normal browsing should remain untouched and only confirmed failing Chrome destinations need a local compatibility route.
 
@@ -82,6 +82,14 @@ Automatic Access does not replace these tools in every scenario. A VPN is approp
 - The toolbar icon stays unobstructed after a successful direct connection. It shows a blue `↗` when the local gateway is used, cyan `+` for a newly learned route, amber `?` while an issue is being checked, red `!` for an access or gateway failure, and gray `×` when disabled. These compact marks reflect both the main-page result and routed dependencies used by the tab.
 
 The bundled local gateway is not a VPN and does not change your public exit IP or country. A user-selected remote proxy may change the exit IP and location. Use it only for targets you are authorized to access and in accordance with applicable rules.
+
+## Faster first access and direct-access recovery
+
+Definitive main-navigation DNS failures do not repeat the failed origin check. Route retries have no fixed 250ms wait after PAC application; other supported main-page checks are capped at one second. Browser/OS time before the initial error remains outside the extension's control. Learning thresholds and certificate validation are unchanged.
+
+After a routed HTTPS main page finishes loading, an automatic route at least 15 minutes old can be checked at most once per 15 minutes. Two fresh credential-free HTTPS root responses must succeed under an exact-host DIRECT lease lasting at most three seconds. Only the checked hostname is removed; unchecked aliases remain routed. Checks cause no page refresh or external global measurement. Concurrent user changes take priority.
+
+Manual, HTTP-only, embedded/API-only, socket-specific and observed mixed-socket routes are preserved. A failed or denied check, or a resource error during the check, keeps the route. During the short check, new connections to that listed hostname can temporarily go direct; unlisted hosts and other proxy routes retain their paths. The interval survives worker restart. See [validation and limits](tests/ROUTING_PERFORMANCE.md).
 
 ## Interface
 
@@ -129,7 +137,6 @@ The sharing controller enables the service SID before starting the relay, so Win
 
 The bundled gateway combines concurrent encrypted-DNS lookups for the same routed hostname. Successful answers stay only in process memory for their remaining DNS lifetime, capped at 30 seconds; failures are not cached. It tries the last successful existing resolver first, avoiding repeated waits for an unavailable resolver across new dependency names. Network changes clear this state. This optimization applies only to routed connections; it does not change ordinary traffic, system DNS, learning thresholds or hostname matching. The browser's initial direct attempt remains dependent on the network's response time.
 
-For the 4.18.1 performance update, update the helper on the computer hosting the bundled gateway; updating the extension alone does not replace its Windows service. After helper/install.cmd completes, enable LAN sharing again with helper/share.cmd if you use it. Other LAN clients and user-supplied proxies need no local helper update.
 
 To route a site you choose even when a content filter returns a completed block page, open the extension on that page, select **Route now**, then reload with **Ctrl+F5**. This changes routing only for that hostname. The extension does not automatically treat every HTTP error or filter page as an access restriction. Device-level security software may still filter proxy traffic; certificate validation remains enabled.
 

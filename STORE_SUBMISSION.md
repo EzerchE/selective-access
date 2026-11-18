@@ -1,6 +1,6 @@
-# Chrome Web Store application fields — 4.18.5
+# Chrome Web Store application fields — 4.19.0
 
-Prepared 16 November 2026 for automatic-access-4.18.5.zip. Copy these English field texts; use STORE_LISTING.md for localized listings and STORE_REVIEWER_GUIDE.md for testing. This is a prepared declaration based on shipped behavior, not a completed Dashboard submission. The owner must compare the actual form wording and certify the answers personally.
+Prepared 18 November 2026 for automatic-access-4.19.0.zip. Copy these English field texts; use STORE_LISTING.md for localized listings and STORE_REVIEWER_GUIDE.md for testing. This is a prepared declaration based on shipped behavior, not a completed Dashboard submission. The owner must compare the actual form wording and certify the answers personally.
 
 ## Single purpose — English
 
@@ -14,7 +14,7 @@ Desteklenen tarayıcı bağlantı hatalarını belirleyip yalnız açıkça list
 
 ### proxy
 
-Apply a PAC script selecting the user's proxy only for exact listed hostnames, with ignored and private/local destinations kept direct. Clear this extension's proxy setting when disabled. This is the core selective-routing function, not general traffic collection.
+Apply a PAC script selecting the user's proxy only for exact listed hostnames, with ignored and private/local destinations kept direct. A three-second exact-host DIRECT lease supports bounded recovery checks of eligible automatic HTTPS document routes. Clear this extension's proxy setting when disabled. This is the core selective-routing function, not general traffic collection.
 
 ### webRequest
 
@@ -34,7 +34,7 @@ Run packaged functions to locate and retry an affected iframe, including in open
 
 ### storage
 
-Store proxy preferences, route/ignore lists, route provenance/health and bounded diagnostics locally. Session storage holds temporary recovery and warning context. Debug defaults off, is capped at 150 events and can be cleared. No sync storage or developer cloud settings database is used.
+Store proxy preferences, route/ignore lists, route provenance/health, last direct-check times, observed WebSocket-use flags and bounded diagnostics locally. Session storage holds temporary recovery and warning context. Debug defaults off, is capped at 150 events and can be cleared. No sync storage or developer cloud settings database is used.
 
 ### notifications
 
@@ -64,11 +64,11 @@ This conservative scope includes local handling and the optional helper, not jus
 
 ### Data-use explanation — copy-ready
 
-Destination hostnames, connection outcomes, request types and bounded timing/tab/frame metadata are processed only for selective routing and visible diagnostics. Limited iframe URL inspection supports affected-frame retries. IP information is handled for networking and optional native LAN access control, not location profiling. Settings and opt-in debug logs stay local; debug starts off. The selected proxy receives routed destinations and connection metadata. The optional helper uses disclosed encrypted-DNS recipients and system fallback. External global measurements require an explicit click. The developer operates no analytics, traffic relay, remote logging or browsing-history server. Data is not sold or used for advertising, credit decisions or unrelated profiling. Credentials, communications, identity, health and financial data are not extracted into datasets. A selected proxy remains a transport and can inspect HTTP content; HTTPS/WSS certificate validation stays enabled.
+Destination hostnames, connection outcomes, request types and bounded timing/tab/frame metadata are processed only for selective routing and visible diagnostics. Limited iframe URL inspection supports affected-frame retries. IP information is handled for networking and optional native LAN access control, not location profiling. Settings and opt-in debug logs stay local; debug starts off. The selected proxy receives routed destinations and connection metadata. The optional helper uses disclosed encrypted-DNS recipients and system fallback. Eligible automatic document routes can receive two short credential-free direct HTTPS root checks after page completion, at most once per 15 minutes; a three-second exact-host DIRECT lease may briefly affect new connections to that checked host. Manual and socket-specific routes are preserved. External global measurements require an explicit click. The developer operates no analytics, traffic relay, remote logging or browsing-history server. Data is not sold or used for advertising, credit decisions or unrelated profiling. Credentials, communications, identity, health and financial data are not extracted into datasets. A selected proxy remains a transport and can inspect HTTP content; HTTPS/WSS certificate validation stays enabled.
 
 ### Retention and deletion — copy-ready
 
-Local settings/lists remain until the user removes them, clears extension data or uninstalls the extension. Debug holds at most 150 local events and can be cleared. Recovery/warnings use session storage. Temporary request-route metadata and positive DNS answers are bounded in process memory; no persistent DNS history is created. Removing the extension does not remove optional Windows services; the included helper uninstaller removes them and the sharing rule. An independently chosen proxy's privacy/retention terms apply.
+Preferences and ignored lists remain until the user removes them, clears extension data or uninstalls the extension. Automatic route entries can also be removed by the disclosed bounded direct-access checks. Debug holds at most 150 local events and can be cleared. Recovery/warnings use session storage. Temporary request-route metadata and positive DNS answers are bounded in process memory; no persistent DNS history is created. Removing the extension does not remove optional Windows services; the included helper uninstaller removes them and the sharing rule. An independently chosen proxy's privacy/retention terms apply.
 
 ## Limited Use certifications
 

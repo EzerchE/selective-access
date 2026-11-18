@@ -1,6 +1,6 @@
-# Reviewer test instructions — 4.18.5
+# Reviewer test instructions — 4.19.0
 
-Upload: automatic-access-4.18.5.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
+Upload: automatic-access-4.19.0.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
 
 ## Copy-ready reviewer instructions
 
@@ -15,6 +15,10 @@ Upload: automatic-access-4.18.5.zip. No product account, subscription, credentia
 9. Optional Windows path: download/extract the complete helper archive from the latest release. Run helper/install.cmd as administrator. Select Bundled local gateway and Check again. A healthy loopback endpoint returns HTTP 204 and setup can finish. This native installation is separate from, and excluded from, the store ZIP.
 10. Optional LAN path: on the helper host run helper/share.cmd, choose ON and approve elevation. Only eligible trusted Private IPv4 Ethernet/Wi-Fi networks with an enabled firewall are accepted. Another same-subnet computer selects Custom proxy → SOCKS5 with the displayed host and port 1082; it needs no local helper. Keep the host running. OFF removes the dedicated relay/rule while retaining the loopback helper. Public/Domain/mixed profiles are refused; profile/address changes close the relay connections; the enabled supervisor waits and resumes only when the original eligible binding returns. OFF/uninstall prevents automatic resumption. Do not configure router port forwarding.
 11. To remove the helper, switch the extension off or select another proxy, then run helper/uninstall.cmd as administrator. Removing the extension alone does not remove Windows services. If the folder was deleted, download/extract the helper again to obtain the uninstaller. Independently chosen proxies are not installed or removed by the extension.
+
+## Automatic recovery checks
+
+For a controlled automatic HTTPS document route older than 15 minutes, finish loading the page through the selected proxy, then make direct HTTPS access available in your authorized test environment. After completed-page activity, two credential-free origin-root requests should use the short exact-host DIRECT lease. Only that checked hostname can be removed; unchecked aliases and manual routes remain. A failed/403 check retains the route. Repeat activity inside 15 minutes must not repeat the check, including after a service-worker restart. Socket-only routes and mixed-socket hosts must not be removed using HTTP-root evidence. A new resource error or user setting during the check must veto removal. No page reload or Globalping request should occur.
 
 ## Publisher notes
 
