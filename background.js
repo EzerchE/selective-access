@@ -214,7 +214,16 @@ const GLOBAL_CHECK_POLL_DELAY_MS = 600;
 const GLOBAL_OUTAGE_HOLD_MS = 15 * 60_000;
 const DIRECT_RECOVERY_COOLDOWN_MS = 10 * 60_000;
 const AUTO_ROUTE_RECOVERY_GRACE_MS = 60_000;
-const MAIN_ROUTE_RELOAD_DELAY_MS = 250;
+const MAIN_ROUTE_RELOAD_DELAY_MS = 0;
+const MAIN_DIRECT_PROBE_TIMEOUT_MS = 1_000;
+const AUTO_DIRECT_RECHECK_INTERVAL_MS = 15 * 60_000;
+const AUTO_DIRECT_RECHECK_TIMEOUT_MS = 800;
+const AUTO_DIRECT_RECHECK_LEASE_MS = 3_000;
+const automaticDirectChecks = new Map();
+const automaticRecheckCandidates = new Map();
+const observedSocketFamilies = new Set();
+let automaticDirectCheckBusy = false;
+let userSettingsRevision = 0;
 const AUTO_ROUTE_ORIGINS_KEY = "autoRouteOrigins";
 let debugEnabledCache = null;
 let debugBuffer = [];
@@ -526,6 +535,9 @@ routingSnapshotReady = getSettings().catch((error) => {
 });
 
 function buildPacScript(settings) {
+  const directChecks = JSON.stringify(Object.fromEntries([...automaticDirectChecks]
+    .filter(([, check]) => check.revision === userSettingsRevision && check.expiresAt > Date.now())
+    .map(([host, check]) => [host, check.expiresAt])));
   const learnedDomains = JSON.stringify(settings.learnedDomains);
   const ignoredDomains = JSON.stringify(settings.ignoredDomains);
   const directive = PROXY_DIRECTIVES[settings.proxyType] || PROXY_DIRECTIVES.socks5;
@@ -537,6 +549,7 @@ function FindProxyForURL(url, host) {
   host = host.toLowerCase().replace(/\\.$/, "");
   var learnedDomains = ${learnedDomains};
   var ignoredDomains = ${ignoredDomains};
+  var directChecks = ${directChecks};
   var address = host.replace(/^\\[|\\]$/g, "");
   var ipv4 = address.split(".");
   var isPrivateIpv4 = false;
@@ -583,6 +596,9 @@ function FindProxyForURL(url, host) {
     }
   }
 
+  // Embedded expiry restores normal proxy selection even if the worker ends
+  // during a check. Only the exact checked hostname can temporarily go direct.
+  if (directChecks[host] && Date.now() < directChecks[host]) return "DIRECT";
   for (var i = 0; i < learnedDomains.length; i++) {
     var domain = learnedDomains[i];
     if (host === domain) {
@@ -1183,7 +1199,7 @@ function releaseProbeSlot() {
   activeProbeCount = Math.max(0, activeProbeCount - 1);
 }
 
-async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
+async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS, requireSuccess = false) {
   await acquireProbeSlot();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1197,7 +1213,7 @@ async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
       signal: controller.signal
     });
     controller.abort();
-    return Boolean(response);
+    return requireSuccess ? response.status >= 200 && response.status < 300 : Boolean(response);
   } catch {
     return false;
   } finally {
@@ -1234,6 +1250,87 @@ function directRequestResponds(url, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
     });
   directProbeInFlight.set(cacheKey, request);
   return request;
+}
+
+// HTTP-root checks can validate document routes, not socket-only routes.
+function hasFamilyRequestIssues(family) {
+  return [...tabRequestIssues.values()].some(issues =>
+    issues.some(issue => routeFamily(issue.host) === family));
+}
+async function maybeRecheckAutomaticDirectRoute(details) {
+  const revision = userSettingsRevision;
+  if (automaticDirectCheckBusy || activeProbeCount > 0 || details.tabId < 0 ||
+      details.type !== "main_frame" || details.fromCache ||
+      !Number.isInteger(details.statusCode) || details.statusCode < 200 || details.statusCode >= 300) return false;
+  let root;
+  try { root = sanitizedProbeUrl(details.url); } catch { return false; }
+  if (!root.startsWith("https://")) return false;
+  const host = getRequestHost(details);
+  const family = routeFamily(host);
+  const origin = await autoRouteOrigin(host);
+  const now = Date.now();
+  if (!origin || !Number.isFinite(origin.learnedAt) || origin.learnedAt <= 0 ||
+      origin.requestType !== "main_frame" || origin.usesWebSocket || observedSocketFamilies.has(family) ||
+      now - Math.max(Number(origin.learnedAt || 0), Number(origin.lastDirectCheckAt || 0)) < AUTO_DIRECT_RECHECK_INTERVAL_MS) return false;
+  // Do not treat an HTTP root as recovery evidence for a failing dependency.
+  if (hasFamilyRequestIssues(family)) return false;
+  if (automaticDirectCheckBusy) return false;
+  automaticDirectCheckBusy = true;
+  const sameOrigin = value => value?.learnedAt === origin.learnedAt && value?.requestType === origin.requestType &&
+    !value?.usesWebSocket && !observedSocketFamilies.has(family);
+  let check;
+  try {
+    await queueRouteHealth(async () => {
+      const origins = await readAutoRouteOrigins();
+      if (!sameOrigin(origins[family])) return;
+      origins[family] = { ...origins[family], lastDirectCheckAt: now };
+      await chrome.storage.local.set({ [AUTO_ROUTE_ORIGINS_KEY]: origins });
+    });
+    const installed = await queueSettingsMutation(async () => {
+      const settings = await getSettings();
+      if (revision !== userSettingsRevision || !settings.enabled || !hasConfiguredProxy(settings) ||
+          !isLearned(host, settings.learnedDomains) || !sameOrigin(await autoRouteOrigin(host))) return false;
+      check = { expiresAt: Date.now() + AUTO_DIRECT_RECHECK_LEASE_MS, revision };
+      automaticDirectChecks.set(host, check);
+      return (await applyProxy()).ok;
+    });
+    if (!installed || Date.now() >= check.expiresAt) return false;
+    const first = await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, true);
+    const second = first && Date.now() < check.expiresAt && revision === userSettingsRevision &&
+      await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, true);
+    if (!second || Date.now() >= check.expiresAt || revision !== userSettingsRevision) {
+      await appendDebug("automatic-direct-check", { host, reachable: false, decision: "keep-route" });
+      return false;
+    }
+    const removed = await queueSettingsMutation(async () => {
+      const settings = await getSettings();
+      const currentOrigin = await autoRouteOrigin(host);
+      if (revision !== userSettingsRevision || !settings.enabled || Date.now() >= check.expiresAt ||
+          hasFamilyRequestIssues(family) || !sameOrigin(currentOrigin) || !isLearned(host, settings.learnedDomains)) return false;
+      automaticDirectChecks.delete(host);
+      await saveSettingsUnlocked({ learnedDomains: settings.learnedDomains.filter(domain => domain !== host) });
+      return true;
+    });
+    if (removed) {
+      await queueRouteHealth(async () => {
+        const settings = await getSettings();
+        const origins = await readAutoRouteOrigins();
+        if (!sameOrigin(origins[family]) || settings.learnedDomains.some(domain => routeFamily(domain) === family)) return;
+        const health = await readRouteHealth();
+        delete origins[family]; delete health[family];
+        await chrome.storage.local.set({ [AUTO_ROUTE_ORIGINS_KEY]: origins, [ROUTE_HEALTH_KEY]: health });
+      });
+      await appendDebug("automatic-route-returned-direct", { host, requestType: "main_frame", decision: "two-direct-https-responses" });
+    }
+    return removed;
+  } finally {
+    try {
+      await queueSettingsMutation(async () => {
+        if (automaticDirectChecks.get(host) === check) automaticDirectChecks.delete(host);
+        await applyProxy();
+      });
+    } finally { automaticDirectCheckBusy = false; }
+  }
 }
 
 function enqueueHostTask(details, task) {
@@ -2295,10 +2392,12 @@ async function learnAndRetry(details) {
   // evidence for a WebSocket and cost up to 4.5 seconds in real logs.
   const strongRoutedDependencyEvidence = hasLearnedContext && details.type !== "main_frame" &&
     (DNS_RESOLUTION_ERRORS.has(error) || (details.type === "websocket" && error === "ERR_FAILED"));
-  const probeTimeout = DNS_RESOLUTION_ERRORS.has(error)
-    ? DNS_DIRECT_PROBE_TIMEOUT_MS
-    : DIRECT_PROBE_TIMEOUT_MS;
-  const directlyReachable = strongRoutedDependencyEvidence
+  const definitiveMainDnsFailure = details.type === "main_frame" &&
+    ["ERR_NAME_NOT_RESOLVED", "ERR_NAME_RESOLUTION_FAILED"].includes(error);
+  const skipProbe = strongRoutedDependencyEvidence || definitiveMainDnsFailure;
+  const probeTimeout = details.type === "main_frame" ? MAIN_DIRECT_PROBE_TIMEOUT_MS
+    : DNS_RESOLUTION_ERRORS.has(error) ? DNS_DIRECT_PROBE_TIMEOUT_MS : DIRECT_PROBE_TIMEOUT_MS;
+  const directlyReachable = skipProbe
     ? false
     : await directRequestResponds(details.url, probeTimeout);
   await appendDebug("direct-check", {
@@ -2306,8 +2405,9 @@ async function learnAndRetry(details) {
     host,
     requestType: details.type,
     reachable: directlyReachable,
-    skipped: strongRoutedDependencyEvidence,
-    timeoutMs: strongRoutedDependencyEvidence ? 0 : probeTimeout
+    skipped: skipProbe,
+    reason: definitiveMainDnsFailure ? "navigation-dns-failure" : strongRoutedDependencyEvidence ? "routed-dependency" : "origin-verification",
+    timeoutMs: skipProbe ? 0 : probeTimeout
   });
   // Completion may race this asynchronous probe. A successful real navigation
   // clears the candidate, so an old failure must not install a route afterward.
@@ -2762,6 +2862,14 @@ chrome.webRequest.onCompleted.addListener(
     // The main document can complete before its scheduled route reload while
     // late dependencies are still being discovered. Keep the bounded recovery
     // window alive so a learned dependency can trigger one settled reload.
+    if (completedHost && isLearned(completedHost, routingSnapshot.learnedDomains) && successfulRequest(details)) {
+      if (automaticRecheckCandidates.size >= 256) automaticRecheckCandidates.delete(automaticRecheckCandidates.keys().next().value);
+      automaticRecheckCandidates.set(details.tabId, {
+        tabId: details.tabId, type: "main_frame", url: sanitizedProbeUrl(details.url),
+        statusCode: details.statusCode, fromCache: Boolean(details.fromCache),
+        navigation: tabNavigationEpochs.get(details.tabId)
+      });
+    }
     const debugWrite = appendDebug("main-completed", {
       tabId: details.tabId,
       host: getRequestHost(details),
@@ -2779,6 +2887,18 @@ chrome.webRequest.onBeforeRequest.addListener(
     if (details.type !== "main_frame") {
       const host = getRequestHost(details);
       const mainHost = tabMainHosts.get(details.tabId);
+      if (details.type === "websocket" && routingSnapshot.enabled && isLearned(host, routingSnapshot.learnedDomains)) {
+        const family = routeFamily(host);
+        if (!observedSocketFamilies.has(family)) {
+          observedSocketFamilies.add(family);
+          queueRouteHealth(async () => {
+            const origins = await readAutoRouteOrigins();
+            if (!origins[family] || origins[family].usesWebSocket) return;
+            origins[family] = { ...origins[family], usesWebSocket: true };
+            await chrome.storage.local.set({ [AUTO_ROUTE_ORIGINS_KEY]: origins });
+          }).catch(reportAsyncError);
+        }
+      }
       if (details.requestId && details.tabId >= 0 && routingSnapshot.enabled &&
           (isLearned(host, routingSnapshot.learnedDomains) || isLearned(mainHost, routingSnapshot.learnedDomains))) {
         if (requestRouteObservations.size >= 4096) requestRouteObservations.delete(requestRouteObservations.keys().next().value);
@@ -2786,6 +2906,7 @@ chrome.webRequest.onBeforeRequest.addListener(
       }
       return;
     }
+    automaticRecheckCandidates.delete(details.tabId);
     tabRequestIssues.delete(details.tabId);
     tabNavigationEpochs.set(details.tabId, (tabNavigationEpochs.get(details.tabId) || 0) + 1);
     clientFilterCandidates.delete(details.tabId);
@@ -2816,13 +2937,20 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   } else if (changeInfo?.status === "complete") {
     cancelSlowLoadWatchdog(tabId);
     if (tabConnectionResults.get(tabId) !== "failed") tabConnectionResults.set(tabId, "complete");
-    return settleSlowPage(tabId).then(() => refreshTabBadge(tabId)).catch(reportAsyncError);
+    const candidate = automaticRecheckCandidates.get(tabId);
+    automaticRecheckCandidates.delete(tabId);
+    return settleSlowPage(tabId).then(() => refreshTabBadge(tabId)).then(() => {
+      if (candidate && candidate.navigation === tabNavigationEpochs.get(tabId)) {
+        return maybeRecheckAutomaticDirectRoute(candidate);
+      }
+    }).catch(reportAsyncError);
   }
   if (!url && !changeInfo?.status) return;
   refreshTabBadge(tabId).catch(reportAsyncError);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  automaticRecheckCandidates.delete(tabId);
   cancelGatewayRetry(tabId, "tab-removed");
   cancelSlowLoadWatchdog(tabId);
   tabIssues.delete(tabId);
@@ -2861,6 +2989,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "saveSettings":
       {
         const patch = message.patch || {};
+        userSettingsRevision += 1;
         const state = await saveSettings(patch);
         const manualDomains = normalizeDomains(patch.manualRouteDomains || []);
         await Promise.all(manualDomains.map((host) => clearAutoRouteOrigin(host)));

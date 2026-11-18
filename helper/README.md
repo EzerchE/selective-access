@@ -1,8 +1,10 @@
 # Optional Windows ByeDPI helper
 
-The 4.18.1 helper requires .NET Framework 4.6 or later. It is prepared for current Windows 10/11 runtimes; older runtimes have not been validated.
+Release package: 4.19.0. Native binaries are unchanged from 4.18.5; this extension release needs no helper reinstall.
 
-## Optional private-LAN sharing (4.18.0)
+The helper requires .NET Framework 4.6 or later. It is prepared for current Windows 10/11 runtimes; older runtimes have not been validated.
+
+## Optional private-LAN sharing
 
 After installation, double-click share.cmd. Choose 1 to enable, 2 to disable, or 3 for status. Changes request administrator approval. ON prints the selected server address and port 1082; another computer uses Custom proxy → SOCKS5 with that address/port and needs no helper. Multiple eligible interfaces require selection.
 
@@ -22,7 +24,7 @@ Services: SelectiveAccessGateway and SelectiveAccessByeDPI. Local endpoints: 127
 
 ## Türkçe
 
-4.18.1 yardımcısı .NET Framework 4.6 veya üzerini gerektirir. Güncel Windows 10/11 çalışma ortamları için hazırlanmıştır; eski çalışma ortamlarında doğrulanmamıştır.
+Hazır yerel yardımcı .NET Framework 4.6 veya üzerini gerektirir. Güncel Windows 10/11 çalışma ortamları için hazırlanmıştır; eski çalışma ortamlarında doğrulanmamıştır.
 
 Mevcut uyumlu proxy'niz varsa bu yardımcıyı kurmanız gerekmez.
 

@@ -1,6 +1,6 @@
 # Privacy policy — Automatic Access
 
-Updated: 12 November 2026 · Version 4.18.5
+Updated: 18 November 2026 · Version 4.19.0
 
 [Türkçe](PRIVACY_TR.md)
 
@@ -16,6 +16,10 @@ Rules match exact listed hostnames. Main-page learning also records the conventi
 
 Recent routed-resource warnings retain only hostname, request type, error and time, up to 32 per tab in session storage. Temporary request-route and completion bookkeeping is bounded in process memory and excludes paths, queries and payloads. Navigation or tab closure clears obsolete tab context. A popup can display the failed resource's hostname; an external status check for it still requires your explicit click.
 
+## Automatic direct-access rechecks
+
+Completed-page activity can trigger two credential-free HTTPS origin-root checks for eligible automatic document routes, at most once per 15 minutes. A three-second exact-host DIRECT lease separates them from the proxy path; new connections to that checked hostname may also go direct briefly. Last-check time and an observed-WebSocket-use flag are stored as local route metadata. No new recipient, history scan or automatic global measurement is introduced. Checks can remove only the checked automatic hostname; manual, socket-specific and observed mixed-socket routes are preserved. A failed/denied check or concurrent resource error retains the route. User settings take priority.
+
 ## Requests and recipients
 
 For routed SOCKS connections, the optional helper coalesces identical in-flight DNS queries and keeps up to 256 positive answers only in process memory, bounded by remaining DNS TTL and a 30-second cap. It retains no failed answers or persistent DNS history. Network changes clear answers and existing-provider preference. No additional DNS recipient is introduced.
@@ -30,7 +34,7 @@ Browsing data is not sent to the developer, sold, used for ads, credit scoring o
 
 ## Retention and removal
 
-Local settings remain until removed by you, cleared by Chrome or the extension is uninstalled. Session data ends with the browser session. Remove targets using row actions and clear logs in Advanced settings. A user-selected proxy is not installed or removed by the extension.
+Preferences and ignored lists remain until removed by you, cleared by Chrome or the extension is uninstalled. Automatic routes may also be removed by the disclosed direct-recovery checks. Session data ends with the browser session. Remove targets using row actions and clear logs in Advanced settings. A user-selected proxy is not installed or removed by the extension.
 
 Use helper/share.cmd → OFF to remove the dedicated LAN service/firewall rule while keeping the loopback helper. If you installed the bundled Windows services, separately run helper/uninstall.cmd as administrator to remove all helper services and the LAN rule. Removing the extension does not remove Windows services. The uninstaller does not change adapter DNS or unrelated network settings.
 

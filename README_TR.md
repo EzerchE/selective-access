@@ -4,11 +4,11 @@
 
 Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
 
-Güncel sürüm: **4.18.5** — kararlı. LAN ağ hazırlığı otomatik beklenir; yardımcı kurulum ve kaldırma kontrolleri güçlendirildi. [Sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.19.0** — kararlı. İlk hata sonrası bekleme azaltıldı ve sınırlı doğrudan erişim kontrolleri eklendi. [Sürüm notları](RELEASE_NOTES.md).
 
 AÇIK bırakılan LAN paylaşımı bilgisayar yeniden başladığında korunur. Hizmet, seçilmiş aynı arayüz/IP/alt ağ ve Özel güvenlik duvarı hazır olana kadar port açmadan bekler; aynı güvenli bağlama geri gelince otomatik devam eder. Güvensiz geçişte dinleyici ve etkin bağlantılar kapanır. KAPAT/kaldırma hizmeti siler; kendiliğinden açılmaz. Seçilen IP kalıcı değişirse yeni güvenilir adresi bağlamak için bir kez AÇ seçin. Yardımcı güncellemesi paylaşımı yine KAPALI başlatır.
 
-Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.18.5.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
+Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.19.0.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim temel arayüzü: seçici yönlendirme ve proxy kurulumu" width="620">
 
@@ -49,7 +49,7 @@ Eklenti karar katmanıdır; yerel yardımcı ise taşıma katmanıdır. Eklenti 
 | **Otomatik Erişim** | Chrome'da açıkça listelenen hedefler | Dar kapsamlı PAC ile yerel uyumluluk yoluna yönlendirme | Evet; hata eşikleri ve temizlenmiş doğrudan origin kontrolüyle |
 | **Klasik VPN** | Genellikle cihazın veya seçilen uygulamanın tüm trafiği | Ağ rotası ve çoğunlukla görünen çıkış IP'si/konumu | Hayır; hedefin ihtiyacı olmasa da trafik VPN politikasını izler |
 | **Özel DNS / şifreli DNS** | Birçok veya bütün alan adının çözümlemesi | DNS sorgularını hangi çözümleyicinin yanıtladığı | Hayır; DNS tek başına taşıma katmanındaki DPI müdahalesini düzeltemez |
-| **Tek başına ByeDPI** | Yerel proxy'ye elle gönderilen veya harici yapılandırmanın kapsadığı trafik | Paket düzeyindeki bağlantı davranışı | Tek başına hayır; hedef seçimi ve tarayıcı kurtarması ayrıca yapılandırılmalıdır |
+| **Tek başına ByeDPI** | Yerel proxy'ye elle gönderilen veya harici yapılandırmanın kapsadığı trafik | Paket düzeyindeki bağlantı davranışı | Kendi hedef filtreleri ve koşullu yöntemleri vardır; tarayıcı tespiti/arayüzü yapılandırmaya bağlıdır |
 
 Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çıkış ağı gerektiğinde VPN, çözümleyici gizliliği veya DNS arızalarında özel DNS, düşük seviyeli elle kontrol için bağımsız ByeDPI daha uygun olabilir. Bu proje; normal gezinmenin hiç değişmemesi, yalnız doğrulanmış biçimde başarısız olan Chrome hedeflerinin yerel uyumluluk yolunu kullanması gereken daha dar senaryoya odaklanır.
 
@@ -81,6 +81,14 @@ Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çı
 - Araç çubuğu ikonu doğrudan ve başarılı bağlantıda yazısız kalır. Yerel geçit kullanıldığında mavi `↗`, yeni rota öğrenildiğinde camgöbeği `+`, süren kontrolde turuncu `?`, erişim veya geçit hatasında kırmızı `!`, kapalı durumda gri `×` gösterilir. Kısa işaretler ikonu kapatmaz; durum hem ana sayfanın sonucunu hem de sekmedeki yönlendirilmiş bağımlılıkları izler.
 
 Paketle gelen yerel geçit VPN değildir; görünen çıkış IP'sini veya ülkeyi değiştirmez. Kullanıcının seçtiği uzak proxy çıkış IP'sini ve konumunu değiştirebilir. Yalnız kullanıcının erişim yetkisi bulunan hedeflerde ve yürürlükteki kurallara uygun kullanılmalıdır.
+
+## İlk erişim ve doğrudan bağlantıya dönüş
+
+Ana gezinmedeki kesin DNS hatasından sonra aynı kontrol tekrarlanmaz. PAC uygulandıktan sonra sabit 250 ms beklenmez; diğer desteklenen ana sayfa kontrolleri en fazla bir saniye sürer. Tarayıcı/işletim sisteminin ilk hatayı üretmesine kadar geçen süre eklentinin kontrolünde değildir. Öğrenme eşikleri ve sertifika doğrulaması korunur.
+
+Yönlendirilmiş HTTPS ana sayfası tamamen yüklendikten sonra, en az 15 dakikalık otomatik rota en sık 15 dakikada bir denetlenebilir. En fazla üç saniyelik, tam hedef adına uygulanan DIRECT kuralı altında, çerez/kimlik bilgisi içermeyen iki yeni HTTPS kök isteği başarılı olmalıdır. Yalnız denenen alan adı kaldırılır; denenmemiş www eş adı yönlendirilir. Sayfa yenilenmez ve dış genel durum servisine istek gönderilmez. Kullanıcının eş zamanlı değişikliği önceliklidir.
+
+Elle seçilen, yalnız HTTP, gömülü/API, WebSocket ve WebSocket kullanımı gözlenen karma rotalar korunur. Başarısız/reddedilmiş kontrol veya kontrol sırasında oluşan kaynak hatası rotayı silmez. Kısa deneme sırasında aynı listelenmiş hedefe açılan yeni bağlantılar geçici olarak doğrudan gidebilir; listelenmemiş hedefler ve diğer proxy rotaları değişmez. Kontrol aralığı servis işçisi yeniden başladığında sıfırlanmaz. [Doğrulama ve sınırlar](tests/ROUTING_PERFORMANCE.md).
 
 ## Arayüz
 
@@ -128,7 +136,6 @@ Paylaşım denetimi, Windows'un hizmete özel güvenlik duvarı kuralını eşle
 
 Hazır geçit, aynı yönlendirilmiş hedefin eş zamanlı şifreli DNS sorgularını birleştirir. Başarılı yanıtları kalan DNS ömrünü aşmadan, en fazla 30 saniye yalnız süreç belleğinde tutar; başarısız yanıtlar önbelleğe alınmaz. Mevcut çözümleyicilerden son başarılı olan önce denenir; böylece her yeni alt kaynak için erişilemeyen çözümleyicide tekrar beklenmez. Ağ değişince bu durum temizlenir. Yalnız yönlendirilmiş bağlantılar hızlandırılır; normal trafik, sistem DNS'i, öğrenme eşikleri ve tam alan adı eşleştirmesi değişmez. Tarayıcının ilk doğrudan denemesinin süresi ağın yanıtına bağlı kalır.
 
-4.18.1 hızlandırması için hazır geçidin çalıştığı bilgisayardaki yardımcıyı güncelleyin; yalnız eklentiyi güncellemek Windows hizmetini değiştirmez. helper/install.cmd tamamlandıktan sonra LAN paylaşımı kullanıyorsanız helper/share.cmd ile yeniden açın. Diğer LAN istemcilerinde ve kendi proxy'sini kullananlarda yerel yardımcı güncellemesi gerekmez.
 
 İçerik filtresi bir engelleme sayfası döndürdüğünde de kendi seçtiğiniz siteyi yönlendirebilirsiniz: o sayfada eklentiyi açın, **Şimdi geçide al** seçeneğine basın ve **Ctrl+F5** ile yenileyin. Bu işlem yalnız o alan adının rotasını değiştirir. Her HTTP hatası veya filtre sayfası otomatik olarak erişim engeli sayılmaz. Cihazdaki güvenlik yazılımı proxy trafiğini de filtreleyebilir; sertifika doğrulaması açık kalır.
 

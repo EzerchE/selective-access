@@ -1,4 +1,4 @@
-# Chrome Web Store listing — 4.18.5
+# Chrome Web Store listing — 4.19.0
 
 Copy each locale into its corresponding listing. Names and short descriptions match the packaged locale catalogues. Preparation is not store approval.
 
@@ -17,6 +17,8 @@ Detects connection errors and routes affected destinations through a proxy you c
 Automatic Access keeps ordinary browsing direct and selectively routes listed destinations through a proxy you choose.
 
 Supported connection errors trigger bounded checks and can teach the extension an affected hostname. You can also route the current site yourself, remove its route, or ignore it to prevent automatic relearning. Rules match exact listed hostnames. Main-page learning may add the conventional www alias; other subdomains are not automatically routed.
+
+After a routed HTTPS page finishes loading, older automatic document routes can receive two short, credential-free direct root checks, at most once per 15 minutes. Two successful responses can return only the checked hostname to direct access. A temporary exact-host direct path lasts at most three seconds. Manual, socket-specific and observed mixed-socket routes stay protected; failed checks or concurrent resource errors keep the route. Unlisted hosts retain their normal path. No page refresh or automatic external global measurement is required.
 
 A WORKING PROXY IS REQUIRED
 Choose your own compatible SOCKS5, SOCKS4, HTTP or HTTPS proxy without username/password authentication, or install the optional Windows gateway from the project repository. No developer-operated remote proxy service is provided. Saving a custom endpoint confirms configuration, not connectivity; its first routed connection tests the endpoint.
@@ -50,6 +52,8 @@ Otomatik Erişim normal gezintiyi doğrudan bağlantıda tutar; yalnız listelen
 
 Desteklenen bağlantı hatalarında sınırlı kontrollerle ilgili alan adını öğrenebilir. Açık siteyi kendiniz yönlendirebilir, listeden çıkarabilir veya yeniden öğrenilmemesi için yoksayabilirsiniz. Kurallar listelenen tam alan adlarına uygulanır. Ana sayfa öğrenilirken geleneksel www eş adı eklenebilir; diğer alt alanlar otomatik yönlendirilmez.
 
+Yönlendirilmiş HTTPS sayfası tamamen yüklendikten sonra, eski otomatik sayfa rotalarında en sık 15 dakikada bir iki kısa, çerez/kimlik bilgisi içermeyen doğrudan kök isteği yapılabilir. İki başarılı yanıt yalnız denenen hedefi doğrudan bağlantıya döndürebilir. Geçici tam alan adı doğrudan yolu en fazla üç saniye sürer. Elle seçilen, WebSocket'e özgü ve WebSocket kullanılan karma rotalar korunur; başarısız kontrol veya eş zamanlı kaynak hatası rotayı silmez. Listelenmemiş hedefler normal yolunda kalır. Sayfa yenilenmez ve otomatik dış genel durum ölçümü yapılmaz.
+
 ÇALIŞAN BİR PROXY GEREKİR
 Kullanıcı adı/parola gerektirmeyen uyumlu SOCKS5, SOCKS4, HTTP veya HTTPS proxy'nizi seçin ya da proje deposundaki isteğe bağlı Windows geçidini kurun. Geliştiricinin işlettiği uzak proxy hizmeti sunulmaz. Özel uç noktayı kaydetmek ayarları doğrular; bağlantının çalışması ilk yönlendirilen istekte anlaşılır.
 
@@ -76,7 +80,7 @@ HTTPS sertifika doğrulaması açık kalır. HTTP/SOCKS aktarımı bağlantı ü
 
 ## Upload assets
 
-- Store upload: dist/automatic-access-4.18.5.zip ONLY, not the repository or helper archive.
+- Store upload: dist/automatic-access-4.19.0.zip ONLY, not the repository or helper archive.
 - Screenshots: assets/store/screenshot-routing.png and assets/store/screenshot-setup.png, 1280×800; optional dark image: assets/store/screenshot-routing-dark.png.
 - Optional promotional tile: assets/store/promo-small.png, 440×280.
 - Store icon: assets/icon-128.png, 128×128.

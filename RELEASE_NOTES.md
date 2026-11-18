@@ -1,3 +1,15 @@
+# Automatic Access 4.19.0 — Faster recovery and smart direct access
+
+Stable release; manifest version 4.19.0. Native helper binaries are unchanged from 4.18.5.
+
+- Remove the duplicate direct-origin check after definitive main-navigation DNS-resolution failure. Apply the route before scheduling an immediate retry; cap other main-page origin checks at one second without changing learning thresholds or TLS validation.
+- After page completion, eligible automatic HTTPS main-page routes older than 15 minutes can receive two bounded direct-root checks. Remove only the exact checked hostname when both succeed; preserve unchecked aliases, manual choices, fresh routes, denied/failed checks and non-document protocol evidence.
+- Expire temporary exact-host DIRECT leases inside the PAC script. Coalesce concurrent checks, persist the check interval across worker restarts, and let concurrent user settings win.
+- Preserve routes when a resource fails during the check or provenance is incomplete. Update EN/TR documentation, privacy disclosures and reviewer instructions.
+- Do not use HTTP-root success to remove WebSocket-specific or observed mixed-socket routes. Existing request-type-matched failure recovery is unchanged. No page refresh, global measurement request, new permission, helper reinstall or site-specific rule is introduced.
+
+Release packages: automatic-access-4.19.0.zip, selective-access-helper-4.19.0.zip and automatic-access-store-materials-4.19.0.zip. No helper reinstall is needed for these extension changes.
+
 # Automatic Access 4.18.5 — Safe automatic LAN readiness
 
 - Keep an enabled LAN supervisor running while its original trusted Private network is unavailable at boot or after a transition. No port is opened until the original interface/address/subnet and firewall guards pass; restore sharing automatically when they return.
