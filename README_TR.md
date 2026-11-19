@@ -2,7 +2,9 @@
 
 # Otomatik Erişim
 
-Bağlantı hatası yaşayan hedefleri öğrenip yalnız açıkça listelenen alan adlarını kullanıcının bilgisayarındaki yerel SOCKS5 uyumluluk geçidine yönlendiren Manifest V3 Chrome eklentisi.
+Otomatik Erişim, Edge ve Chrome için bir tarayıcı eklentisidir. Çalışan bir proxy’yi bir kez seçtikten sonra normal şekilde gezinin. Desteklenen bir bağlantı hatası yeniden deneme koşullarını karşıladığında eklenti ilgili alan adını kendiliğinden öğrenir ve başarısız ana sayfayı proxy üzerinden yeniden açmayı dener. Diğer siteler doğrudan açılmaya devam eder. **Şimdi geçide al** isteğe bağlı bir kısayoldur.
+
+[Microsoft Edge Add-ons mağazasından yükle](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Chrome için GitHub’dan yükle](#kurulum)
 
 Güncel sürüm: **4.19.0** — kararlı. İlk hata sonrası bekleme azaltıldı ve sınırlı doğrudan erişim kontrolleri eklendi. [Sürüm notları](RELEASE_NOTES.md).
 
@@ -20,24 +22,22 @@ Araç çubuğundaki soru işareti, anahtarın kapalı olduğunu değil bir bağl
 
 Erişim hataları çoğu zaman yerel veya ağa özgüdür; buna karşılık yaygın çözümler bütün bağlantıları VPN'e yönlendirmek, cihazın DNS yapılandırmasını değiştirmek ya da tek bir DPI uyumluluk profilini geniş kapsamda uygulamaktır. Bu yaklaşımlar, çözümden etkilenmesi gerekmeyen trafiği de kapsayarak ilgisiz gecikme, gizlilik veya uyumluluk sorunları oluşturabilir.
 
-Otomatik Erişim daha dar bir yol izler: Chrome'daki desteklenen bağlantı hatalarını gözlemler, tam sayfa adresini göndermeden origin'i doğrular ve yalnız etkilenen hedefin rotasını değiştirir. Ana sayfa öğrenildiğinde geleneksel `www` eş adı da listelenir. Diğer alt alanlar için ayrıca hata kanıtı veya elle seçim gerekir; joker kapsam oluşturulmaz. Çalışan diğer bağlantılar normal yolunda kalır.
+Otomatik Erişim daha dar bir yol izler: Edge ve Chrome’daki desteklenen bağlantı hatalarını gözlemler, tam sayfa adresini göndermeden origin'i doğrular ve yalnız etkilenen hedefin rotasını değiştirir. Ana sayfa öğrenildiğinde geleneksel `www` eş adı da listelenir. Diğer alt alanlar için ayrıca hata kanıtı veya elle seçim gerekir; joker kapsam oluşturulmaz. Çalışan diğer bağlantılar normal yolunda kalır.
 
 ## Nasıl çalışır?
 
 ```mermaid
 flowchart LR
-    A[Chrome isteği] --> B{Alan adı daha önce öğrenildi mi?}
+    A[Tarayıcı isteği] --> B{Alan adı yönlendirme listesinde mi?}
     B -->|Evet| F[PAC yalnız listelenen hedefi yönlendirir]
     B -->|Hayır| C{Doğrudan bağlantı çalışıyor mu?}
     C -->|Evet| D[Bağlantı doğrudan kalır]
     C -->|Desteklenen hata| E[Temizlenmiş origin doğrulanır]
     E -->|Erişilebilir| D
-    E -->|Hâlâ erişilemiyor| G[Tam alan adı öğrenilir]
-    G --> F
-    F --> H[Yerel SOCKS5 geçidi]
-    H --> I[Gerekirse güvenli çözümleme]
-    I --> J[Yerel ByeDPI arka geçidi]
-    J --> K[Hedef]
+    E -->|Hâlâ erişilemiyor| G[Tam alan adını otomatik öğren]
+    G --> J[Başarısız ana sayfayı bir kez yeniden dene]
+    J --> F
+    F --> H[Yapılandırılmış proxy]
 ```
 
 Eklenti karar katmanıdır; yerel yardımcı ise taşıma katmanıdır. Eklenti normal trafiği yardımcıya göndermez ve yardımcı HTTPS içeriğinin şifresi çözülmüş hâlini göremez.
@@ -46,12 +46,12 @@ Eklenti karar katmanıdır; yerel yardımcı ise taşıma katmanıdır. Eklenti 
 
 | Yaklaşım | Tipik kapsam | Neyi değiştirir? | Hataya göre otomatik seçim |
 | --- | --- | --- | --- |
-| **Otomatik Erişim** | Chrome'da açıkça listelenen hedefler | Dar kapsamlı PAC ile yerel uyumluluk yoluna yönlendirme | Evet; hata eşikleri ve temizlenmiş doğrudan origin kontrolüyle |
+| **Otomatik Erişim** | Edge ve Chrome’da otomatik öğrenilen veya elle seçilen hedefler | Dar kapsamlı PAC ile yapılandırılmış proxy’ye yönlendirme | Evet; hata eşikleri ve temizlenmiş doğrudan origin kontrolüyle |
 | **Klasik VPN** | Genellikle cihazın veya seçilen uygulamanın tüm trafiği | Ağ rotası ve çoğunlukla görünen çıkış IP'si/konumu | Hayır; hedefin ihtiyacı olmasa da trafik VPN politikasını izler |
 | **Özel DNS / şifreli DNS** | Birçok veya bütün alan adının çözümlemesi | DNS sorgularını hangi çözümleyicinin yanıtladığı | Hayır; DNS tek başına taşıma katmanındaki DPI müdahalesini düzeltemez |
 | **Tek başına ByeDPI** | Yerel proxy'ye elle gönderilen veya harici yapılandırmanın kapsadığı trafik | Paket düzeyindeki bağlantı davranışı | Kendi hedef filtreleri ve koşullu yöntemleri vardır; tarayıcı tespiti/arayüzü yapılandırmaya bağlıdır |
 
-Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çıkış ağı gerektiğinde VPN, çözümleyici gizliliği veya DNS arızalarında özel DNS, düşük seviyeli elle kontrol için bağımsız ByeDPI daha uygun olabilir. Bu proje; normal gezinmenin hiç değişmemesi, yalnız doğrulanmış biçimde başarısız olan Chrome hedeflerinin yerel uyumluluk yolunu kullanması gereken daha dar senaryoya odaklanır.
+Otomatik Erişim bu araçların her senaryodaki yerine geçmez. Farklı bir çıkış ağı gerektiğinde VPN, çözümleyici gizliliği veya DNS arızalarında özel DNS, düşük seviyeli elle kontrol için bağımsız ByeDPI daha uygun olabilir. Bu proje; normal gezinmenin hiç değişmemesi, yalnız doğrulanmış biçimde başarısız olan tarayıcı hedeflerinin yerel uyumluluk yolunu kullanması gereken daha dar senaryoya odaklanır.
 
 ## Temel davranış
 
@@ -96,9 +96,9 @@ Açılır pencere, üzerinde açıldığı sekmeye göre kurgulanmıştır. Tek 
 
 İki hedef listesi tek bir segment denetimini paylaşır; böylece uzun bir yönlendirme listesi yoksayılanları ekrandan itmez. Satır eylemleri kendi erişilebilir adlarını taşıyan simge düğmeleridir: eğik çizgili daire hedefi yoksayılanlara taşır, çarpı şimdilik kaldırır, ok ise yoksayılan bir hedefi geri getirir.
 
-Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: geçit seçimi, kurulu sürüm, kurtarma eylemleri ve debug kaydı. Kullanıcı projenin paketle gelen yerel SOCKS5 geçidini veya kendi kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP ya da HTTPS proxy'sini seçebilir. Seçilen proxy yine yalnız öğrenilen alan adlarında kullanılır; normal trafik doğrudan kalır.
+Günlük akışın dışında kalan her şey tek bir kapalı **Gelişmiş** bölümündedir: geçit seçimi, kurulu sürüm, kurtarma eylemleri ve debug kaydı. Kullanıcı projenin paketle gelen yerel SOCKS5 geçidini veya kendi kimlik doğrulaması gerektirmeyen SOCKS5, SOCKS4, HTTP ya da HTTPS proxy'sini seçebilir. Seçilen proxy, otomatik öğrenilen ve elle seçilen alan adlarında kullanılır. Diğer trafik doğrudan kalır.
 
-Yeni kurulumda eklenti anahtarı açık gelir; ancak kullanıcı paketle gelen yerel geçidi veya özel bir proxy'yi açıkça seçene kadar yönlendirme ve otomatik öğrenme güvenli biçimde bekler. Tek seferlik kurulum sekmesi ve Chrome bildirimi, kullanıcının popup'ı kendiliğinden keşfetmesini beklemeden bu gerekliliği görünür kılar. Kurulum ekranı ve Gelişmiş ayarlar; yapılandırılmamış proxy'yi, çalışan yerel geçidi, eksik/durmuş yerel geçidi, kaydedilmiş özel proxy'yi ve Chrome proxy denetimi çakışmasını birbirinden ayırır. Başarılı yerel sağlık denetimi kurulumun tamamlandığını açıkça söyler ve sekmeyi kapatma eylemi sunar; yerel seçenek yanında kurma ve kaldırma yönergeleri görünür kalır. Özel uç noktanın kaydedildiği, fakat gerçek bağlantının ilk yönlendirilen istekte doğrulanacağı dürüstçe belirtilir. Onboarding kapatılırsa ilk anlamlı ana sayfa bağlantı hatasında bir kurulum hatırlatması daha gösterilir; sonraki hatırlatmalar altı saatlik bekleme süresiyle sınırlandırılır.
+Yeni kurulumda eklenti anahtarı açık gelir; ancak kullanıcı paketle gelen yerel geçidi veya özel bir proxy'yi açıkça seçene kadar yönlendirme ve otomatik öğrenme güvenli biçimde bekler. Tek seferlik kurulum sekmesi ve tarayıcı bildirimi, kullanıcının popup'ı kendiliğinden keşfetmesini beklemeden bu gerekliliği görünür kılar. Kurulum ekranı ve Gelişmiş ayarlar; yapılandırılmamış proxy'yi, çalışan yerel geçidi, eksik/durmuş yerel geçidi, kaydedilmiş özel proxy'yi ve Chrome proxy denetimi çakışmasını birbirinden ayırır. Başarılı yerel sağlık denetimi kurulumun tamamlandığını açıkça söyler ve sekmeyi kapatma eylemi sunar; yerel seçenek yanında kurma ve kaldırma yönergeleri görünür kalır. Özel uç noktanın kaydedildiği, fakat gerçek bağlantının ilk yönlendirilen istekte doğrulanacağı dürüstçe belirtilir. Onboarding kapatılırsa ilk anlamlı ana sayfa bağlantı hatasında bir kurulum hatırlatması daha gösterilir; sonraki hatırlatmalar altı saatlik bekleme süresiyle sınırlandırılır.
 
 Alt bölüm kaynak depoya ve en yeni GitHub sürümüne bağlantı verir. Yerel klasörden yapılan güncellemede Chrome kısa süre eski service worker'ı tutarsa **Eklentiyi yeniden yükle** eylemi, eklentiyi kaldırmadan ve listeleri kaybetmeden yeni kodu etkinleştirir.
 
@@ -106,15 +106,14 @@ Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim 
 
 ## Kurulum
 
-**Microsoft Edge** kullanıyorsanız [Otomatik Erişim’i Microsoft Edge Add-ons mağazasından yükleyin](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf).
+**Microsoft Edge:** [Otomatik Erişim’i Microsoft Edge Add-ons mağazasından yükleyin](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf). Yükleme tamamlanınca kurulum sekmesi kendiliğinden açılır. Proxy’nizi burada seçip kaydedin.
 
 **Windows’ta Google Chrome** için aşağıdaki GitHub kurulum adımlarını izleyin.
 
 1. Depoyu indirin veya klonlayın.
 2. Chrome'da `chrome://extensions` sayfasını açın.
 3. **Geliştirici modu**nu açın ve **Paketlenmemiş öğe yükle** ile proje klasörünü seçin.
-4. `helper/install.cmd` dosyasını **Yönetici olarak çalıştır** seçeneğiyle bir kez çalıştırın.
-5. Eklenti kartındaki yenile simgesine basıp popup anahtarını etkinleştirin.
+4. Kurulum sekmesinde proxy’nizi seçip kaydedin. Hazır Windows geçidini seçerseniz önce `helper/install.cmd` dosyasına sağ tıklayıp **Yönetici olarak çalıştır** seçeneğini kullanın. Kurulum sekmesini kapattıysanız eklentinin **Gelişmiş** bölümündeki proxy ayarlarını açın.
 
 Yönetici izni yalnız Windows hizmetinin kurulması ve kaldırılması için gerekir. Eklenti yenileme veya ayar değişikliği PowerShell, komut penceresi ya da UAC istemi başlatmaz.
 
@@ -143,13 +142,15 @@ Hazır geçit, aynı yönlendirilmiş hedefin eş zamanlı şifreli DNS sorgular
 
 ## Güncelleme
 
+Edge Add-ons üzerinden kurulan eklentiyi Edge günceller. Chrome’da GitHub’dan yüklenen kopyayı güncellemek için aşağıdaki adımları izleyin.
+
 1. Depo dosyalarını güncelleyin.
 2. Popup içindeki Gelişmiş bölümünden **Eklentiyi yeniden yükle** seçeneğini kullanın veya `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
 3. `helper/` içeriği değişmişse `helper/install.cmd` dosyasını yeniden çalıştırın. Kurucu, güncel hizmeti yenilemeden önce yalnız projeye ait eski ağ bileşenlerini güvenle temizler.
 
 ## Kaldırma
 
-1. Eklentiyi Chrome'dan kaldırın.
+1. Eklentiyi Edge veya Chrome’dan kaldırın.
 2. Yerel Windows geçidini kurduysanız `helper/uninstall.cmd` dosyasını yönetici olarak çalıştırın. Eklentiyi kaldırmak Windows hizmetlerini kaldırmaz. Kendi proxy'nizi kullanıyorsanız bu adım gerekmez.
 
 Yalnız yardımcıyı kaldırıp eklentiyi tutacaksanız önce anahtarı kapatın veya başka proxy kaydedin. Çıkarılan proje klasörünü sildiyseniz kaldırıcıyı almak için GitHub kaynak/yardımcı paketini yeniden indirip çıkarın. Hizmet dosyalarını elle silmeyin.
@@ -218,7 +219,7 @@ Denetim; izin-belge uyumunu, hassas veri ve genel hedef adlarını, yasaklı DNS
 
 ## Sınırlar
 
-- Yalnız Chrome trafiğini kapsar.
+- Eklenti, kurulu olduğu Edge veya Chrome profilindeki trafiği kapsar.
 - Gerçek sunucu kesintisini veya internet bağlantısı kaybını düzeltemez.
 - Ağ sağlayıcıları değiştikçe yerel uyumluluk profili güncelleme gerektirebilir.
 - Kaynak kod belirli bir kullanıcıya, cihaza, ağa veya gerçek hedef listesine göre özelleştirilmez.
