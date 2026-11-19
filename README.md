@@ -107,7 +107,9 @@ The popup follows the browser light or dark theme. Every control draws a keyboar
 
 ## Installation
 
-> Windows and Google Chrome are currently supported.
+**Microsoft Edge:** Install [Automatic Access from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf).
+
+**Google Chrome on Windows:** Install from GitHub using the steps below.
 
 1. Download or clone this repository.
 2. Open `chrome://extensions` in Chrome.

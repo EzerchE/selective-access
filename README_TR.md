@@ -106,7 +106,9 @@ Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim 
 
 ## Kurulum
 
-> Şu anda Windows ve Google Chrome desteklenir.
+**Microsoft Edge** kullanıyorsanız [Otomatik Erişim’i Microsoft Edge Add-ons mağazasından yükleyin](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf).
+
+**Windows’ta Google Chrome** için aşağıdaki GitHub kurulum adımlarını izleyin.
 
 1. Depoyu indirin veya klonlayın.
 2. Chrome'da `chrome://extensions` sayfasını açın.
