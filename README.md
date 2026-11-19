@@ -2,7 +2,9 @@
 
 # Automatic Access
 
-A Manifest V3 Chrome extension that learns targets experiencing connection errors and selectively routes only explicitly learned or user-selected hostnames through a local SOCKS5 compatibility gateway.
+Automatic Access is a browser extension for Edge and Chrome. Choose a working proxy once, then browse normally. When a supported connection error qualifies for recovery, the extension automatically learns the affected hostname and retries the failed main page through that proxy. Other sites stay direct. **Route now** is an optional manual override.
+
+[Install from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Install Chrome from GitHub](#installation)
 
 Current version: **4.19.0** — stable. Faster first-failure recovery and bounded direct-access rechecks. See [release notes](RELEASE_NOTES.md).
 
@@ -20,24 +22,22 @@ For 4.18.2, reload/update the extension. The bundled helper is unchanged from 4.
 
 Access failures are often local or network-specific, but the usual response is to redirect every connection through a VPN, replace the device's DNS configuration, or apply one DPI compatibility profile broadly. That increases the amount of traffic affected by a workaround and can introduce unrelated latency, privacy, or compatibility problems.
 
-Automatic Access takes a narrower approach: it observes supported Chrome connection failures, verifies the origin without sending the full page address, learns the exact hostname, and changes routing only for that hostname. Working connections remain on their normal path. This small blast radius is the project's main value: the workaround follows the confirmed failure instead of becoming the default route for the whole browser or system.
+Automatic Access takes a narrower approach: it observes supported connection failures in Edge and Chrome, verifies the origin without sending the full page address, learns the exact hostname, and changes routing only for that hostname. Working connections remain on their normal path. This small blast radius is the project's main value: the workaround follows the confirmed failure instead of becoming the default route for the whole browser or system.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[Chrome request] --> B{Hostname already learned?}
+    A[Browser request] --> B{Hostname listed for routing?}
     B -->|Yes| F[PAC routes this exact hostname]
     B -->|No| C{Direct connection works?}
     C -->|Yes| D[Keep the connection direct]
     C -->|Supported failure| E[Verify the sanitized origin]
     E -->|Reachable| D
-    E -->|Still unavailable| G[Learn the exact hostname]
-    G --> F
-    F --> H[Local SOCKS5 gateway]
-    H --> I[Resolve securely when needed]
-    I --> J[Local ByeDPI backend]
-    J --> K[Destination]
+    E -->|Still unavailable| G[Learn the exact hostname automatically]
+    G --> J[Retry the failed main page once]
+    J --> F
+    F --> H[Configured proxy]
 ```
 
 The extension is the decision layer; the local helper is the transport layer. The extension never sends normal traffic to the helper and the helper cannot see decrypted HTTPS content.
@@ -46,12 +46,12 @@ The extension is the decision layer; the local helper is the transport layer. Th
 
 | Approach | Typical scope | What it changes | Automatic failure-based selection |
 | --- | --- | --- | --- |
-| **Automatic Access** | Explicitly listed hostnames in Chrome | Narrow PAC routing to a local compatibility path | Yes, with thresholds and a sanitized direct-origin check |
+| **Automatic Access** | Automatically learned or manually selected hostnames in Edge and Chrome | Narrow PAC routing through the configured proxy | Yes, with thresholds and a sanitized direct-origin check |
 | **Traditional VPN** | Usually all device or selected-app traffic | Network route and often the visible exit IP/location | No; traffic follows the VPN policy whether the target needs it or not |
 | **Custom DNS / encrypted DNS** | Name resolution for many or all domains | Which resolver answers DNS queries | No; DNS alone cannot repair transport-level DPI interference |
 | **Standalone ByeDPI** | Traffic manually sent to its local proxy or covered by external configuration | Packet-level connection behavior | Own host filters and conditional methods are available; browser detection/UI depends on configuration |
 
-Automatic Access does not replace these tools in every scenario. A VPN is appropriate when a different exit network is required; custom DNS is useful for resolver privacy or resolver failures; and standalone ByeDPI offers lower-level manual control. This project is aimed at the narrower case where normal browsing should remain untouched and only confirmed failing Chrome destinations need a local compatibility route.
+Automatic Access does not replace these tools in every scenario. A VPN is appropriate when a different exit network is required; custom DNS is useful for resolver privacy or resolver failures; and standalone ByeDPI offers lower-level manual control. This project is aimed at the narrower case where normal browsing should remain untouched and only confirmed failing browser destinations need a local compatibility route.
 
 ## Core behavior
 
@@ -97,9 +97,9 @@ The popup is built around the tab it was opened over. One card names that host, 
 
 Both target lists share one segmented control, so a long routed list never pushes the ignored list off screen. Row actions are icon buttons that carry their own accessible names: the slashed circle moves a target to the ignored list, the cross removes it for now, and the arrow restores an ignored target.
 
-Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. Users may select the project's bundled local SOCKS5 gateway or their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy is still used only for learned hostnames; normal traffic remains direct.
+Everything outside that daily loop sits in a single collapsed **Advanced** section: gateway selection, the installed version, recovery actions, and debug logging. Users may select the project's bundled local SOCKS5 gateway or their own unauthenticated SOCKS5, SOCKS4, HTTP, or HTTPS proxy. The selected proxy serves automatically learned and manually selected hostnames. Other traffic remains direct.
 
-On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. A one-time setup tab and a Chrome notification make this requirement visible without requiring the user to discover the popup. The setup screen and Advanced settings distinguish an unconfigured proxy, a running bundled gateway, a missing/stopped bundled gateway, a saved custom proxy, and a Chrome proxy-control conflict. A successful local health check explicitly says setup is complete and offers to close the tab; install and removal instructions remain visible beside the bundled option. Custom endpoints are honestly marked as saved but verified only by their first routed connection. If onboarding is dismissed, the first meaningful main-page connection failure shows one more setup reminder; subsequent reminders are limited by a six-hour cooldown.
+On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. A one-time setup tab and a browser notification make this requirement visible without requiring the user to discover the popup. The setup screen and Advanced settings distinguish an unconfigured proxy, a running bundled gateway, a missing/stopped bundled gateway, a saved custom proxy, and a Chrome proxy-control conflict. A successful local health check explicitly says setup is complete and offers to close the tab; install and removal instructions remain visible beside the bundled option. Custom endpoints are honestly marked as saved but verified only by their first routed connection. If onboarding is dismissed, the first meaningful main-page connection failure shows one more setup reminder; subsequent reminders are limited by a six-hour cooldown.
 
 The footer links to the source repository and latest GitHub release. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
 
@@ -107,15 +107,14 @@ The popup follows the browser light or dark theme. Every control draws a keyboar
 
 ## Installation
 
-**Microsoft Edge:** Install [Automatic Access from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf).
+**Microsoft Edge:** Install [Automatic Access from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf). The setup tab opens automatically after installation. Choose and save your proxy there.
 
 **Google Chrome on Windows:** Install from GitHub using the steps below.
 
 1. Download or clone this repository.
 2. Open `chrome://extensions` in Chrome.
 3. Enable **Developer mode**, select **Load unpacked**, and choose the project folder.
-4. Right-click `helper/install.cmd`, choose **Run as administrator**, and run it once.
-5. Select the reload icon on the extension card, then enable the switch in the popup.
+4. In the setup tab, choose and save your proxy. If you choose the bundled Windows gateway, first right-click `helper/install.cmd` and select **Run as administrator**. If the setup tab was closed, open the proxy settings under **Advanced** in the extension popup.
 
 Administrator permission is required only to install or remove the Windows service. Reloading the extension or changing its settings does not start PowerShell, a command window, or a UAC prompt.
 
@@ -144,14 +143,16 @@ To route a site you choose even when a content filter returns a completed block 
 
 ## Updating
 
+Edge Add-ons installations receive extension updates through Edge. For the unpacked Chrome installation:
+
 1. Update the repository files.
 2. Select **Reload extension** in the popup's Advanced section, or use the reload icon on the extension card at `chrome://extensions`.
 3. If the contents of `helper/` changed, run `helper/install.cmd` again as administrator. The installer safely removes obsolete project-owned network components before updating the current service.
 
 ## Uninstalling
 
-1. Remove the extension from Chrome.
-2. If you installed the bundled Windows gateway, run `helper/uninstall.cmd` as administrator. Removing the Chrome extension alone does not remove Windows services. If you use your own proxy, this step is unnecessary.
+1. Remove the extension from Edge or Chrome.
+2. If you installed the bundled Windows gateway, run `helper/uninstall.cmd` as administrator. Removing the browser extension alone does not remove Windows services. If you use your own proxy, this step is unnecessary.
 
 To keep the extension and only remove the helper, turn the switch off or save another proxy first. If you deleted the extracted project folder, download and extract the current GitHub source/helper package again to obtain the uninstaller. Do not manually delete service files.
 
@@ -217,7 +218,7 @@ The audit checks permission/documentation alignment, sensitive data, public targ
 
 ## Limitations
 
-- Only Chrome traffic is covered.
+- The extension covers traffic in the Edge or Chrome profile where it is installed.
 - It cannot repair a real server outage or loss of internet connectivity.
 - The local compatibility profile may need updates as network behavior changes.
 - The source is not customized for a specific user, device, network, or real target list.
