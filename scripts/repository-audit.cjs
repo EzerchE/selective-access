@@ -20,6 +20,7 @@ const publicHostAllowlist = new Set([
   "github.com",
   "globalping.io",
   "microsoft.net",
+  "microsoftedge.microsoft.com",
   "www.w3.org"
 ]);
 const publicTlds = new Set([
@@ -84,6 +85,15 @@ for (const file of files) {
   if (extension === ".ps1") fail(`PowerShell betigi bulunmamalidir: ${relative(file)}`);
 }
 
+function hasSensitiveData(content) {
+  // A public Edge Add-ons listing URL contains an extension ID by design.
+  const withoutStoreLinks = content.replace(
+    /https:\/\/microsoftedge\.microsoft\.com\/addons\/detail\/[a-p]{32}(?=[\s)>"']|$)/g,
+    ""
+  );
+  return sensitivePatterns.some((pattern) => pattern.test(withoutStoreLinks));
+}
+
 const sensitivePatterns = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /github_pat_[A-Za-z0-9_]{20,}/,
@@ -101,7 +111,7 @@ const sensitivePatterns = [
 for (const file of files) {
   if (binaryExtensions.has(path.extname(file).toLowerCase())) continue;
   const content = fs.readFileSync(file, "utf8");
-  if (sensitivePatterns.some((pattern) => pattern.test(content))) {
+  if (hasSensitiveData(content)) {
     fail(`Olasi hassas veri bulundu: ${relative(file)}`);
   }
   if (unapprovedPublicHosts(content).length > 0) {
@@ -551,7 +561,7 @@ if (process.argv.includes("--history")) {
     const audited = content.split("\n").map((line) =>
       line.startsWith(`${commit}:tests/background.test.cjs:`)
         ? line.replaceAll(legacyFixtureAddress, "fixture-address") : line).join("\n");
-    if (unapprovedPublicHosts(audited).length > 0 || sensitivePatterns.some((pattern) => pattern.test(audited))) {
+    if (unapprovedPublicHosts(audited).length > 0 || hasSensitiveData(audited)) {
       fail(`Git gecmisinde kamuya acik olmamasi gereken veri bulundu: ${commit.slice(0, 12)}`);
     }
   }
@@ -562,7 +572,7 @@ if (process.argv.includes("--history")) {
   // Secret and machine-identifier checks still cover the complete messages.
   const messageProse = messages.split("\n").filter((line) =>
     !/^(?:Co-authored-by:|\S+\s+Generated with \[)/i.test(line)).join("\n");
-  if (unapprovedPublicHosts(messageProse).length > 0 || sensitivePatterns.some((pattern) => pattern.test(messages))) {
+  if (unapprovedPublicHosts(messageProse).length > 0 || hasSensitiveData(messages)) {
     fail("Git commit mesajlarinda kamuya acik olmamasi gereken veri bulundu.");
   }
 }
