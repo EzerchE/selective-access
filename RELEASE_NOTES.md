@@ -1,5 +1,9 @@
 # Automatic Access 4.19.0 — Faster recovery and smart direct access
 
+[Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)
+
+Choose a working proxy once in the setup tab. The optional Windows gateway is available in the helper archive below.
+
 Stable release; manifest version 4.19.0. Native helper binaries are unchanged from 4.18.5.
 
 - Remove the duplicate direct-origin check after definitive main-navigation DNS-resolution failure. Apply the route before scheduling an immediate retry; cap other main-page origin checks at one second without changing learning thresholds or TLS validation.

@@ -14,6 +14,7 @@ const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe
 const publicHostAllowlist = new Set([
   "api.globalping.io",
   "buymeacoffee.com",
+  "chromewebstore.google.com",
   "cloudflare-dns.com",
   "developer.chrome.com",
   "dns.google",
@@ -86,9 +87,9 @@ for (const file of files) {
 }
 
 function hasSensitiveData(content) {
-  // A public Edge Add-ons listing URL contains an extension ID by design.
+  // Public browser-store listing URLs contain extension IDs by design.
   const withoutStoreLinks = content.replace(
-    /https:\/\/microsoftedge\.microsoft\.com\/addons\/detail\/[a-p]{32}(?=[\s)>"']|$)/g,
+    /https:\/\/(?:microsoftedge\.microsoft\.com\/addons\/detail\/|chromewebstore\.google\.com\/detail\/automatic-access\/)[a-p]{32}(?:\?hl=tr)?(?=[\s)>"']|$)/g,
     ""
   );
   return sensitivePatterns.some((pattern) => pattern.test(withoutStoreLinks));

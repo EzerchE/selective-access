@@ -4,7 +4,7 @@
 
 Automatic Access is a browser extension for Edge and Chrome. Choose a working proxy once, then browse normally. When a supported connection error qualifies for recovery, the extension automatically learns the affected hostname and retries the failed main page through that proxy. Other sites stay direct. **Route now** is an optional manual override.
 
-[Install from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Install Chrome from GitHub](#installation)
+[Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Manual installation](#manual-installation)
 
 Current version: **4.19.0** — stable. Faster first-failure recovery and bounded direct-access rechecks. See [release notes](RELEASE_NOTES.md).
 
@@ -107,9 +107,13 @@ The popup follows the browser light or dark theme. Every control draws a keyboar
 
 ## Installation
 
-**Microsoft Edge:** Install [Automatic Access from Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf). The setup tab opens automatically after installation. Choose and save your proxy there.
+[Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)
 
-**Google Chrome on Windows:** Install from GitHub using the steps below.
+The setup tab opens automatically after installation. Choose and save a working proxy there. Use your own compatible proxy or install the optional Windows gateway from the [release downloads](https://github.com/EzerchE/selective-access/releases/latest).
+
+### Manual installation
+
+To load the extension from GitHub in Chrome:
 
 1. Download or clone this repository.
 2. Open `chrome://extensions` in Chrome.
@@ -143,7 +147,7 @@ To route a site you choose even when a content filter returns a completed block 
 
 ## Updating
 
-Edge Add-ons installations receive extension updates through Edge. For the unpacked Chrome installation:
+Chrome Web Store and Edge Add-ons installations update through the browser. To update an unpacked Chrome installation:
 
 1. Update the repository files.
 2. Select **Reload extension** in the popup's Advanced section, or use the reload icon on the extension card at `chrome://extensions`.

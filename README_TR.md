@@ -4,7 +4,7 @@
 
 Otomatik Erişim, Edge ve Chrome için bir tarayıcı eklentisidir. Çalışan bir proxy’yi bir kez seçtikten sonra normal şekilde gezinin. Desteklenen bir bağlantı hatası yeniden deneme koşullarını karşıladığında eklenti ilgili alan adını kendiliğinden öğrenir ve başarısız ana sayfayı proxy üzerinden yeniden açmayı dener. Diğer siteler doğrudan açılmaya devam eder. **Şimdi geçide al** isteğe bağlı bir kısayoldur.
 
-[Microsoft Edge Add-ons mağazasından yükle](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Chrome için GitHub’dan yükle](#kurulum)
+[Chrome’a ekle](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh?hl=tr) · [Edge’e ekle](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Elle kurulum](#elle-kurulum)
 
 Güncel sürüm: **4.19.0** — kararlı. İlk hata sonrası bekleme azaltıldı ve sınırlı doğrudan erişim kontrolleri eklendi. [Sürüm notları](RELEASE_NOTES.md).
 
@@ -106,9 +106,13 @@ Açılır pencere tarayıcının açık veya koyu temasını izler. Her denetim 
 
 ## Kurulum
 
-**Microsoft Edge:** [Otomatik Erişim’i Microsoft Edge Add-ons mağazasından yükleyin](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf). Yükleme tamamlanınca kurulum sekmesi kendiliğinden açılır. Proxy’nizi burada seçip kaydedin.
+[Chrome’a ekle](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh?hl=tr) · [Edge’e ekle](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)
 
-**Windows’ta Google Chrome** için aşağıdaki GitHub kurulum adımlarını izleyin.
+Yükleme tamamlanınca kurulum sekmesi kendiliğinden açılır. Çalışan bir proxy’yi burada seçip kaydedin. Kendi uyumlu proxy’nizi kullanabilir veya [sürüm dosyalarından](https://github.com/EzerchE/selective-access/releases/latest) isteğe bağlı Windows geçidini kurabilirsiniz.
+
+### Elle kurulum
+
+Eklentiyi Chrome’a GitHub’dan yüklemek için:
 
 1. Depoyu indirin veya klonlayın.
 2. Chrome'da `chrome://extensions` sayfasını açın.
@@ -142,7 +146,7 @@ Hazır geçit, aynı yönlendirilmiş hedefin eş zamanlı şifreli DNS sorgular
 
 ## Güncelleme
 
-Edge Add-ons üzerinden kurulan eklentiyi Edge günceller. Chrome’da GitHub’dan yüklenen kopyayı güncellemek için aşağıdaki adımları izleyin.
+Chrome Web Store veya Edge Add-ons üzerinden kurulan eklentiyi tarayıcı günceller. Chrome’da GitHub’dan yüklenen kopyayı güncellemek için aşağıdaki adımları izleyin.
 
 1. Depo dosyalarını güncelleyin.
 2. Popup içindeki Gelişmiş bölümünden **Eklentiyi yeniden yükle** seçeneğini kullanın veya `chrome://extensions` içindeki eklenti kartının yenile simgesine basın.
