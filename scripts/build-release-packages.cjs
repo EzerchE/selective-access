@@ -18,7 +18,7 @@ const helperFiles = [
   "helper/source/SelectiveAccessGateway.cs", "helper/source/SelectiveAccessLanShare.cs"
 ];
 const documents = ["STORE_LISTING.md", "STORE_READINESS.md", "STORE_SUBMISSION.md",
-  "STORE_REVIEWER_GUIDE.md", "PRIVACY.md", "PRIVACY_TR.md"];
+  "STORE_REVIEWER_GUIDE.md", "PRIVACY.md", "PRIVACY_TR.md", "RELEASE_NOTES.md"];
 const materialFiles = ["assets/store/README.md", "assets/store/screenshot-routing.png",
   "assets/store/screenshot-routing-dark.png", "assets/store/screenshot-setup.png",
   "assets/store/promo-small.png", "assets/icon-128.png", ...documents];

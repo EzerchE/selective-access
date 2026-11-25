@@ -311,9 +311,11 @@ function renderDiagnostic(state) {
   const scopedIssue = state.tabIssue?.mainHost === currentHost ? state.tabIssue : null;
   if (scopedIssue) state = { ...state, lastIssueType: "route_failed", lastIssueDomain: scopedIssue.domain };
   const diagnosticHost = scopedIssue?.domain || currentHost;
-  const issueMatches = Boolean(scopedIssue || (currentHost && state.lastIssueDomain === currentHost));
+  const issueMatches = Boolean(scopedIssue || (currentHost && state.lastIssueDomain === currentHost &&
+    state.lastIssueType !== "client_filter_blocked"));
   const globalCheck = state.lastGlobalCheck?.domain === diagnosticHost ? state.lastGlobalCheck : null;
-  elements.diagnosticCard.hidden = !issueMatches && !globalCheck;
+  const showClientFilter = !issueMatches && !globalCheck && Boolean(currentHost && state.clientFilterHost === currentHost);
+  elements.diagnosticCard.hidden = !issueMatches && !globalCheck && !showClientFilter;
   if (elements.diagnosticCard.hidden) return;
 
   elements.diagnosticCard.className = "diag";
@@ -342,8 +344,8 @@ function renderDiagnostic(state) {
     return;
   }
 
-  if (state.lastIssueType === "client_filter_blocked") {
-    elements.checkStatus.textContent = t("reloadWithoutCache");
+  if (showClientFilter) {
+    elements.checkStatus.hidden = true;
     elements.diagnosticPrivacy.hidden = true;
     elements.diagnosticTitle.textContent = t("clientFilterTitle");
     elements.diagnosticText.textContent = t("clientFilterDetail");
@@ -672,18 +674,6 @@ elements.testNotification.addEventListener("click", async () => {
 
 elements.checkStatus.addEventListener("click", async () => {
   if (!currentHost || checkingGlobalStatus) return;
-  if (currentState?.lastIssueType === "client_filter_blocked" && currentState.lastIssueDomain === currentHost) {
-    elements.checkStatus.disabled = true;
-    showNotice("");
-    try {
-      await sendMessage({ type: "reloadTabBypassCache", tabId: currentTabId });
-      window.close();
-    } catch (error) {
-      showNotice(error.message, true);
-      elements.checkStatus.disabled = false;
-    }
-    return;
-  }
   checkingGlobalStatus = true;
   renderDiagnostic(currentState);
   showNotice("");

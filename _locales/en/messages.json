@@ -55,10 +55,10 @@
     "message": "Clear"
   },
   "clientFilterDetail": {
-    "message": "A first-party application file was blocked by another content filter. Check the site exception, then reload without using the broken cache."
+    "message": "The browser reported blocked requests for several resources from this site. The page may still work. If a feature is missing, check the browser's content filter settings for this site."
   },
   "clientFilterTitle": {
-    "message": "A browser filter stopped the application"
+    "message": "Some site resources were blocked"
   },
   "connectionIssue": {
     "message": "Connection issue"
@@ -256,9 +256,6 @@
   "reloadRequired": {
     "message": "The extension must be reloaded"
   },
-  "reloadWithoutCache": {
-    "message": "Reload without cache"
-  },
   "removeDomain": {
     "message": "Remove $1"
   },
@@ -332,9 +329,6 @@
   },
   "supportButton": {
     "message": "Buy me a coffee"
-  },
-  "tabNotFound": {
-    "message": "The tab to reload was not found."
   },
   "testNotification": {
     "message": "Test notification"

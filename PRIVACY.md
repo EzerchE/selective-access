@@ -1,6 +1,6 @@
 # Privacy policy — Automatic Access
 
-Updated: 18 November 2026 · Version 4.19.1
+Updated: 25 November 2026 · Version 4.19.2
 
 [Türkçe](PRIVACY_TR.md)
 

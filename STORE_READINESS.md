@@ -1,15 +1,15 @@
-# Chrome Web Store preparation — 4.19.1
+# Chrome Web Store preparation — 4.19.2
 
-Prepared 18 November 2026. Submission materials are prepared; publisher-account actions and store review have not been completed by this work. No store approval is claimed.
+Prepared 25 November 2026. Submission materials are prepared; publisher-account actions and store review have not been completed by this work. No store approval is claimed.
 
 ## Submission bundle
 
-- Upload only dist/automatic-access-4.19.1.zip, not the repository or helper archive.
+- Upload only dist/automatic-access-4.19.2.zip, not the repository or helper archive.
 - STORE_LISTING.md: English/Turkish descriptions, public links and assets.
 - STORE_SUBMISSION.md: single purpose, permission reasons, remote-code answer, conservative data-use declarations and owner-only account fields.
 - STORE_REVIEWER_GUIDE.md: copy-ready tests, proxy/helper prerequisites and removal.
 - PRIVACY.md / PRIVACY_TR.md: public recipients, retention and Limited Use notices.
-- automatic-access-store-materials-4.19.1.zip: documents, screenshots, promo tile and icon, separate from the runtime ZIP.
+- automatic-access-store-materials-4.19.2.zip: documents, screenshots, promo tile and icon, separate from the runtime ZIP.
 
 ## Included behavior
 
@@ -25,7 +25,7 @@ Prepared 18 November 2026. Submission materials are prepared; publisher-account 
 
 ## Verification and limits
 
-4.19.1 adds browser-native update checks, suppresses learning when the browser reports it is offline, and can recheck direct HTTPS access after an automatic route fails. Manual/socket guards, PAC expiry and concurrent user/resource-error races have regression coverage. Resolver tests contain 28 checks and LAN tests contain 294 assertions. Release checks include syntax, required regressions, repository/history privacy audit, store-document version/filename checks, ZIP/manifest integrity and graphic dimensions.
+4.19.2 keeps resource-block notices in the affected tab’s popup. Regression tests cover duplicate resource requests, tab isolation, toolbar badge behavior and removal of legacy filter badges. Release checks cover runtime syntax, regressions, repository privacy, store-document versions, upload filenames and ZIP integrity.
 
 Historical live validation on 2026-11-12 covered administrator installation, scoped firewall matching, ON/OFF cleanup, Public-profile shutdown and second-computer browser/TCP access. Installed-helper health and routed resolution were checked. The computer was not rebooted; automatic-start configuration was verified. Follow-up native lifecycle/readiness checks on 2026-11-16 passed, including unavailable-binding startup without a listener and restoration of the original binding. These are earlier live results, not a new full reboot or a live multi-device latency benchmark. See tests/LAN_VALIDATION.md and tests/GATEWAY_PERFORMANCE.md.
 
@@ -37,7 +37,7 @@ Run runtime syntax and background, popup, migration, resolver, LAN, localization
 
 ## Publisher-only Dashboard actions
 
-Enter verified contact details, complete account security, choose the applicable legal/trader declarations and distribution regions, and select a category available in the current Dashboard. Review the prepared data-category mapping against the form, add the public privacy URL, upload automatic-access-4.19.1.zip and graphics, and submit for review. Local hostname processing is still data handling; do not certify that no data is handled. Personal/legal account facts are not inferred or stored in the repository.
+Enter verified contact details, complete account security, choose the applicable legal/trader declarations and distribution regions, and select a category available in the current Dashboard. Review the prepared data-category mapping against the form, add the public privacy URL, upload automatic-access-4.19.2.zip and graphics, and submit for review. Local hostname processing is still data handling; do not certify that no data is handled. Personal/legal account facts are not inferred or stored in the repository.
 
 No Dashboard submission is performed by release scripts. Signing the optional native helper is recommended for publisher trust but is not represented as a universal extension-store requirement.
 

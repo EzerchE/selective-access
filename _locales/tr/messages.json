@@ -55,10 +55,10 @@
     "message": "Temizle"
   },
   "clientFilterDetail": {
-    "message": "İlk taraf uygulama dosyası başka bir içerik filtresi tarafından engellendi. Site istisnasını kontrol ettikten sonra bozuk önbelleği kullanmadan yeniden yükleyin."
+    "message": "Tarayıcı, bu siteye ait birkaç kaynağın engellendiğini bildirdi. Sayfa yine de çalışabilir. Bir özellik çalışmıyorsa tarayıcının bu siteye ilişkin içerik filtresi ayarlarını kontrol edin."
   },
   "clientFilterTitle": {
-    "message": "Tarayıcı filtresi uygulamayı durdurdu"
+    "message": "Sitenin bazı kaynakları engellendi"
   },
   "connectionIssue": {
     "message": "Bağlantı sorunu"
@@ -256,9 +256,6 @@
   "reloadRequired": {
     "message": "Eklentinin yeniden yüklenmesi gerekiyor"
   },
-  "reloadWithoutCache": {
-    "message": "Önbelleksiz yenile"
-  },
   "removeDomain": {
     "message": "$1 hedefini kaldır"
   },
@@ -332,9 +329,6 @@
   },
   "supportButton": {
     "message": "Bir kahve ısmarla"
-  },
-  "tabNotFound": {
-    "message": "Yenilenecek sekme bulunamadı."
   },
   "testNotification": {
     "message": "Bildirimi test et"

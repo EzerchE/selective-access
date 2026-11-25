@@ -1,4 +1,4 @@
-# Browser store listings — 4.19.1
+# Browser store listings — 4.19.2
 
 Copy each locale into its corresponding listing. Names and short descriptions match the packaged locale catalogues. Preparation is not store approval.
 
@@ -104,7 +104,7 @@ Chrome’da bir site açılmıyor veya erişim engeliyle karşılaşıyor musunu
 
 ## Upload assets
 
-- Store upload: dist/automatic-access-4.19.1.zip ONLY, not the repository or helper archive.
+- Store upload: dist/automatic-access-4.19.2.zip ONLY, not the repository or helper archive.
 - Screenshots: assets/store/screenshot-routing.png and assets/store/screenshot-setup.png, 1280×800; optional dark image: assets/store/screenshot-routing-dark.png.
 - Optional promotional tile: assets/store/promo-small.png, 440×280.
 - Store icon: assets/icon-128.png, 128×128.

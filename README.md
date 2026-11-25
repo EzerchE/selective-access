@@ -6,11 +6,11 @@ Automatic Access is a browser extension for Edge and Chrome. Choose a working pr
 
 [Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Manual installation](#manual-installation)
 
-Current version: **4.19.1** — stable. Browser-native update checks and direct recovery when an automatic route fails. See [release notes](RELEASE_NOTES.md).
+Current version: **4.19.2**. Resource-block notices are scoped to the affected tab and leave the toolbar badge alone. See [release notes](RELEASE_NOTES.md).
 
 LAN sharing stays enabled across host restarts. Its supervisor waits without listening while the original interface/address/subnet or Private firewall is unavailable, then resumes automatically when that same safe binding returns. Unsafe transitions close the listener and active sessions; OFF/uninstall removes the supervisor and cannot auto-resume. If the selected address changes permanently, select ON once to bind the new trusted address. Helper updates still start sharing OFF.
 
-Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.19.1.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
+Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.19.2.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
 

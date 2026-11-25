@@ -1,6 +1,6 @@
-# Reviewer test instructions — 4.19.1
+# Reviewer test instructions — 4.19.2
 
-Upload: automatic-access-4.19.1.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
+Upload: automatic-access-4.19.2.zip. No product account, subscription, credential or license key is required. A working proxy is needed to test traffic routing; no developer-operated public test proxy is provided.
 
 ## Copy-ready reviewer instructions
 
@@ -15,6 +15,10 @@ Upload: automatic-access-4.19.1.zip. No product account, subscription, credentia
 9. Optional Windows path: download/extract the complete helper archive from the latest release. Run helper/install.cmd as administrator. Select Bundled local gateway and Check again. A healthy loopback endpoint returns HTTP 204 and setup can finish. This native installation is separate from, and excluded from, the store ZIP.
 10. Optional LAN path: on the helper host run helper/share.cmd, choose ON and approve elevation. Only eligible trusted Private IPv4 Ethernet/Wi-Fi networks with an enabled firewall are accepted. Another same-subnet computer selects Custom proxy → SOCKS5 with the displayed host and port 1082; it needs no local helper. Keep the host running. OFF removes the dedicated relay/rule while retaining the loopback helper. Public/Domain/mixed profiles are refused; profile/address changes close the relay connections; the enabled supervisor waits and resumes only when the original eligible binding returns. OFF/uninstall prevents automatic resumption. Do not configure router port forwarding.
 11. To remove the helper, switch the extension off or select another proxy, then run helper/uninstall.cmd as administrator. Removing the extension alone does not remove Windows services. If the folder was deleted, download/extract the helper again to obtain the uninstaller. Independently chosen proxies are not installed or removed by the extension.
+
+## Resource-block diagnostic
+
+In a controlled page that finishes loading, block a first-party script and trigger another request for the same path with a different query string. There should be no filter notice. Block a second distinct resource from the same site within ten seconds. The affected tab’s popup should show a resource-block notice with no reload action. The toolbar badge and proxy route list should be unaffected. Navigate again to clear the notice.
 
 ## Automatic recovery checks
 
