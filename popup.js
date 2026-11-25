@@ -35,6 +35,10 @@ const elements = {
   diagnosticPrivacy: document.querySelector("#diagnosticPrivacy"),
   testNotification: document.querySelector("#testNotification"),
   reloadExtension: document.querySelector("#reloadExtension"),
+  githubUpdates: document.querySelector("#githubUpdates"),
+  checkUpdates: document.querySelector("#checkUpdates"),
+  applyUpdate: document.querySelector("#applyUpdate"),
+  updateStatus: document.querySelector("#updateStatus"),
   debugEnabled: document.querySelector("#debugEnabled"),
   debugControls: document.querySelector("#debugControls"),
   debugLog: document.querySelector("#debugLog"),
@@ -517,6 +521,46 @@ elements.finishSetup.addEventListener("click", () => window.close());
 
 elements.reloadExtension.addEventListener("click", () => chrome.runtime.reload());
 
+async function configureUpdateControls() {
+  if (!chrome.management?.getSelf || !chrome.runtime.requestUpdateCheck) return;
+  try {
+    const extension = await chrome.management.getSelf();
+    if (extension.installType !== "normal") return;
+    elements.githubUpdates.hidden = true;
+    elements.checkUpdates.hidden = false;
+  } catch {
+    // Keep the release link when the browser cannot determine the source.
+  }
+}
+
+elements.checkUpdates.addEventListener("click", async () => {
+  if (elements.checkUpdates.disabled) return;
+  elements.checkUpdates.disabled = true;
+  elements.applyUpdate.hidden = true;
+  elements.updateStatus.textContent = t("updateChecking");
+  try {
+    const status = await new Promise((resolve, reject) => {
+      chrome.runtime.requestUpdateCheck((result) => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve(result);
+      });
+    });
+    const messages = {
+      no_update: "updateCurrent",
+      throttled: "updateThrottled",
+      update_available: "updateAvailable"
+    };
+    elements.updateStatus.textContent = t(messages[status] || "updateFailed");
+    elements.applyUpdate.hidden = status !== "update_available";
+  } catch {
+    elements.updateStatus.textContent = t("updateFailed");
+  } finally {
+    elements.checkUpdates.disabled = false;
+  }
+});
+elements.applyUpdate.addEventListener("click", () => chrome.runtime.reload());
+
 // The background learns targets on its own while the popup is open, and the
 // popup used to show whatever it read when it opened. These are the stored keys
 // that change what it renders; debugLog is left out because it is written in
@@ -668,6 +712,7 @@ if (onboardingMode) document.body.classList.add("onboarding");
   // getManifest is synchronous in the extension; the development preview reads
   // the manifest over fetch, so the version is written once that has settled.
   elements.appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+  void configureUpdateControls();
 
   if (previewMode) {
     if (previewMode === "store" || previewMode === "setup") {

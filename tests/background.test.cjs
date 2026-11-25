@@ -312,7 +312,12 @@ const fetch = async (url, options = {}) => {
       if (delayedProbeHosts.has(host)) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      if (directlyReachableHosts.has(host)) return { ok: true, status: directProbeStatuses.get(host) || 204 };
+      if (directlyReachableHosts.has(host)) {
+        const status = directProbeStatuses.get(host) || 204;
+        return status === 301 && options.redirect === "manual"
+          ? { status: 0, type: "opaqueredirect" }
+          : { ok: true, status };
+      }
       throw new Error("direct probe failed");
     } finally {
       activeDirectProbes -= 1;
@@ -383,11 +388,13 @@ const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf
 // through onStartup does not work: it runs applyProxy first, which widens the
 // window so far that the operation under test has already finished.
 let workerGlobal = null;
+const workerNavigator = { onLine: true };
 
 function startWorker() {
   workerGlobal = {
     chrome, console, URL, Map, Set, Promise, JSON, fetch,
     AbortController, clearTimeout,
+    navigator: workerNavigator,
     Date: ScaledDate,
     setTimeout: scaledSetTimeout
   };
@@ -2607,6 +2614,68 @@ async function waitForDebugFlush() {
   await new Promise(resolve=>setTimeout(resolve,950));
   assert.equal(reloads.length,beforeProxyFailureReloads,"offline custom proxy must not trigger futile direct navigation or startup retries");
   assert.equal(await workerGlobal.selectedProxyAvailable({proxyMode:"custom"}),null,"configured custom proxy health is unknown");
+
+  // A known client outage must not teach a site, even if Chrome reports DNS.
+  const outage = { tabId: 411, type: "main_frame", url: "https://outage.example/path" };
+  const outageReloads = reloads.length;
+  const outageProbes = directProbeUrls.length;
+  workerNavigator["onLine"] = false;
+  await listeners.requestError({ ...outage, error: "net::ERR_NAME_NOT_RESOLVED" });
+  workerNavigator["onLine"] = true;
+  await listeners.requestError({ ...outage, error: "net::ERR_INTERNET_DISCONNECTED" });
+  assert.equal(storage.learnedDomains.includes("outage.example"), false);
+  assert.equal(reloads.length, outageReloads);
+  assert.equal(directProbeUrls.length, outageProbes);
+
+  // A hotspot can be online locally while the proxy on another machine is
+  // unreachable. Keep the route until the exact hostname answers directly.
+  const hotspot = { tabId: 412, type: "main_frame", url: "https://hotspot.example/path?fixture=private" };
+  tabUrls.set(hotspot.tabId, hotspot.url);
+  await send({type:"saveSettings",patch:{learnedDomains:["hotspot.example","www.hotspot.example","manual-hotspot.example"]}});
+  await workerGlobal.markAutoRouteOrigin("hotspot.example", "main_frame", logicalNow());
+  const hotspotReloads = reloads.length;
+  const hotspotProbes = directProbeUrls.length;
+  directProbeStatuses.set("hotspot.example", 301);
+  setClockScale(100);
+  try {
+    await listeners.requestError({ ...hotspot, error: "net::ERR_PROXY_CONNECTION_FAILED" });
+    assert.equal(reloads.length, hotspotReloads, "no reload while both paths fail");
+    assert.ok(storage.learnedDomains.includes("hotspot.example"));
+    assert.equal(evaluatePac(proxyConfig.pacScript.data)(hotspot.url, "hotspot.example"), "SOCKS5 proxy.example:1082");
+    directlyReachableHosts.add("hotspot.example");
+    await new Promise(resolve => setTimeout(resolve, 130));
+    assert.deepEqual(directProbeUrls.slice(hotspotProbes), Array(3).fill("https://hotspot.example/"));
+    assert.deepEqual([...storage.learnedDomains], ["manual-hotspot.example","www.hotspot.example"]);
+    assert.equal(reloads.length, hotspotReloads + 1, "the failed tab retries once after verified direct recovery");
+    assert.equal(reloads.at(-1).tabId, hotspot.tabId);
+  } finally {
+    directProbeStatuses.delete("hotspot.example");
+    directlyReachableHosts.delete("hotspot.example");
+    setClockScale(1);
+  }
+
+  const dropped = { tabId: 413, type: "main_frame", url: "https://reconnected.example/" };
+  tabUrls.set(dropped.tabId, dropped.url);
+  await send({type:"saveSettings",patch:{learnedDomains:["reconnected.example"]}});
+  await workerGlobal.markAutoRouteOrigin("reconnected.example", "main_frame", logicalNow());
+  const droppedProbes = directProbeUrls.length;
+  const droppedReloads = reloads.length;
+  setClockScale(80);
+  try {
+    workerNavigator["onLine"] = false;
+    await listeners.requestError({ ...dropped, error: "net::ERR_INTERNET_DISCONNECTED" });
+    assert.equal(directProbeUrls.length, droppedProbes, "do not probe a known offline network");
+    workerNavigator["onLine"] = true;
+    directlyReachableHosts.add("reconnected.example");
+    await new Promise(resolve => setTimeout(resolve, 160));
+    assert.deepEqual(directProbeUrls.slice(droppedProbes), Array(2).fill(dropped.url));
+    assert.deepEqual([...storage.learnedDomains], []);
+    assert.equal(reloads.length, droppedReloads + 1);
+  } finally {
+    workerNavigator["onLine"] = true;
+    directlyReachableHosts.delete("reconnected.example");
+    setClockScale(1);
+  }
 
   // First-navigation DNS failure already proves that direct resolution failed:
   // no duplicate origin request or fixed post-PAC delay is necessary.

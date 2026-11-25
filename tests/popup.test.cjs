@@ -67,7 +67,9 @@ class FakeElement {
 function buildDocument() {
   const byId = new Map();
   for (const match of popupHtml.matchAll(/\bid="([A-Za-z0-9_-]+)"/g)) {
-    byId.set(match[1], new FakeElement("div"));
+    const element = new FakeElement("div");
+    element.hidden = /\bhidden\b/.test(popupHtml.slice(match.index, popupHtml.indexOf(">", match.index)));
+    byId.set(match[1], element);
   }
   return {
     documentElement: new FakeElement("html"),
@@ -94,6 +96,9 @@ function createContext(options = {}) {
   let currentState = options.state;
 
   const chrome = {
+    management: options.installType && {
+      async getSelf() { return { installType: options.installType }; }
+    },
     i18n: {
       getMessage(key, substitutions) {
         const template = messages[key] && messages[key].message;
@@ -113,6 +118,8 @@ function createContext(options = {}) {
     },
     runtime: {
       getManifest: () => ({ version: "4.11.12" }),
+      requestUpdateCheck: options.requestUpdateCheck,
+      reload: options.reload,
       async sendMessage(message) {
         sent.push(message);
         if (message.type === "getTabContext") {
@@ -256,6 +263,40 @@ function lastSavePatch(sent) {
 }
 
 (async () => {
+  for (const [status, message] of [
+    ["no_update", "updateCurrent"], ["throttled", "updateThrottled"], ["update_available", "updateAvailable"]
+  ]) {
+    let checks = 0;
+    let reloads = 0;
+    const { document } = createContext({
+      state: baseState(), installType: "normal",
+      requestUpdateCheck(callback) { checks++; callback(status); },
+      reload() { reloads++; }
+    });
+    await settle();
+    const check = document.querySelector("#checkUpdates");
+    const apply = document.querySelector("#applyUpdate");
+    assert.equal(check.hidden, false);
+    assert.equal(document.querySelector("#githubUpdates").hidden, true);
+    assert.equal(checks, 0, "the native update check only runs when clicked");
+    check.dispatch("click");
+    await settle();
+    assert.equal(checks, 1);
+    assert.equal(document.querySelector("#updateStatus").textContent, messages[message].message);
+    assert.equal(apply.hidden, status !== "update_available");
+    if (!apply.hidden) apply.dispatch("click");
+    assert.equal(reloads, status === "update_available" ? 1 : 0);
+  }
+  {
+    const { document } = createContext({
+      state: baseState(), installType: "development",
+      requestUpdateCheck() { assert.fail("Unpacked installs must use GitHub releases"); }
+    });
+    await settle();
+    assert.equal(document.querySelector("#checkUpdates").hidden, true);
+    assert.equal(document.querySelector("#githubUpdates").hidden, false);
+  }
+
   // popup.html and popup.js must agree on every control the popup drives.
   {
     const { document } = createContext({ state: baseState() });

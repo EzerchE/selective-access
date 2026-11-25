@@ -806,14 +806,30 @@ main {
   margin-bottom: 8px;
 }
 
-.project-links a {
+.project-links a,
+.project-links button {
   color: var(--text-2);
   font-size: 10.5px;
   font-weight: 650;
   text-decoration: none;
 }
 
-.project-links a:hover { color: var(--accent); }
+.project-links button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.project-links button:disabled { cursor: default; }
+.project-links a:hover,
+.project-links button:not(:disabled):hover { color: var(--accent); }
+
+.update-status:not(:empty) {
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 11px;
+}
 
 /* Buy Me a Coffee brand colours, deliberately fixed in both themes: a themed
    version of this button stops reading as the one people recognise. The card
