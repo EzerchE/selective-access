@@ -6,11 +6,11 @@ Otomatik Erişim, Edge ve Chrome için bir tarayıcı eklentisidir. Çalışan b
 
 [Chrome’a ekle](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh?hl=tr) · [Edge’e ekle](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Elle kurulum](#elle-kurulum)
 
-Güncel sürüm: **4.19.1** — kararlı. Mağaza güncellemeleri tarayıcıdan kontrol edilebilir. Başarısız otomatik proxy rotalarında doğrudan erişim yeniden sınanır. [Sürüm notları](RELEASE_NOTES.md).
+Güncel sürüm: **4.19.2**. Engellenen kaynaklara ilişkin bilgi yalnız ilgili sekmenin eklenti panelinde gösterilir. [Sürüm notları](RELEASE_NOTES.md).
 
 AÇIK bırakılan LAN paylaşımı bilgisayar yeniden başladığında korunur. Hizmet, seçilmiş aynı arayüz/IP/alt ağ ve Özel güvenlik duvarı hazır olana kadar port açmadan bekler; aynı güvenli bağlama geri gelince otomatik devam eder. Güvensiz geçişte dinleyici ve etkin bağlantılar kapanır. KAPAT/kaldırma hizmeti siler; kendiliğinden açılmaz. Seçilen IP kalıcı değişirse yeni güvenilir adresi bağlamak için bir kez AÇ seçin. Yardımcı güncellemesi paylaşımı yine KAPALI başlatır.
 
-Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.19.1.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
+Mağaza hazırlığı: [iki dilde ilan](STORE_LISTING.md), [başvuru alanları ve veri beyanları](STORE_SUBMISSION.md), [incelemeci talimatları](STORE_REVIEWER_GUIDE.md) ve [doğrulama/hesap adımları](STORE_READINESS.md). Yüklenecek eklenti automatic-access-4.19.2.zip dosyasıdır; yardımcı ve mağaza materyali ZIP'leri ayrıdır. Belgelerin hazırlanması mağazaya başvuru veya onay anlamına gelmez.
 
 <img src="assets/store/screenshot-routing.png" alt="Otomatik Erişim temel arayüzü: seçici yönlendirme ve proxy kurulumu" width="620">
 

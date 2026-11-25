@@ -643,6 +643,15 @@ function lastSavePatch(sent) {
     assert.equal(document.querySelector("#diagnosticPrivacy").hidden,true);
   }
 
+  {
+    const { document } = createContext({ state: baseState({ clientFilterHost: "portal.example" }) });
+    await settle();
+    assert.equal(document.querySelector("#diagnosticCard").hidden, false);
+    assert.equal(document.querySelector("#diagnosticTitle").textContent, messages.clientFilterTitle.message);
+    assert.equal(document.querySelector("#checkStatus").hidden, true);
+    assert.equal(document.querySelector("#diagnosticPrivacy").hidden, true);
+  }
+
   // The debug panel follows the stored flag and renders stored entries.
   {
     const { document } = createContext({

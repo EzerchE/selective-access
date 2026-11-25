@@ -127,7 +127,8 @@ const gatewayRetryStates = new Map();
 const directRecoveryTrials = new SessionMap();
 const directRecoveryCooldowns = new SessionMap();
 const tabRecoveryStates = new SessionMap();
-const clientFilterCandidates = new SessionMap();
+const clientFilterCandidates = new Map();
+const tabClientFilterHosts = new SessionMap();
 const iframeRetryTimers = new Map();
 const slowLoadWatchdogs = new Map();
 const pendingLearnedNotifications = new Set();
@@ -188,9 +189,7 @@ const CRITICAL_CLIENT_FILTER_TYPES = new Set([
   "websocket",
   "worker"
 ]);
-const CLIENT_FILTER_WARNING_HOLD_MS = 15_000;
 const CLIENT_FILTER_CANDIDATE_WINDOW_MS = 10_000;
-const CLIENT_FILTER_WARNING_THRESHOLD = 2;
 const SLOW_PAGE_THRESHOLD_MS = 12_000;
 const SLOW_PAGE_ISSUE_HOLD_MS = 5 * 60_000;
 const SLOW_WAIT_NOTIFICATION_PREFIX = "slow-wait:";
@@ -258,24 +257,24 @@ const SESSION_MAPS = Object.freeze({
   tabRoutedHosts,
   detectionCandidates,
   tabRecoveryStates,
-  clientFilterCandidates,
+  tabClientFilterHosts,
   directRecoveryTrials,
   directRecoveryCooldowns
 });
 // tabRoutedHosts holds a Set per tab; the rest hold plain values.
 const SESSION_SET_MAPS = new Set(["tabRoutedHosts"]);
 // The tab-keyed maps are cleaned by tabs.onRemoved, which wakes the worker, so
-// they cannot accumulate. These four are bounded by a deadline instead, and a
+// they cannot accumulate. These three are bounded by a deadline instead, and a
 // deadline that passed while the worker was down would otherwise be restored
 // and carried around until something happened to touch that exact key.
 const SESSION_TTL_MS = Object.freeze({
   detectionCandidates: CANDIDATE_WINDOW_MS,
   retryCooldowns: 60_000,
-  clientFilterCandidates: CLIENT_FILTER_CANDIDATE_WINDOW_MS,
   directRecoveryCooldowns: DIRECT_RECOVERY_COOLDOWN_MS
 });
 
 function sessionEntryExpired(name, value, now) {
+  if (name === "tabIssues" && value === "client_filter_blocked") return true;
   if (name === "tabRecoveryStates") {
     return !Number.isFinite(value?.expiresAt) || now > value.expiresAt;
   }
@@ -1048,6 +1047,7 @@ async function getPublicState(tabId = null) {
       mainHost: tabMainHosts.get(tabId) || null,
       tabId
     } : null,
+    clientFilterHost: settings.enabled ? tabClientFilterHosts.get(tabId) || null : null,
     debugLog: Array.isArray(stored.debugLog) ? stored.debugLog : [],
     levelOfControl: proxyState.levelOfControl,
     effectiveMode: proxyState.value?.mode ?? "unknown"
@@ -2033,37 +2033,32 @@ async function recordCriticalClientFilter(details) {
   const initiatorHost = details.initiator
     ? getRequestHost({ url: details.initiator })
     : null;
-  if (!host || !initiatorHost || host !== initiatorHost) return;
-  if (tabIssues.get(details.tabId) === "client_filter_blocked") return;
+  if (!host || host !== initiatorHost) return;
 
   const settings = await getSettings();
-  if (!settings.enabled) return;
+  const mainHost = tabMainHosts.get(details.tabId);
+  if (!settings.enabled || (mainHost && mainHost !== host) ||
+      details.navigation !== tabNavigationEpochs.get(details.tabId) ||
+      tabClientFilterHosts.get(details.tabId) === host) return;
+
   const now = Date.now();
+  const { origin, pathname } = new URL(details.url);
+  // Keep resource identities in memory only. Query changes do not make a retry a second resource.
+  const resource = origin + pathname;
   const previous = clientFilterCandidates.get(details.tabId);
-  const candidate = previous && previous.host === host && now - previous.at <= CLIENT_FILTER_CANDIDATE_WINDOW_MS
-    ? { host, at: now, count: previous.count + 1 }
-    : { host, at: now, count: 1 };
-  clientFilterCandidates.set(details.tabId, candidate);
-  await appendDebug("client-filter-candidate", {
-    tabId: details.tabId,
-    requestType: details.type,
-    count: candidate.count,
-    required: CLIENT_FILTER_WARNING_THRESHOLD
-  });
-  if (candidate.count < CLIENT_FILTER_WARNING_THRESHOLD) return;
+  if (!previous || previous.host !== host || now - previous.at > CLIENT_FILTER_CANDIDATE_WINDOW_MS) {
+    if (clientFilterCandidates.size >= 256) clientFilterCandidates.delete(clientFilterCandidates.keys().next().value);
+    clientFilterCandidates.set(details.tabId, { host, at: now, resource });
+    return appendDebug("client-filter-candidate", { tabId: details.tabId, requestType: details.type });
+  }
+  if (previous.resource === resource) return;
+
   clientFilterCandidates.delete(details.tabId);
-  await chrome.storage.local.set({
-    lastIssueType: "client_filter_blocked",
-    lastIssueDomain: initiatorHost,
-    lastIssueError: "ERR_BLOCKED_BY_CLIENT",
-    lastIssueAt: new Date().toISOString(),
-    lastGlobalCheck: null
-  });
-  await appendDebug("client-filter-blocked-critical", {
+  tabClientFilterHosts.set(details.tabId, host);
+  await appendDebug("client-filter-resources-blocked", {
     tabId: details.tabId,
     requestType: details.type
   });
-  await setIssueBadge(true, "client_filter_blocked", details.tabId);
 }
 
 // A route is learned from a single failure, which is what keeps a DNS-blocked
@@ -2705,12 +2700,6 @@ async function clearIssueAfterSuccess(details) {
     settings = { ...settings, lastProxyError: null };
   }
   const issueTime = Date.parse(settings.lastIssueAt || "");
-  const recentClientFilterIssue =
-    host &&
-    settings.lastIssueType === "client_filter_blocked" &&
-    settings.lastIssueDomain === host &&
-    Number.isFinite(issueTime) &&
-    Date.now() - issueTime < CLIENT_FILTER_WARNING_HOLD_MS;
   const recentSlowPageIssue =
     host &&
     settings.lastIssueType === "slow_loading" &&
@@ -2721,11 +2710,6 @@ async function clearIssueAfterSuccess(details) {
 
   if (directRecoveryTrials.has(details.tabId)) {
     await setIssueBadge(settings.enabled, "direct_recovery", details.tabId);
-    return;
-  }
-
-  if (recentClientFilterIssue) {
-    await setIssueBadge(settings.enabled, "client_filter_blocked", details.tabId);
     return;
   }
 
@@ -2753,6 +2737,11 @@ async function clearIssueAfterSuccess(details) {
 
 async function initialize() {
   const existing = await chrome.storage.local.get(null);
+  if (existing.lastIssueType === "client_filter_blocked") {
+    const cleared = { lastIssueType: null, lastIssueDomain: null, lastIssueError: null, lastIssueAt: null };
+    await chrome.storage.local.set(cleared);
+    Object.assign(existing, cleared);
+  }
   const freshInstall = !Object.hasOwn(existing, "schemaVersion");
   debugEnabledCache = Boolean(existing.debugEnabled);
   if (existing.schemaVersion !== DEFAULT_SETTINGS.schemaVersion) {
@@ -2940,7 +2929,6 @@ chrome.webRequest.onCompleted.addListener(
     }
     updateTabMainHost(details.tabId, details.url);
     if (tabConnectionResults.get(details.tabId) !== "complete") tabConnectionResults.set(details.tabId, "success");
-    clientFilterCandidates.delete(details.tabId);
     cancelGatewayRetry(details.tabId, "main-completed", getRequestHost(details));
     cancelTabReload(
       details.tabId,
@@ -3000,6 +2988,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     tabRequestIssues.delete(details.tabId);
     tabNavigationEpochs.set(details.tabId, (tabNavigationEpochs.get(details.tabId) || 0) + 1);
     clientFilterCandidates.delete(details.tabId);
+    tabClientFilterHosts.delete(details.tabId);
     const retry = gatewayRetryStates.get(details.tabId);
     const nextHost = getRequestHost(details);
     if (retry && retry.host !== nextHost) cancelGatewayRetry(details.tabId, "navigation-changed");
@@ -3055,6 +3044,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabRoutedHosts.delete(tabId);
   tabRecoveryStates.delete(tabId);
   clientFilterCandidates.delete(tabId);
+  tabClientFilterHosts.delete(tabId);
   directRecoveryTrials.delete(tabId);
   cancelTabReload(tabId, "tab-removed");
   for (const [key, timer] of iframeRetryTimers) {
@@ -3097,22 +3087,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id
           )
         };
-      case "reloadTabBypassCache": {
-        const tabId = Number.isInteger(message.tabId) ? message.tabId : _sender.tab?.id;
-        if (!Number.isInteger(tabId) || tabId < 0) {
-          throw new Error(t("tabNotFound"));
-        }
-        await chrome.storage.local.set({
-          lastIssueType: null,
-          lastIssueDomain: null,
-          lastIssueError: null,
-          lastIssueAt: null,
-          lastGlobalCheck: null
-        });
-        await clearTabIssue(tabId);
-        await chrome.tabs.reload(tabId, { bypassCache: true });
-        return { ok: true };
-      }
       case "testNotification":
         return { ok: true, result: await sendTestNotification() };
       case "clearDebugLog":

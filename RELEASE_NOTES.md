@@ -1,3 +1,17 @@
+# Automatic Access 4.19.2
+
+[Chrome Web Store](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)
+
+- Repeated blocks of the same site resource no longer trigger a warning. When multiple distinct resources are blocked, a note appears in the affected tab’s popup without changing the toolbar badge.
+- Removed the cache-bypassing reload button from this diagnostic. The note explains that the page may still work.
+- No new permissions or Windows helper reinstall are required.
+
+### Türkçe
+
+- Aynı site kaynağının tekrar engellenmesi uyarı üretmez. Birden fazla farklı kaynak engellenirse yalnızca ilgili sekmenin eklenti panelinde bilgi gösterilir. Araç çubuğu simgesine soru işareti eklenmez.
+- Bu bildirimdeki önbelleksiz yenileme düğmesi kaldırıldı. Bilgi metni sayfanın çalışmaya devam edebileceğini açıklar.
+- Yeni izin veya Windows yardımcısını yeniden kurma gerekmiyor.
+
 # Automatic Access 4.19.1
 
 [Chrome Web Store](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)

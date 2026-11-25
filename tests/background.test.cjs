@@ -1024,47 +1024,35 @@ async function waitForDebugFlush() {
   assert.equal(storage.debugLog.filter((entry) =>
     entry.event === "request-error").length, requestErrorCountBeforeIgnored);
 
-  await listeners.requestError({
-    tabId: 42,
+  const filterPage = { tabId: 451, type: "main_frame", url: "https://app-shell.example/" };
+  await listeners.beforeRequest(filterPage);
+  await listeners.requestCompleted({ ...filterPage, statusCode: 200 });
+  const filterRequest = {
+    tabId: 451,
     type: "script",
     error: "net::ERR_BLOCKED_BY_CLIENT",
     url: "https://app-shell.example/assets/app.js",
     initiator: "https://app-shell.example/"
-  });
+  };
+  const badgeCountBeforeFilter = badgeTexts.length;
+  const reloadCountBeforeFilter = reloads.length;
+  await listeners.requestError(filterRequest);
+  await listeners.requestError({ ...filterRequest, url: filterRequest.url + "?retry=1" });
+  assert.equal((await send({ type: "getState", tabId: 451 })).state.clientFilterHost, null);
+  await listeners.requestError({ ...filterRequest, url: "https://app-shell.example/assets/other.js" });
+  assert.equal((await send({ type: "getState", tabId: 451 })).state.clientFilterHost, "app-shell.example");
+  assert.equal((await send({ type: "getState", tabId: 42 })).state.clientFilterHost, null);
   assert.notEqual(storage.lastIssueType, "client_filter_blocked");
-  await listeners.requestError({
-    tabId: 42,
-    type: "stylesheet",
-    error: "net::ERR_BLOCKED_BY_CLIENT",
-    url: "https://app-shell.example/assets/app.css",
-    initiator: "https://app-shell.example/"
-  });
-  assert.equal(storage.lastIssueType, "client_filter_blocked");
-  assert.equal(storage.lastIssueDomain, "app-shell.example");
   assert.deepEqual([...storage.learnedDomains], learnedBeforeResolutionError);
   await waitForDebugFlush();
   assert.equal(storage.debugLog.some((entry) =>
-    entry.event === "client-filter-blocked-critical" &&
-    entry.tabId === 42 && entry.requestType === "stylesheet"), true);
-  assertBadge(badgeTexts.at(-1), 42, "?");
-
-  await listeners.requestCompleted({
-    tabId: 42,
-    type: "main_frame",
-    statusCode: 200,
-    fromCache: true,
-    url: "https://app-shell.example/"
-  });
-  assert.equal(storage.lastIssueType, "client_filter_blocked");
-  assertBadge(badgeTexts.at(-1), 42, "?");
-
-  const reloadCountBeforeFilterRecovery = reloads.length;
-  const filterRecovery = await send({ type: "reloadTabBypassCache", tabId: 42 });
-  assert.equal(filterRecovery.ok, true);
-  assert.equal(storage.lastIssueType, null);
-  assert.equal(reloads.length, reloadCountBeforeFilterRecovery + 1);
-  assert.equal(reloads.at(-1).tabId, 42);
-  assert.equal(reloads.at(-1).options.bypassCache, true);
+    entry.event === "client-filter-resources-blocked" &&
+    entry.tabId === 451 && entry.requestType === "script"), true);
+  assert.equal(badgeTexts.slice(badgeCountBeforeFilter).some((badge) => badge.tabId === 451 && badge.text === "?"), false);
+  assert.equal(reloads.length, reloadCountBeforeFilter);
+  await listeners.beforeRequest(filterPage);
+  assert.equal((await send({ type: "getState", tabId: 451 })).state.clientFilterHost, null);
+  await listeners.requestCompleted({ ...filterPage, statusCode: 200 });
 
   await send({ type: "saveSettings", patch: { learnedDomains: [] } });
   await listeners.requestError({
@@ -1876,7 +1864,7 @@ async function waitForDebugFlush() {
     ],
     retryCooldowns: [["99:main:stale-cooldown.example", sessionNow - 300_000]],
     tabRecoveryStates: [["98", { mainHost: "expired.example", expiresAt: sessionNow - 1_000, rootReloadPending: false, settledReloads: 0 }]],
-    tabMainHosts: [], tabIssues: [], tabConnectionResults: [], tabRoutedHosts: [], clientFilterCandidates: []
+    tabMainHosts: [], tabIssues: [[451, "client_filter_blocked"]], tabConnectionResults: [], tabRoutedHosts: []
   };
   startWorker();
   await new Promise((resolve) => setTimeout(resolve, 400));
@@ -1890,6 +1878,7 @@ async function waitForDebugFlush() {
   );
   assert.deepEqual([...pruned.retryCooldowns], [], "an expired cooldown must not survive the restore");
   assert.deepEqual([...pruned.tabRecoveryStates], [], "an expired recovery window must not survive the restore");
+  assert.deepEqual([...pruned.tabIssues], [], "the old filter badge must not survive the restore");
 
   // A TLS-layer handshake failure is one of the signatures the extension exists
   // for, but it was the one retryable error with no entry in the threshold
