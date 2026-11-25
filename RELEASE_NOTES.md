@@ -1,3 +1,19 @@
+# Automatic Access 4.19.1
+
+[Chrome Web Store](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)
+
+- Store installations can check for extension updates from the popup using the browser. Unpacked installations keep a link to GitHub releases.
+- Known offline failures do not teach new proxy routes.
+- If an automatically learned HTTPS site fails through a proxy, the extension can recheck direct access and reload the failed tab after recovery. Manual and socket-specific routes remain protected.
+- Windows helper binaries are unchanged. No helper reinstall or new extension permission is required.
+
+### Türkçe
+
+- Mağaza kurulumlarında eklenti güncellemeleri açılır pencereden tarayıcıya sorulabilir. Elle kurulan kopyalarda GitHub sürümleri bağlantısı gösterilir.
+- Tarayıcı çevrimdışı olduğunu bildirirse yeni proxy rotası öğrenilmez.
+- Otomatik öğrenilen bir HTTPS sitesi proxy üzerinden açılmazsa eklenti doğrudan erişimi yeniden sınayabilir. Erişim doğrulanırsa sekme yeniden yüklenir. Elle eklenen ve WebSocket’e özgü rotalar korunur.
+- Windows yardımcısını yeniden kurmak gerekmez. Yeni eklenti izni eklenmedi.
+
 # Automatic Access 4.19.0 — Faster recovery and smart direct access
 
 [Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf)

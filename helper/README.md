@@ -1,6 +1,6 @@
 # Optional Windows ByeDPI helper
 
-Release package: 4.19.0. Native binaries are unchanged from 4.18.5; this extension release needs no helper reinstall.
+Release package: 4.19.1. Native binaries are unchanged from 4.18.5; this extension release needs no helper reinstall.
 
 The helper requires .NET Framework 4.6 or later. It is prepared for current Windows 10/11 runtimes; older runtimes have not been validated.
 

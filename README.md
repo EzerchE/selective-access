@@ -6,11 +6,11 @@ Automatic Access is a browser extension for Edge and Chrome. Choose a working pr
 
 [Install for Chrome](https://chromewebstore.google.com/detail/automatic-access/odfkihlhaeapopopacolhihdjdjbddeh) · [Install for Edge](https://microsoftedge.microsoft.com/addons/detail/inlkjdjejdkmegncbjbfdgibghpbkhpf) · [Manual installation](#manual-installation)
 
-Current version: **4.19.0** — stable. Faster first-failure recovery and bounded direct-access rechecks. See [release notes](RELEASE_NOTES.md).
+Current version: **4.19.1** — stable. Browser-native update checks and direct recovery when an automatic route fails. See [release notes](RELEASE_NOTES.md).
 
 LAN sharing stays enabled across host restarts. Its supervisor waits without listening while the original interface/address/subnet or Private firewall is unavailable, then resumes automatically when that same safe binding returns. Unsafe transitions close the listener and active sessions; OFF/uninstall removes the supervisor and cannot auto-resume. If the selected address changes permanently, select ON once to bind the new trusted address. Helper updates still start sharing OFF.
 
-Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.19.0.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
+Store preparation: [localized listing](STORE_LISTING.md), [application fields and data disclosures](STORE_SUBMISSION.md), [reviewer instructions](STORE_REVIEWER_GUIDE.md), and [verification/account steps](STORE_READINESS.md). The runtime upload is automatic-access-4.19.1.zip; the helper and store-materials ZIPs are separate. Preparing these files is not a store submission or approval.
 
 <img src="assets/store/screenshot-routing.png" alt="Automatic Access base interface: selective routing and proxy setup" width="620">
 
@@ -101,7 +101,7 @@ Everything outside that daily loop sits in a single collapsed **Advanced** secti
 
 On a fresh installation the extension switch is on, but routing and automatic learning remain safely idle until the user explicitly selects either the bundled local gateway or a custom proxy. A one-time setup tab and a browser notification make this requirement visible without requiring the user to discover the popup. The setup screen and Advanced settings distinguish an unconfigured proxy, a running bundled gateway, a missing/stopped bundled gateway, a saved custom proxy, and a Chrome proxy-control conflict. A successful local health check explicitly says setup is complete and offers to close the tab; install and removal instructions remain visible beside the bundled option. Custom endpoints are honestly marked as saved but verified only by their first routed connection. If onboarding is dismissed, the first meaningful main-page connection failure shows one more setup reminder; subsequent reminders are limited by a six-hour cooldown.
 
-The footer links to the source repository and latest GitHub release. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
+The footer links to the source repository. Store installations can check for updates through the browser; unpacked installations link to GitHub releases. A built-in **Reload extension** action recovers an unpacked update when Chrome briefly keeps an older service worker, without removing the extension or losing its local lists.
 
 The popup follows the browser light or dark theme. Every control draws a keyboard focus ring, the on/off switch carries an accessible name, and status messages are announced through a live region.
 

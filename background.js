@@ -217,10 +217,13 @@ const AUTO_ROUTE_RECOVERY_GRACE_MS = 60_000;
 const MAIN_ROUTE_RELOAD_DELAY_MS = 0;
 const MAIN_DIRECT_PROBE_TIMEOUT_MS = 1_000;
 const AUTO_DIRECT_RECHECK_INTERVAL_MS = 15 * 60_000;
+const FAILED_ROUTE_DIRECT_CHECK_INTERVAL_MS = 4_000;
+const FAILED_ROUTE_DIRECT_RETRY_MS = 6_000;
 const AUTO_DIRECT_RECHECK_TIMEOUT_MS = 800;
 const AUTO_DIRECT_RECHECK_LEASE_MS = 3_000;
 const automaticDirectChecks = new Map();
 const automaticRecheckCandidates = new Map();
+const failedRouteRetryTimers = new Map();
 const observedSocketFamilies = new Set();
 let automaticDirectCheckBusy = false;
 let userSettingsRevision = 0;
@@ -919,7 +922,7 @@ async function refreshTabBadge(tabId) {
   else await setConnectionBadge(connectionStateForTab(settings, tabId), tabId);
 }
 
-async function applyProxy() {
+async function applyProxy({ preserveProxyError = false } = {}) {
   const settings = await getSettings();
 
   if (!settings.enabled || !hasConfiguredProxy(settings) || settings.learnedDomains.length === 0) {
@@ -945,12 +948,12 @@ async function applyProxy() {
   };
 
   await chrome.proxy.settings.set({ value: config, scope: "regular" });
-  await chrome.storage.local.set({ lastProxyError: null });
-  await refreshTrackedBadges({ ...settings, lastProxyError: null });
+  if (!preserveProxyError) await chrome.storage.local.set({ lastProxyError: null });
+  await refreshTrackedBadges({ ...settings, lastProxyError: preserveProxyError ? settings.lastProxyError : null });
   return { ok: true, enabled: true };
 }
 
-async function saveSettingsUnlocked(patch) {
+async function saveSettingsUnlocked(patch, { preserveProxyError = false } = {}) {
   const current = await getSettings();
   const ignoredDomains = patch.ignoredDomains === undefined
     ? current.ignoredDomains
@@ -994,7 +997,7 @@ async function saveSettingsUnlocked(patch) {
       ? null
       : current.lastDetectedDomain,
     lastDetectedAt: current.lastDetectedAt,
-    lastProxyError: null,
+    lastProxyError: preserveProxyError ? current.lastProxyError : null,
     lastIssueType: current.lastIssueType,
     lastIssueDomain: current.lastIssueDomain,
     lastIssueError: current.lastIssueError,
@@ -1018,7 +1021,7 @@ async function saveSettingsUnlocked(patch) {
     }
   }
   await chrome.storage.local.set(next);
-  const result = await applyProxy();
+  const result = await applyProxy({ preserveProxyError });
   if (hasConfiguredProxy(next)) {
     await chrome.notifications.clear(PROXY_SETUP_NOTIFICATION_ID).catch(() => {});
   }
@@ -1071,6 +1074,10 @@ function matchingError(details, candidates) {
 
 function matchingGatewayConnectionError(details) {
   return matchingError(details, GATEWAY_CONNECTION_ERRORS);
+}
+
+function browserOffline() {
+  return globalThis.navigator?.onLine === false;
 }
 
 async function localGatewayAvailable() {
@@ -1199,7 +1206,9 @@ function releaseProbeSlot() {
   activeProbeCount = Math.max(0, activeProbeCount - 1);
 }
 
-async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS, requireSuccess = false) {
+async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS, {
+  requireSuccess = false, allowRedirect = false
+} = {}) {
   await acquireProbeSlot();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1213,7 +1222,9 @@ async function runDirectProbe(probeUrl, timeoutMs = DIRECT_PROBE_TIMEOUT_MS, req
       signal: controller.signal
     });
     controller.abort();
-    return requireSuccess ? response.status >= 200 && response.status < 300 : Boolean(response);
+    if (!requireSuccess) return Boolean(response);
+    return (response.status >= 200 && response.status < 300) ||
+      (allowRedirect && response.type === "opaqueredirect");
   } catch {
     return false;
   } finally {
@@ -1253,15 +1264,17 @@ function directRequestResponds(url, timeoutMs = DIRECT_PROBE_TIMEOUT_MS) {
 }
 
 // HTTP-root checks can validate document routes, not socket-only routes.
-function hasFamilyRequestIssues(family) {
+function hasFamilyRequestIssues(family, allowMainFailure = false) {
   return [...tabRequestIssues.values()].some(issues =>
-    issues.some(issue => routeFamily(issue.host) === family));
+    issues.some(issue => routeFamily(issue.host) === family &&
+      (!allowMainFailure || issue.requestType !== "main_frame")));
 }
-async function maybeRecheckAutomaticDirectRoute(details) {
+async function maybeRecheckAutomaticDirectRoute(details, afterRouteFailure = false) {
   const revision = userSettingsRevision;
   if (automaticDirectCheckBusy || activeProbeCount > 0 || details.tabId < 0 ||
-      details.type !== "main_frame" || details.fromCache ||
-      !Number.isInteger(details.statusCode) || details.statusCode < 200 || details.statusCode >= 300) return false;
+      browserOffline() || details.type !== "main_frame" ||
+      (!afterRouteFailure && (details.fromCache || !Number.isInteger(details.statusCode) ||
+        details.statusCode < 200 || details.statusCode >= 300))) return false;
   let root;
   try { root = sanitizedProbeUrl(details.url); } catch { return false; }
   if (!root.startsWith("https://")) return false;
@@ -1269,11 +1282,15 @@ async function maybeRecheckAutomaticDirectRoute(details) {
   const family = routeFamily(host);
   const origin = await autoRouteOrigin(host);
   const now = Date.now();
+  const lastFailureCheck = origin?.failedDirectChecks?.[host];
+  const tooSoon = afterRouteFailure
+    ? now - Number(lastFailureCheck || 0) < FAILED_ROUTE_DIRECT_CHECK_INTERVAL_MS
+    : now - Math.max(Number(origin?.learnedAt || 0), Number(origin?.lastDirectCheckAt || 0)) < AUTO_DIRECT_RECHECK_INTERVAL_MS;
   if (!origin || !Number.isFinite(origin.learnedAt) || origin.learnedAt <= 0 ||
       origin.requestType !== "main_frame" || origin.usesWebSocket || observedSocketFamilies.has(family) ||
-      now - Math.max(Number(origin.learnedAt || 0), Number(origin.lastDirectCheckAt || 0)) < AUTO_DIRECT_RECHECK_INTERVAL_MS) return false;
+      tooSoon) return false;
   // Do not treat an HTTP root as recovery evidence for a failing dependency.
-  if (hasFamilyRequestIssues(family)) return false;
+  if (hasFamilyRequestIssues(family, afterRouteFailure)) return false;
   if (automaticDirectCheckBusy) return false;
   automaticDirectCheckBusy = true;
   const sameOrigin = value => value?.learnedAt === origin.learnedAt && value?.requestType === origin.requestType &&
@@ -1283,7 +1300,9 @@ async function maybeRecheckAutomaticDirectRoute(details) {
     await queueRouteHealth(async () => {
       const origins = await readAutoRouteOrigins();
       if (!sameOrigin(origins[family])) return;
-      origins[family] = { ...origins[family], lastDirectCheckAt: now };
+      origins[family] = afterRouteFailure
+        ? { ...origins[family], failedDirectChecks: { ...origins[family].failedDirectChecks, [host]: now } }
+        : { ...origins[family], lastDirectCheckAt: now };
       await chrome.storage.local.set({ [AUTO_ROUTE_ORIGINS_KEY]: origins });
     });
     const installed = await queueSettingsMutation(async () => {
@@ -1292,12 +1311,15 @@ async function maybeRecheckAutomaticDirectRoute(details) {
           !isLearned(host, settings.learnedDomains) || !sameOrigin(await autoRouteOrigin(host))) return false;
       check = { expiresAt: Date.now() + AUTO_DIRECT_RECHECK_LEASE_MS, revision };
       automaticDirectChecks.set(host, check);
-      return (await applyProxy()).ok;
+      return (await applyProxy({ preserveProxyError: afterRouteFailure })).ok;
     });
     if (!installed || Date.now() >= check.expiresAt) return false;
-    const first = await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, true);
+    // A failed route can rely on a normal HTTPS redirect from this origin.
+    // The probe never follows it; the reloaded browser tab handles navigation.
+    const probeOptions = { requireSuccess: true, allowRedirect: afterRouteFailure };
+    const first = await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, probeOptions);
     const second = first && Date.now() < check.expiresAt && revision === userSettingsRevision &&
-      await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, true);
+      await runDirectProbe(root, AUTO_DIRECT_RECHECK_TIMEOUT_MS, probeOptions);
     if (!second || Date.now() >= check.expiresAt || revision !== userSettingsRevision) {
       await appendDebug("automatic-direct-check", { host, reachable: false, decision: "keep-route" });
       return false;
@@ -1306,9 +1328,13 @@ async function maybeRecheckAutomaticDirectRoute(details) {
       const settings = await getSettings();
       const currentOrigin = await autoRouteOrigin(host);
       if (revision !== userSettingsRevision || !settings.enabled || Date.now() >= check.expiresAt ||
-          hasFamilyRequestIssues(family) || !sameOrigin(currentOrigin) || !isLearned(host, settings.learnedDomains)) return false;
+          hasFamilyRequestIssues(family, afterRouteFailure) || !sameOrigin(currentOrigin) ||
+          !isLearned(host, settings.learnedDomains)) return false;
       automaticDirectChecks.delete(host);
-      await saveSettingsUnlocked({ learnedDomains: settings.learnedDomains.filter(domain => domain !== host) });
+      await saveSettingsUnlocked(
+        { learnedDomains: settings.learnedDomains.filter(domain => domain !== host) },
+        { preserveProxyError: afterRouteFailure }
+      );
       return true;
     });
     if (removed) {
@@ -1327,10 +1353,53 @@ async function maybeRecheckAutomaticDirectRoute(details) {
     try {
       await queueSettingsMutation(async () => {
         if (automaticDirectChecks.get(host) === check) automaticDirectChecks.delete(host);
-        await applyProxy();
+        await applyProxy({ preserveProxyError: afterRouteFailure });
       });
     } finally { automaticDirectCheckBusy = false; }
   }
+}
+
+async function recoverFailedAutomaticRoute(details, host, retryIfNeeded = false) {
+  if (details.type !== "main_frame") return false;
+  const tabId = details.tabId;
+  const navigation = details.navigation;
+  const revision = userSettingsRevision;
+  const tabStillFailed = () => navigation === tabNavigationEpochs.get(tabId) &&
+    tabMainHosts.get(tabId) === host && tabConnectionResults.get(tabId) === "failed" &&
+    revision === userSettingsRevision;
+  const disconnected = retryIfNeeded &&
+    (details.offlineAtFailure || details.error === "net::ERR_INTERNET_DISCONNECTED");
+  if (!tabStillFailed() || disconnected || !await maybeRecheckAutomaticDirectRoute(details, true)) {
+    if (retryIfNeeded && tabStillFailed() && !failedRouteRetryTimers.has(tabId)) {
+      const origin = await autoRouteOrigin(host);
+      if (!tabStillFailed() || failedRouteRetryTimers.has(tabId) ||
+          origin?.requestType !== "main_frame" || origin.usesWebSocket ||
+          observedSocketFamilies.has(routeFamily(host))) return false;
+      const timer = setTimeout(() => {
+        failedRouteRetryTimers.delete(tabId);
+        if (tabStillFailed()) {
+          enqueueHostTask(details, () => recoverFailedAutomaticRoute(details, host));
+        }
+      }, FAILED_ROUTE_DIRECT_RETRY_MS);
+      if (typeof timer?.unref === "function") timer.unref();
+      failedRouteRetryTimers.set(tabId, timer);
+    }
+    return false;
+  }
+  if (!tabStillFailed()) return true;
+  cancelGatewayRetry(tabId, "direct-access-restored", host);
+  await clearTabIssue(tabId);
+  const settings = await getSettings();
+  if (settings.lastIssueDomain === host) {
+    await chrome.storage.local.set({
+      lastIssueType: null,
+      lastIssueDomain: null,
+      lastIssueError: null,
+      lastIssueAt: null
+    });
+  }
+  if (tabStillFailed()) await chrome.tabs.reload(tabId, { bypassCache: true });
+  return true;
 }
 
 function enqueueHostTask(details, task) {
@@ -1549,6 +1618,7 @@ async function recoverTransientGatewayFailure(details) {
 
   const settings = await getSettings();
   if (!settings.enabled || !isLearned(host, settings.learnedDomains)) return false;
+  if (await recoverFailedAutomaticRoute(details, host, true)) return true;
   // A proxy socket failure is evidence about the proxy, not the destination.
   // Arbitrary proxies have no generic health URL; unknown must stay unknown.
   const gatewayAvailable = error === "ERR_PROXY_CONNECTION_FAILED"
@@ -2192,7 +2262,7 @@ function pruneUnverifiedRoutes(now = Date.now()) {
 function commitLearnedRoute(host, details, error) {
   return queueSettingsMutation(async () => {
     const latest = await getSettings();
-    if (!latest.enabled || isLocalHost(host) || isCovered(host, latest.ignoredDomains)) {
+    if (!latest.enabled || browserOffline() || isLocalHost(host) || isCovered(host, latest.ignoredDomains)) {
       return { added: false, skipped: true, learnedDomains: latest.learnedDomains };
     }
     if (isLearned(host, latest.learnedDomains)) {
@@ -2246,7 +2316,7 @@ async function reportGenericMainFrameFailure(details, settings) {
 }
 
 async function learnAndRetry(details) {
-  if (!isRetryableError(details)) return;
+  if (browserOffline() || !isRetryableError(details)) return;
 
   // The candidate counters and the reload cooldown decide this whole function,
   // and after a worker restart they live in session storage until this settles.
@@ -2318,6 +2388,8 @@ async function learnAndRetry(details) {
     const matchesAutomaticEvidence = origin?.requestType === details.type;
     if (matchesAutomaticEvidence) {
       const recoveryCandidate = registerDetectionCandidate(host, details, error);
+      if (settings.proxyMode === "custom" && recoveryCandidate.ready &&
+          await recoverFailedAutomaticRoute(details, host, true)) return;
       if (recoveryCandidate.ready && await selectedProxyAvailable(settings) &&
           await startAutoDirectRecovery(details, host, settings)) {
         return;
@@ -2778,7 +2850,12 @@ chrome.webRequest.onErrorOccurred.addListener(
     const observation = requestRouteObservations.get(details.requestId);
     requestRouteObservations.delete(details.requestId);
     if (observation && observation.navigation !== tabNavigationEpochs.get(details.tabId)) return;
-    details = { ...details, failureSequence: ++requestSequence };
+    details = {
+      ...details,
+      failureSequence: ++requestSequence,
+      navigation: tabNavigationEpochs.get(details.tabId),
+      offlineAtFailure: browserOffline()
+    };
     if (observation && observation.host === getRequestHost(details)) details = { ...details, startedRouted: observation.routed };
     if (details.tabId < 0) return;
     if (details.type === "main_frame" && !NON_ACTIONABLE_REQUEST_ERRORS.has(String(details.error || ""))) {
@@ -2802,6 +2879,17 @@ chrome.webRequest.onErrorOccurred.addListener(
     });
     return enqueueHostTask(details, async () => {
       if (await settleDirectRecoveryFailure(details)) return;
+      if (details.offlineAtFailure || browserOffline() || details.error === "net::ERR_INTERNET_DISCONNECTED") {
+        if (details.type === "main_frame") {
+          detectionCandidates.delete(`main:${host}`);
+          cancelGatewayRetry(details.tabId, "browser-offline");
+          cancelTabReload(details.tabId, "browser-offline");
+          if (host && routingSnapshot.enabled && isLearned(host, routingSnapshot.learnedDomains)) {
+            await recoverFailedAutomaticRoute(details, host, true);
+          }
+        }
+        return;
+      }
       if (await recoverTransientGatewayFailure(details)) return;
       if (details.type === "main_frame") {
         const settings = await getSettings();
@@ -2907,6 +2995,8 @@ chrome.webRequest.onBeforeRequest.addListener(
       return;
     }
     automaticRecheckCandidates.delete(details.tabId);
+    clearTimeout(failedRouteRetryTimers.get(details.tabId));
+    failedRouteRetryTimers.delete(details.tabId);
     tabRequestIssues.delete(details.tabId);
     tabNavigationEpochs.set(details.tabId, (tabNavigationEpochs.get(details.tabId) || 0) + 1);
     clientFilterCandidates.delete(details.tabId);
@@ -2951,6 +3041,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   automaticRecheckCandidates.delete(tabId);
+  clearTimeout(failedRouteRetryTimers.get(tabId));
+  failedRouteRetryTimers.delete(tabId);
   cancelGatewayRetry(tabId, "tab-removed");
   cancelSlowLoadWatchdog(tabId);
   tabIssues.delete(tabId);

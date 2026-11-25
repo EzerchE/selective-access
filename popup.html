@@ -148,12 +148,15 @@
     <footer class="foot">
       <nav class="project-links" aria-label="Project links" data-i18n-aria-label="projectLinks">
         <a href="https://github.com/EzerchE/selective-access" target="_blank" rel="noopener noreferrer" data-i18n="sourceCode">GitHub</a>
-        <a href="https://github.com/EzerchE/selective-access/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="checkUpdates">Check updates</a>
+        <a id="githubUpdates" href="https://github.com/EzerchE/selective-access/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="githubUpdates">GitHub releases</a>
+        <button id="checkUpdates" type="button" data-i18n="checkUpdates" hidden>Check updates</button>
+        <button id="applyUpdate" type="button" data-i18n="applyUpdate" hidden>Apply update</button>
       </nav>
       <a class="support" href="https://buymeacoffee.com/ezerche" target="_blank" rel="noopener noreferrer">
         <span class="cup" aria-hidden="true">☕</span>
         <span data-i18n="supportButton">Buy me a coffee</span>
       </a>
+      <div id="updateStatus" class="update-status" role="status" aria-live="polite"></div>
     </footer>
     <script src="popup-preview.js"></script>
     <script src="i18n.js"></script>
